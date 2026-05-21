@@ -9,6 +9,7 @@ function makePlane(id: number, x: number, y: number, faction: 'player' | 'enemy'
     kinematic: {
       position: { x, y }, velocity: { x: 0, y: 0 },
       heading: 0, throttleOn: true,
+      g: 1200, f: 0, facing: 3, turnCdSec: 0, throttle: true, rotateAccumulator: 0,
     },
     hp, maxHp: hp,
     weaponCooldown: 0, alive: true,

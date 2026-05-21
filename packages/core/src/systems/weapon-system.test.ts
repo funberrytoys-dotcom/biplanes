@@ -12,6 +12,7 @@ function makePlayer(): Plane {
       velocity: { x: 0, y: 0 },
       heading: 0,
       throttleOn: true,
+      g: 1200, f: 0, facing: 3, turnCdSec: 0, throttle: true, rotateAccumulator: 0,
     },
     hp: 100,
     maxHp: 100,

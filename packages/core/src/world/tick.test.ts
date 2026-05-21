@@ -9,9 +9,10 @@ function makePlayer() {
     faction: 'player' as const,
     kinematic: {
       position: { x: 500, y: 500 },
-      velocity: { x: 200, y: 0 },
+      velocity: { x: 1200, y: 0 },
       heading: 0,
       throttleOn: true,
+      g: 1200, f: 0, facing: 3 as const, turnCdSec: 0, throttle: true, rotateAccumulator: 0,
     },
     hp: PLANE_INITIAL_HP,
     maxHp: PLANE_INITIAL_HP,

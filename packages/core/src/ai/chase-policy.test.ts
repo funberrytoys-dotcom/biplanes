@@ -11,6 +11,7 @@ function makePlane(x: number, y: number, heading: number): Plane {
       velocity: { x: 200, y: 0 },
       heading,
       throttleOn: true,
+      g: 1200, f: 0, facing: 3, turnCdSec: 0, throttle: true, rotateAccumulator: 0,
     },
     hp: 30,
     maxHp: 30,

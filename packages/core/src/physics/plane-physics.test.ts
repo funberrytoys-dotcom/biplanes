@@ -1,84 +1,77 @@
 import { describe, it, expect } from 'vitest';
 import { stepPlane, isStalling, type PlaneKinematic } from './plane-physics.js';
-import { TICK_DT, PLANE_GRAVITY, GROUND_Y } from '@biplanes/shared';
+import { TICK_DT, G_MAX_LEVEL, G_STALL, GROUND_Y } from '@biplanes/shared';
 
 function makePlane(overrides: Partial<PlaneKinematic> = {}): PlaneKinematic {
   return {
     position: { x: 1000, y: 500 },
-    velocity: { x: 200, y: 0 },
-    heading: 0,
+    velocity: { x: 1200, y: 0 },
+    heading: 0, // screen-radians
     throttleOn: true,
+    g: 1200,       // px/sec, near level cruise
+    f: 0,          // facing forward (BT heading per facing)
+    facing: 3,     // right
+    turnCdSec: 0,
+    throttle: true,
+    rotateAccumulator: 0,
     ...overrides,
   };
 }
 
-describe('plane-physics', () => {
-  it('gravity pulls plane down when no thrust and level', () => {
-    const p = makePlane({ velocity: { x: 0, y: 0 }, throttleOn: false });
+describe('plane-physics (BT model)', () => {
+  it('plane facing right at level cruise moves rightward', () => {
+    const p = makePlane({ f: 0, facing: 3, g: 1200 });
     const after = stepPlane(p, { rotate: 0 }, TICK_DT);
-    expect(after.velocity.y).toBeGreaterThan(0);
-    expect(after.velocity.y).toBeCloseTo(PLANE_GRAVITY * TICK_DT, 2);
+    expect(after.position.x).toBeGreaterThan(p.position.x);
+    expect(Math.abs(after.position.y - p.position.y)).toBeLessThan(5); // roughly level
   });
 
-  it('thrust accelerates plane in heading direction', () => {
-    const p = makePlane({ velocity: { x: 0, y: 0 }, heading: 0, throttleOn: true });
+  it('rotate input (with cooldown 0) advances frame by 1', () => {
+    const p = makePlane({ f: 0, facing: 3, turnCdSec: 0 });
+    const after = stepPlane(p, { rotate: -1 }, TICK_DT);
+    // facing right, rotate=-1 => stepDir = +1 => f++ (toward up via f=4)
+    expect(after.f).toBe(1);
+    expect(after.turnCdSec).toBeGreaterThan(0);
+  });
+
+  it('rotate input ignored when cooldown > 0', () => {
+    const p = makePlane({ f: 5, facing: 3, turnCdSec: 0.05 });
+    const after = stepPlane(p, { rotate: 1 }, TICK_DT);
+    expect(after.f).toBe(5);
+  });
+
+  it('throttle adds speed when pitch is horizontal', () => {
+    const p = makePlane({ f: 0, facing: 3, g: 800, throttle: true });
     const after = stepPlane(p, { rotate: 0 }, TICK_DT);
-    expect(after.velocity.x).toBeGreaterThan(0);
+    expect(after.g).toBeGreaterThan(p.g);
   });
 
-  it('rotate input changes heading', () => {
-    const p = makePlane({ heading: 0 });
-    const ccw = stepPlane(p, { rotate: -1 }, TICK_DT);
-    const cw = stepPlane(p, { rotate: 1 }, TICK_DT);
-    expect(ccw.heading).toBeLessThan(0);
-    expect(cw.heading).toBeGreaterThan(0);
+  it('climbing (f=4) bleeds speed over time', () => {
+    let s = makePlane({ f: 4, facing: 3, g: G_MAX_LEVEL, throttle: false });
+    for (let i = 0; i < 30; i++) s = stepPlane(s, { rotate: 0 }, TICK_DT);
+    expect(s.g).toBeLessThan(G_MAX_LEVEL);
   });
 
-  it('position advances by velocity', () => {
-    const p = makePlane({ velocity: { x: 100, y: 50 }, throttleOn: false });
-    const after = stepPlane(p, { rotate: 0 }, TICK_DT);
-    expect(after.position.x).toBeCloseTo(1000 + 100 * TICK_DT, 1);
-    // y is affected by gravity too, so just check positive
-    expect(after.position.y).toBeGreaterThan(500);
+  it('diving (f=12) builds speed beyond level max', () => {
+    let s = makePlane({ f: 12, facing: 3, g: G_MAX_LEVEL, throttle: false });
+    for (let i = 0; i < 60; i++) s = stepPlane(s, { rotate: 0 }, TICK_DT);
+    expect(s.g).toBeGreaterThan(G_MAX_LEVEL);
   });
 
-  it('isStalling returns true when nose far above velocity vector AND slow', () => {
-    const p = makePlane({
-      heading: -Math.PI / 2 + 0.05, // pointing nearly straight up
-      velocity: { x: 30, y: -20 },  // slow climb
-    });
-    expect(isStalling(p)).toBe(true);
+  it('stall: g < G_STALL pulls plane downward in position even when nose is up', () => {
+    let s = makePlane({ f: 4, facing: 3, g: 100, throttle: false }); // nose-up but slow
+    const before = s.position.y;
+    s = stepPlane(s, { rotate: 0 }, TICK_DT);
+    expect(s.position.y).toBeGreaterThan(before); // y increased = moved down
   });
 
-  it('isStalling returns false when fast and aligned', () => {
-    const p = makePlane({
-      heading: 0,
-      velocity: { x: 400, y: 0 },
-    });
-    expect(isStalling(p)).toBe(false);
+  it('isStalling true when g < G_STALL', () => {
+    expect(isStalling(makePlane({ g: 500 }))).toBe(true);
+    expect(isStalling(makePlane({ g: 1200 }))).toBe(false);
   });
 
-  it('during stall, gravity dominates even with throttle', () => {
-    // Plane pointing straight up but barely moving — should fall.
-    const p = makePlane({
-      heading: -Math.PI / 2,
-      velocity: { x: 0, y: -10 },
-      throttleOn: true,
-    });
-    // Simulate one second
-    let s = p;
-    for (let i = 0; i < 60; i++) {
-      s = stepPlane(s, { rotate: 0 }, TICK_DT);
-    }
-    expect(s.velocity.y).toBeGreaterThan(50); // falling, not climbing
-  });
-
-  it('plane never goes below ground', () => {
-    const p = makePlane({
-      position: { x: 1000, y: GROUND_Y - 5 },
-      velocity: { x: 0, y: 500 },
-      throttleOn: false,
-    });
+  it('plane clamps to ground', () => {
+    const p = makePlane({ position: { x: 1000, y: GROUND_Y - 5 }, f: 12, facing: 3, g: 1500 });
     const after = stepPlane(p, { rotate: 0 }, TICK_DT);
     expect(after.position.y).toBeLessThanOrEqual(GROUND_Y);
   });
@@ -88,5 +81,12 @@ describe('plane-physics', () => {
     const a = stepPlane(p, { rotate: 1 }, TICK_DT);
     const b = stepPlane(p, { rotate: 1 }, TICK_DT);
     expect(a).toEqual(b);
+  });
+
+  it('throttle pitch-modulated: vertical nose gives near-zero thrust', () => {
+    const p = makePlane({ f: 4, facing: 3, g: 800, throttle: true }); // nose UP -> sin(0°)=0 -> no thrust
+    const after = stepPlane(p, { rotate: 0 }, TICK_DT);
+    // g should NOT increase from thrust (it may decrease from bleed)
+    expect(after.g).toBeLessThanOrEqual(p.g);
   });
 });
