@@ -3,6 +3,8 @@ import { XP_PICKUP_MAGNET_RANGE } from '@biplanes/shared';
 import type { Plane } from '../entities/plane.js';
 import type { Bullet } from '../entities/bullet.js';
 import type { Pilot } from '../entities/pilot.js';
+import type { Difficulty } from '../ai/difficulty.js';
+import type { AiState } from '../ai/chase-policy.js';
 
 export interface WorldState {
   timeSec: number;          // wall clock since run started
@@ -34,6 +36,16 @@ export interface WorldState {
   hasDrone: boolean;                // future flag for drone companion
 
   gameOver: boolean;
+
+  // === AI difficulty ===
+  difficulty: Difficulty;
+  // NOTE: These maps are mutated in-place during tick() for prototype-grade
+  // simplicity. AI state is not in the determinism-critical path (it's an
+  // implementation detail of enemy behavior), so we trade strict immutability
+  // for less allocation churn. If we ever want full determinism on AI, switch
+  // to immutable Map.set() rebuild here.
+  enemyAiStates: Map<number, AiState>;   // enemyId -> state
+  prevEnemyHp: Map<number, number>;      // for hit detection
 }
 
 export function createWorldState(seed: number, player: Plane): WorldState {
@@ -58,5 +70,8 @@ export function createWorldState(seed: number, player: Plane): WorldState {
     xpMagnetRange: XP_PICKUP_MAGNET_RANGE,
     hasDrone: false,
     gameOver: false,
+    difficulty: 'medium',
+    enemyAiStates: new Map(),
+    prevEnemyHp: new Map(),
   };
 }

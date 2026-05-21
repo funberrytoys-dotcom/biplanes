@@ -18,7 +18,8 @@ import { stepPlane, stepPlaneTaxi } from '../physics/plane-physics.js';
 import { stepPilotParachute, stepPilotWalking, stepPilotDead } from '../physics/pilot-physics.js';
 import { firePlayerWeapon, stepBullets } from '../systems/weapon-system.js';
 import { resolveBulletPlaneHits } from '../systems/collision-system.js';
-import { chasePolicy } from '../ai/chase-policy.js';
+import { aiCommand, createAiState } from '../ai/chase-policy.js';
+import { DIFFICULTIES } from '../ai/difficulty.js';
 import type { Plane } from '../entities/plane.js';
 import type { Pilot } from '../entities/pilot.js';
 import type { WorldState } from './world-state.js';
@@ -234,6 +235,9 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
   }
 
   // 6. Enemy AI + physics + weapons + fire-burn
+  const params = DIFFICULTIES[state.difficulty];
+  // NOTE: We mutate state.enemyAiStates and state.prevEnemyHp in place. See
+  // world-state.ts for rationale (AI state is not on the determinism path).
   let enemies = state.enemies.map(e => {
     if (e.state === 'crashed') {
       const nextTimer = e.respawnTimer - TICK_DT;
@@ -241,10 +245,21 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     }
 
     const taxiPitchUp: -1 | 0 | 1 = e.kinematic.facing === 1 ? -1 : 1;
-    const cmd: PlayerCommand =
-      e.state === 'taxi'
-        ? { rotate: taxiPitchUp, fire: false, bomb: false, throttleDelta: 0, eject: false }
-        : chasePolicy(e, player);
+    let cmd: PlayerCommand;
+    if (e.state === 'taxi') {
+      cmd = { rotate: taxiPitchUp, fire: false, bomb: false, throttleDelta: 0, eject: false };
+    } else {
+      let aiState = state.enemyAiStates.get(e.id);
+      if (!aiState) {
+        aiState = createAiState(e.id);
+        state.enemyAiStates.set(e.id, aiState);
+      }
+      const prevHp = state.prevEnemyHp.get(e.id) ?? e.hp;
+      const result = aiCommand(e, player, params, aiState, prevHp, TICK_DT, state.timeSec);
+      cmd = result.cmd;
+      state.enemyAiStates.set(e.id, result.aiState);
+    }
+    state.prevEnemyHp.set(e.id, e.hp);
 
     let stepped = stepPlaneByState(e, { rotate: cmd.rotate }, TICK_DT);
     stepped = applyFireBurn(stepped, TICK_DT);
@@ -312,6 +327,11 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
   }
 
   // 9. Drop fully-expired crashed enemies (timer ≤ 0), then ensure one enemy exists.
+  const droppedEnemies = enemies.filter(e => (e.state === 'crashed' && e.respawnTimer <= 0));
+  for (const e of droppedEnemies) {
+    state.enemyAiStates.delete(e.id);
+    state.prevEnemyHp.delete(e.id);
+  }
   enemies = enemies.filter(e => !(e.state === 'crashed' && e.respawnTimer <= 0));
 
   const livingEnemyCount = enemies.length;
