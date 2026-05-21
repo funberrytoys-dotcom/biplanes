@@ -37,3 +37,16 @@ export const TAKEOFF_LIFTOFF_PITCH = 0.2;     // radians of nose-up required to 
 export const TAKEOFF_ROLL_ACCEL = 500;        // px/sec² ground roll acceleration (~1.0s to liftoff speed)
 export const CRASH_VY_THRESHOLD = 60;         // px/sec downward velocity needed to crash
 
+// === Damage progression (smoke / fire / explosion) ===
+export const SMOKE_THRESHOLD = 0.5;            // fraction of maxHp at/below which smoke trail starts
+export const FIRE_THRESHOLD = 0.25;            // fraction of maxHp at/below which fire starts
+export const FIRE_BURN_RATE = 4;               // HP/sec extra decay while on fire
+
+// === Pilot / parachute / hangar ===
+export const PARACHUTE_FALL_SPEED = 80;        // px/sec downward
+export const PARACHUTE_DRIFT_SPEED = 40;       // px/sec horizontal when steering
+export const PILOT_WALK_SPEED = 100;           // px/sec walking on ground
+export const PILOT_HANGAR_ARRIVAL_DIST = 50;   // distance to RUNWAY_X that counts as "safe"
+export const PILOT_DEATH_DURATION = 2.0;       // sec on ground before pilot is cleaned up
+export const PLANE_RESPAWN_AFTER_PILOT_DEATH = 5.0; // total sec since eject for plane respawn after pilot death
+

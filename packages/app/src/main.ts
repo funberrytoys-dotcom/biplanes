@@ -17,9 +17,11 @@ import {
   createPixiApp,
   createSkyBackground,
   createPlaneSprite,
+  createPilotSprite,
   BulletPool,
   createCamera,
   createHud,
+  DamageFx,
 } from '@biplanes/render';
 import {
   createKeyboardController,
@@ -46,8 +48,6 @@ function makePlayer(): Plane {
 export async function startGame(container: HTMLElement) {
   const app = await createPixiApp(container);
 
-  // World layer holds the 1920×1080 logical playfield.
-  // We scale + letterbox it to fit the canvas so the game looks correct on any aspect ratio.
   const worldLayer = new Container();
   app.stage.addChild(worldLayer);
 
@@ -56,18 +56,23 @@ export async function startGame(container: HTMLElement) {
 
   const bulletLayer = new Container();
   const planeLayer = new Container();
-  worldLayer.addChild(bulletLayer, planeLayer);
+  const fxLayer = new Container();
+  worldLayer.addChild(bulletLayer, fxLayer, planeLayer);
 
   const bullets = new BulletPool(bulletLayer);
+  const damageFx = new DamageFx(fxLayer);
   const playerSprite = createPlaneSprite('player');
   planeLayer.addChild(playerSprite.container);
 
   const enemySprites = new Map<number, ReturnType<typeof createPlaneSprite>>();
 
-  // Camera is kept for shake only — no follow.
+  // Pilot sprite — single instance, shown only when state.pilot !== null
+  const pilotSprite = createPilotSprite();
+  pilotSprite.container.visible = false;
+  planeLayer.addChild(pilotSprite.container);
+
   const camera = createCamera(worldLayer, app.screen.width, app.screen.height);
 
-  // UI layer (screen-space, never scaled)
   const uiLayer = new Container();
   app.stage.addChild(uiLayer);
   const hud = createHud(app.screen.width, app.screen.height);
@@ -75,7 +80,6 @@ export async function startGame(container: HTMLElement) {
 
   let state: WorldState = createWorldState(Math.floor(Math.random() * 1e9), makePlayer());
 
-  // Input
   const kb = createKeyboardController();
   const touch = createTouchController(app.canvas);
   touch.updateZones(app.screen.width, app.screen.height);
@@ -88,10 +92,10 @@ export async function startGame(container: HTMLElement) {
       fire: k.fire || t.fire,
       bomb: k.bomb || t.bomb,
       throttleDelta: (k.throttleDelta || t.throttleDelta) as -1 | 0 | 1,
+      eject: k.eject || t.eject,
     };
   }
 
-  // Letterbox layout — scale world to fit, center it.
   function layoutWorld() {
     const cw = app.screen.width;
     const ch = app.screen.height;
@@ -103,11 +107,11 @@ export async function startGame(container: HTMLElement) {
   }
   layoutWorld();
 
-  // Fixed-timestep loop with interpolation accumulator
   let acc = 0;
   app.ticker.add((ticker) => {
     const deltaMS = ticker.deltaMS;
-    acc += deltaMS / 1000;
+    const dt = deltaMS / 1000;
+    acc += dt;
     const cmd = currentCommand();
     let safety = 8;
     while (acc >= TICK_DT && safety > 0) {
@@ -117,9 +121,8 @@ export async function startGame(container: HTMLElement) {
     }
 
     // Render
-    playerSprite.update(state.player);
+    playerSprite.update(state.player, dt, damageFx);
 
-    // Sync enemy sprites
     const seenEnemy = new Set<number>();
     for (const e of state.enemies) {
       seenEnemy.add(e.id);
@@ -129,7 +132,7 @@ export async function startGame(container: HTMLElement) {
         planeLayer.addChild(s.container);
         enemySprites.set(e.id, s);
       }
-      s.update(e);
+      s.update(e, dt, damageFx);
     }
     for (const [id, s] of enemySprites) {
       if (!seenEnemy.has(id)) {
@@ -138,13 +141,20 @@ export async function startGame(container: HTMLElement) {
       }
     }
 
+    // Pilot rendering
+    if (state.pilot) {
+      pilotSprite.container.visible = true;
+      pilotSprite.update(state.pilot);
+    } else {
+      pilotSprite.container.visible = false;
+    }
+
     bullets.sync(state.bullets);
+    damageFx.update(dt);
     hud.update(state);
-    // Camera shake still ticks (for hit feedback), but no follow.
     camera.tickShake();
   });
 
-  // Resize
   const onResize = () => {
     const w = app.screen.width;
     const h = app.screen.height;

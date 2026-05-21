@@ -10,6 +10,7 @@ export interface PlayerCommand {
   fire: boolean;
   bomb: boolean;
   throttleDelta: -1 | 0 | 1; // -1 = decrease throttle, 0 = hold, +1 = increase
+  eject: boolean;            // E key — player only, leave plane via parachute
 }
 
 export interface Rect {

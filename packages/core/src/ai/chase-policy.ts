@@ -23,5 +23,5 @@ export function chasePolicy(self: Plane, target: Plane): PlayerCommand {
   const inRange = distance < FIRE_RANGE;
   const fire = inCone && inRange;
 
-  return { rotate, fire, bomb: false, throttleDelta: 0 };
+  return { rotate, fire, bomb: false, throttleDelta: 0, eject: false };
 }

@@ -32,6 +32,7 @@ export function createKeyboardController(): KeyboardController {
         fire: keys.has('Space'),
         bomb: keys.has('ShiftLeft') || keys.has('KeyB'),
         throttleDelta,
+        eject: keys.has('KeyE'),
       };
     },
     destroy() {
