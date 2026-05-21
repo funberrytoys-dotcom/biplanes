@@ -2,6 +2,7 @@ import type { EntityId } from '@biplanes/shared';
 import { XP_PICKUP_MAGNET_RANGE } from '@biplanes/shared';
 import type { Plane } from '../entities/plane.js';
 import type { Bullet } from '../entities/bullet.js';
+import type { Pilot } from '../entities/pilot.js';
 
 export interface WorldState {
   timeSec: number;          // wall clock since run started
@@ -13,6 +14,13 @@ export interface WorldState {
   player: Plane;
   enemies: Plane[];
   bullets: Bullet[];
+
+  // Ejected pilot — null when player is in their plane.
+  // Mutually exclusive with normal plane control.
+  pilot: Pilot | null;
+  // Time elapsed (sec) since pilot was spawned; used to compute the
+  // PLANE_RESPAWN_AFTER_PILOT_DEATH timer once the pilot dies.
+  pilotEjectTimeSec: number;
 
   xpCollected: number;
   level: number;
@@ -38,6 +46,8 @@ export function createWorldState(seed: number, player: Plane): WorldState {
     player,
     enemies: [],
     bullets: [],
+    pilot: null,
+    pilotEjectTimeSec: 0,
     xpCollected: 0,
     level: 1,
     pendingLevelUp: false,

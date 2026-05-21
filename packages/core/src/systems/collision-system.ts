@@ -1,22 +1,28 @@
+import { PILOT_DEATH_DURATION } from '@biplanes/shared';
 import type { Plane } from '../entities/plane.js';
 import type { Bullet } from '../entities/bullet.js';
+import type { Pilot } from '../entities/pilot.js';
 
 const PLANE_HIT_RADIUS = 22;
+const PILOT_HIT_RADIUS = 14;
 
 export interface CollisionResult {
   bullets: Bullet[];
   player: Plane;
   enemies: Plane[];
+  pilot: Pilot | null;
   kills: number;
 }
 
 export function resolveBulletPlaneHits(
   bullets: readonly Bullet[],
   player: Plane,
-  enemies: readonly Plane[]
+  enemies: readonly Plane[],
+  pilot: Pilot | null = null
 ): CollisionResult {
   let newPlayer = { ...player };
   const newEnemies = enemies.map(e => ({ ...e }));
+  let newPilot: Pilot | null = pilot ? { ...pilot } : null;
   const remainingBullets: Bullet[] = [];
   let kills = 0;
 
@@ -51,8 +57,25 @@ export function resolveBulletPlaneHits(
       }
     }
 
+    // Pilot collision — bullets from anybody (including stray friendly fire) kill an
+    // ejected pilot. Only vulnerable while parachuting or walking.
+    if (!consumed && newPilot && (newPilot.state === 'parachute' || newPilot.state === 'walking')) {
+      const dx = b.position.x - newPilot.position.x;
+      const dy = b.position.y - newPilot.position.y;
+      if (dx * dx + dy * dy < PILOT_HIT_RADIUS * PILOT_HIT_RADIUS) {
+        newPilot = {
+          ...newPilot,
+          hp: 0,
+          state: 'dead',
+          deathTimer: PILOT_DEATH_DURATION,
+          velocity: { x: 0, y: 0 },
+        };
+        consumed = true;
+      }
+    }
+
     if (!consumed) remainingBullets.push(b);
   }
 
-  return { bullets: remainingBullets, player: newPlayer, enemies: newEnemies, kills };
+  return { bullets: remainingBullets, player: newPlayer, enemies: newEnemies, pilot: newPilot, kills };
 }
