@@ -89,4 +89,16 @@ describe('plane-physics (BT model)', () => {
     // g should NOT increase from thrust (it may decrease from bleed)
     expect(after.g).toBeLessThanOrEqual(p.g);
   });
+
+  it('drag bleeds speed even in level flight without throttle', () => {
+    let s = makePlane({ f: 0, facing: 3, g: 1200, throttle: false });
+    for (let i = 0; i < 60; i++) s = stepPlane(s, { rotate: 0 }, TICK_DT);
+    expect(s.g).toBeLessThan(1200);
+  });
+
+  it('pitch bleed applies even at near-horizontal angles like f=1', () => {
+    let s = makePlane({ f: 1, facing: 3, g: 1200, throttle: false });
+    for (let i = 0; i < 60; i++) s = stepPlane(s, { rotate: 0 }, TICK_DT);
+    expect(s.g).toBeLessThan(1200); // was previously unchanged at f=1
+  });
 });

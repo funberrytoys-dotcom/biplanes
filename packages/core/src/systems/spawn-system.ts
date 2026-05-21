@@ -42,7 +42,7 @@ export function makeEnemyPlane(id: EntityId, around: Vec2, rng: Rng): Plane {
 
   // Face the player along x-axis: if player is to our right, face right.
   const facing: 2 | 3 = around.x >= px ? 3 : 2;
-  const speed = 900; // slower than player
+  const speed = 850 + Math.floor(rng.next() * 100); // 850-950, slower than player, varies a bit
   // f = 0 = horizontal forward (left if facing=2, right if facing=3)
   const f = 0;
   // Initial velocity/heading consistent with BT model at f=0

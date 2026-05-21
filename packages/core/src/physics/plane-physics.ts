@@ -9,6 +9,7 @@ import {
   TURN_COOLDOWN_SEC,
   GROUND_Y,
   WORLD_WIDTH,
+  DRAG_COEFFICIENT,
   type Vec2,
 } from '@biplanes/shared';
 
@@ -87,14 +88,18 @@ export function stepPlane(
     g = Math.min(G_MAX_LEVEL, g + Math.abs(sinH) * THRUST_ACCEL_MAX * dt);
   }
 
-  // 4) Pitch bleed/feed (the "gravity" expressed on scalar speed)
-  // Climbing frames: f in 2..6  => cosH > 0 => g decreases by cosH * PITCH_BLEED_MAX * dt
-  // Diving frames:   f in 10..14 => cosH < 0 => g INCREASES (same formula), cap G_MAX_DIVE
-  if (f >= 2 && f <= 6) {
-    g = Math.max(0, g - cosH * PITCH_BLEED_MAX * dt);
-  } else if (f >= 10 && f <= 14) {
-    g = Math.min(G_MAX_DIVE, g - cosH * PITCH_BLEED_MAX * dt);
+  // 4) Pitch bleed/feed applies at ALL frames. cosH determines magnitude and direction.
+  // Climbing (cosH > 0 when nose above horizon) bleeds speed.
+  // Diving (cosH < 0) feeds speed up to G_MAX_DIVE.
+  const pitchEffect = cosH * PITCH_BLEED_MAX * dt;
+  if (pitchEffect > 0) {
+    g = Math.max(0, g - pitchEffect);
+  } else {
+    g = Math.min(G_MAX_DIVE, g - pitchEffect);
   }
+
+  // 4b) Mild constant drag — proportional to current speed. ~5% loss per second at cruise.
+  g = Math.max(0, g - g * DRAG_COEFFICIENT * dt);
 
   // 5) Velocity from speed + heading (BT convention: vx = sin(h)*g, vy = -cos(h)*g)
   let vx = sinH * g;
