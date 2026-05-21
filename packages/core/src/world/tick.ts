@@ -1,12 +1,21 @@
-import { TICK_DT, type PlayerCommand } from '@biplanes/shared';
+import {
+  TICK_DT,
+  XP_PER_KILL_LIGHT,
+  LEVEL_UP_THRESHOLDS,
+  type PlayerCommand,
+} from '@biplanes/shared';
 import { stepPlane } from '../physics/plane-physics.js';
 import { firePlayerWeapon, stepBullets } from '../systems/weapon-system.js';
 import { resolveBulletPlaneHits } from '../systems/collision-system.js';
+import { computeSpawnsThisTick, makeEnemyPlane } from '../systems/spawn-system.js';
 import { chasePolicy } from '../ai/chase-policy.js';
+import { createRng } from '../rng/mulberry32.js';
 import type { WorldState } from './world-state.js';
 
 export function tick(state: WorldState, playerCommand: PlayerCommand): WorldState {
-  if (state.gameOver) return state;
+  if (state.gameOver || state.pendingLevelUp) return state;
+
+  let nextEntityId = state.nextEntityId;
 
   // 1. Player physics + weapon
   const newPlayerKinematic = stepPlane(
@@ -15,7 +24,6 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     TICK_DT
   );
 
-  let nextEntityId = state.nextEntityId;
   const newBulletList = stepBullets(state.bullets);
 
   // Decrement cooldown every tick regardless of firing
@@ -37,41 +45,66 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
   };
 
   // 2. Enemy AI + physics + weapons
-  let enemies: typeof state.enemies = state.enemies.map(e => {
-    if (!e.alive) return e;
-    const cmd = chasePolicy(e, player);
-    const newKin = stepPlane(e.kinematic, { rotate: cmd.rotate }, TICK_DT);
-    let newCooldown = Math.max(0, e.weaponCooldown - TICK_DT);
+  let enemies = state.enemies
+    .filter(e => e.alive)
+    .map(e => {
+      const cmd = chasePolicy(e, player);
+      const newKin = stepPlane(e.kinematic, { rotate: cmd.rotate }, TICK_DT);
+      let newCooldown = Math.max(0, e.weaponCooldown - TICK_DT);
 
-    if (cmd.fire && newCooldown === 0) {
-      const fakeForFire = { ...e, weaponCooldown: 0, kinematic: newKin };
-      const result = firePlayerWeapon(fakeForFire, true, nextEntityId);
-      if (result.bullet) {
-        newBulletList.push(result.bullet);
-        nextEntityId++;
-        newCooldown = result.newCooldown;
+      if (cmd.fire && newCooldown === 0) {
+        const fakeForFire = { ...e, weaponCooldown: 0, kinematic: newKin };
+        const result = firePlayerWeapon(fakeForFire, true, nextEntityId);
+        if (result.bullet) {
+          newBulletList.push(result.bullet);
+          nextEntityId++;
+          newCooldown = result.newCooldown;
+        }
       }
-    }
-
-    return { ...e, kinematic: newKin, weaponCooldown: newCooldown };
-  });
+      return { ...e, kinematic: newKin, weaponCooldown: newCooldown };
+    });
 
   // 3. Collisions
   const collision = resolveBulletPlaneHits(newBulletList, player, enemies);
   player = collision.player;
-  enemies = collision.enemies;
+  enemies = collision.enemies.filter(e => e.alive);
 
-  // 4. Game over check
-  const gameOver = !player.alive;
+  // 4. Award XP
+  const xpCollected = state.xpCollected + collision.kills * XP_PER_KILL_LIGHT;
+
+  // 5. Level-up check
+  let level = state.level;
+  let pendingLevelUp = false;
+  const nextThreshold = LEVEL_UP_THRESHOLDS[level - 1];
+  if (nextThreshold !== undefined && xpCollected >= nextThreshold) {
+    level += 1;
+    pendingLevelUp = true;
+  }
+
+  // 6. Spawning
+  const rng = createRng(state.rngState);
+  const spawn = computeSpawnsThisTick(state.timeSec + TICK_DT, state.timeSec, rng, player.kinematic.position);
+  for (let i = 0; i < spawn.count; i++) {
+    enemies.push(makeEnemyPlane(nextEntityId, player.kinematic.position, rng));
+    nextEntityId++;
+  }
+
+  // Advance RNG state — coarse but deterministic
+  let newRngState = state.rngState;
+  for (let i = 0; i < spawn.count + 1; i++) newRngState = (newRngState + 0x6d2b79f5) >>> 0;
 
   return {
     ...state,
     timeSec: state.timeSec + TICK_DT,
     tickCount: state.tickCount + 1,
     nextEntityId,
+    rngState: newRngState,
     player,
     enemies,
     bullets: collision.bullets,
-    gameOver,
+    xpCollected,
+    level,
+    pendingLevelUp,
+    gameOver: !player.alive,
   };
 }
