@@ -10,7 +10,7 @@ export const PLANE_GRAVITY = 380;      // pixels/sec^2 downward
 export const PLANE_TURN_RATE = 2.6;    // radians/sec at full input
 export const PLANE_MAX_SPEED = 600;
 export const PLANE_MIN_LIFT_SPEED = 80; // below this speed, lift collapses
-export const PLANE_STALL_ANGLE = 1.2;   // radians; nose-up angle relative to velocity at which stall starts
+export const PLANE_STALL_ANGLE = 0.8;   // radians; nose-up angle relative to velocity at which stall starts (~46°)
 
 export const PLANE_INITIAL_HP = 100;
 export const ENEMY_INITIAL_HP_LIGHT = 30;
