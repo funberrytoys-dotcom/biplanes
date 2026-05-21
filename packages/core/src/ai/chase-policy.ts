@@ -1,6 +1,7 @@
 import type { PlayerCommand } from '@biplanes/shared';
 import { GROUND_Y } from '@biplanes/shared';
 import type { Plane } from '../entities/plane.js';
+import type { Pilot } from '../entities/pilot.js';
 import type { AiParams } from './difficulty.js';
 import { DIFFICULTIES } from './difficulty.js';
 
@@ -135,7 +136,7 @@ export function aiCommand(
   const fire = inCone && inRange && newState.evasionTimer <= 0;
 
   return {
-    cmd: { rotate, fire, bomb: false, throttleDelta: 0, eject: false },
+    cmd: { rotate, fire, bomb: false, throttleDelta: 0, eject: false, jump: false },
     aiState: newState,
   };
 }
@@ -144,4 +145,44 @@ export function aiCommand(
 export function chasePolicy(self: Plane, target: Plane): PlayerCommand {
   const dummyState = createAiState(self.id);
   return aiCommand(self, target, DIFFICULTIES.medium, dummyState, self.hp, 1 / 60, 0).cmd;
+}
+
+/**
+ * AI command when the target is an ejected pilot rather than a plane.
+ * Re-uses aiCommand by adapting the pilot into a "virtual plane" with zero
+ * velocity (pilots move slowly enough that lead = 0 is fine) and a synthetic
+ * heading. Stable across pilot states — when the pilot dies the caller falls
+ * back to the regular aiCommand against the player plane.
+ */
+export function aiCommandPilotTarget(
+  self: Plane,
+  pilot: Pilot,
+  params: AiParams,
+  aiState: AiState,
+  prevSelfHp: number,
+  dt: number,
+  currentTime: number,
+): { cmd: PlayerCommand; aiState: AiState } {
+  // Build a virtual plane standing where the pilot is, with zero velocity.
+  const virtual: Plane = {
+    id: -1,
+    faction: pilot.faction,
+    kinematic: {
+      position: { ...pilot.position },
+      velocity: { x: 0, y: 0 },
+      heading: 0,
+      throttleOn: false,
+      g: 0,
+      facing: pilot.facing,
+      throttle: false,
+      throttleLevel: 0,
+    },
+    hp: 1,
+    maxHp: 1,
+    weaponCooldown: 0,
+    alive: pilot.state === 'parachute' || pilot.state === 'walking',
+    state: 'flying',
+    respawnTimer: 0,
+  };
+  return aiCommand(self, virtual, params, aiState, prevSelfHp, dt, currentTime);
 }

@@ -10,26 +10,31 @@ export interface CollisionResult {
   bullets: Bullet[];
   player: Plane;
   enemies: Plane[];
-  pilot: Pilot | null;
+  pilots: Pilot[];
   kills: number;
+  // Score events from this resolution pass — caller adds these to running totals.
+  playerScoreDelta: number;  // enemy pilots killed by player bullets this pass
+  enemyScoreDelta: number;   // player pilots killed by enemy bullets this pass
 }
 
 export function resolveBulletPlaneHits(
   bullets: readonly Bullet[],
   player: Plane,
   enemies: readonly Plane[],
-  pilot: Pilot | null = null
+  pilots: readonly Pilot[] = [],
 ): CollisionResult {
   let newPlayer = { ...player };
   const newEnemies = enemies.map(e => ({ ...e }));
-  let newPilot: Pilot | null = pilot ? { ...pilot } : null;
+  const newPilots: Pilot[] = pilots.map(p => ({ ...p }));
   const remainingBullets: Bullet[] = [];
   let kills = 0;
+  let playerScoreDelta = 0;
+  let enemyScoreDelta = 0;
 
   for (const b of bullets) {
     let consumed = false;
 
-    // Check player (if bullet not from player)
+    // Check player plane (if bullet not from player)
     if (b.ownerId !== player.id && player.alive) {
       const dx = b.position.x - player.kinematic.position.x;
       const dy = b.position.y - player.kinematic.position.y;
@@ -57,25 +62,37 @@ export function resolveBulletPlaneHits(
       }
     }
 
-    // Pilot collision — bullets from anybody (including stray friendly fire) kill an
-    // ejected pilot. Only vulnerable while parachuting or walking.
-    if (!consumed && newPilot && (newPilot.state === 'parachute' || newPilot.state === 'walking')) {
-      const dx = b.position.x - newPilot.position.x;
-      const dy = b.position.y - newPilot.position.y;
-      if (dx * dx + dy * dy < PILOT_HIT_RADIUS * PILOT_HIT_RADIUS) {
-        newPilot = {
-          ...newPilot,
-          hp: 0,
-          state: 'dead',
-          deathTimer: PILOT_DEATH_DURATION,
-          velocity: { x: 0, y: 0 },
-        };
-        consumed = true;
+    // Pilot collision — bullets only hurt pilots of the OPPOSITE faction.
+    // (No friendly fire on pilots; bullet continues past same-faction pilots.)
+    if (!consumed) {
+      for (const pilot of newPilots) {
+        if (pilot.state !== 'parachute' && pilot.state !== 'walking') continue;
+        if (pilot.faction === b.ownerFaction) continue; // friendly fire skip
+        const dx = b.position.x - pilot.position.x;
+        const dy = b.position.y - pilot.position.y;
+        if (dx * dx + dy * dy < PILOT_HIT_RADIUS * PILOT_HIT_RADIUS) {
+          pilot.hp = 0;
+          pilot.state = 'dead';
+          pilot.deathTimer = PILOT_DEATH_DURATION;
+          pilot.velocity = { x: 0, y: 0 };
+          if (b.ownerFaction === 'player') playerScoreDelta++;
+          else enemyScoreDelta++;
+          consumed = true;
+          break;
+        }
       }
     }
 
     if (!consumed) remainingBullets.push(b);
   }
 
-  return { bullets: remainingBullets, player: newPlayer, enemies: newEnemies, pilot: newPilot, kills };
+  return {
+    bullets: remainingBullets,
+    player: newPlayer,
+    enemies: newEnemies,
+    pilots: newPilots,
+    kills,
+    playerScoreDelta,
+    enemyScoreDelta,
+  };
 }

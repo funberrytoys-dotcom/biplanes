@@ -18,9 +18,9 @@ function makePlane(id: number, x: number, y: number, faction: 'player' | 'enemy'
   };
 }
 
-function makeBullet(id: number, x: number, y: number, ownerId: number, damage = 10): Bullet {
+function makeBullet(id: number, x: number, y: number, ownerId: number, damage = 10, ownerFaction: 'player' | 'enemy' = 'player'): Bullet {
   return {
-    id, ownerId,
+    id, ownerId, ownerFaction,
     position: { x, y }, velocity: { x: 100, y: 0 },
     lifetime: 1.0, damage, alive: true,
   };
@@ -41,7 +41,7 @@ describe('collision-system', () => {
   it('bullet from enemy hits player and deals damage', () => {
     const player = makePlane(1, 500, 500, 'player', 100);
     const enemy = makePlane(2, 800, 500, 'enemy');
-    const bullet = makeBullet(99, 505, 500, 2, 15);
+    const bullet = makeBullet(99, 505, 500, 2, 15, 'enemy');
 
     const result = resolveBulletPlaneHits([bullet], player, [enemy]);
     expect(result.player.hp).toBe(85);

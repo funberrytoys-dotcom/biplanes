@@ -26,28 +26,28 @@ function makePlayer() {
 describe('world tick', () => {
   it('advances time', () => {
     const s = createWorldState(42, makePlayer());
-    const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false });
+    const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
     expect(after.timeSec).toBeCloseTo(TICK_DT);
     expect(after.tickCount).toBe(1);
   });
 
   it('moves player plane based on physics', () => {
     const s = createWorldState(42, makePlayer());
-    const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false });
+    const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
     expect(after.player.kinematic.position.x).toBeGreaterThan(500);
   });
 
   it('is deterministic for same input', () => {
     const s = createWorldState(42, makePlayer());
-    const a = tick(s, { rotate: 1, fire: false, bomb: false, throttleDelta: 0, eject: false });
-    const b = tick(s, { rotate: 1, fire: false, bomb: false, throttleDelta: 0, eject: false });
+    const a = tick(s, { rotate: 1, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+    const b = tick(s, { rotate: 1, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
     expect(a).toEqual(b);
   });
 
   it('does not mutate input state', () => {
     const s = createWorldState(42, makePlayer());
     const before = JSON.stringify(s);
-    tick(s, { rotate: 1, fire: false, bomb: false, throttleDelta: 0, eject: false });
+    tick(s, { rotate: 1, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
     expect(JSON.stringify(s)).toBe(before);
   });
 });

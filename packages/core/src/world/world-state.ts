@@ -1,10 +1,16 @@
-import type { EntityId } from '@biplanes/shared';
-import { XP_PICKUP_MAGNET_RANGE } from '@biplanes/shared';
+import type { EntityId, Vec2 } from '@biplanes/shared';
+import { XP_PICKUP_MAGNET_RANGE, WORLD_WIDTH } from '@biplanes/shared';
 import type { Plane } from '../entities/plane.js';
 import type { Bullet } from '../entities/bullet.js';
 import type { Pilot } from '../entities/pilot.js';
 import type { Difficulty } from '../ai/difficulty.js';
 import type { AiState } from '../ai/chase-policy.js';
+
+/** Decorative score-blimp that drifts slowly across the sky. */
+export interface Blimp {
+  position: Vec2;
+  velocity: Vec2;
+}
 
 export interface WorldState {
   timeSec: number;          // wall clock since run started
@@ -17,12 +23,18 @@ export interface WorldState {
   enemies: Plane[];
   bullets: Bullet[];
 
-  // Ejected pilot — null when player is in their plane.
-  // Mutually exclusive with normal plane control.
-  pilot: Pilot | null;
-  // Time elapsed (sec) since pilot was spawned; used to compute the
-  // PLANE_RESPAWN_AFTER_PILOT_DEATH timer once the pilot dies.
+  // Ejected pilots — one per faction at most. Empty when no one ejected.
+  pilots: Pilot[];
+  // Time elapsed (sec) since the PLAYER pilot was spawned; used to compute the
+  // PLANE_RESPAWN_AFTER_PILOT_DEATH timer for the player plane.
   pilotEjectTimeSec: number;
+
+  // Scores — kills credited per faction (i.e. enemy pilots killed by player → playerScore++).
+  playerScore: number;
+  enemyScore: number;
+
+  // Decorative score blimp drifting slowly across the upper sky.
+  blimp: Blimp;
 
   xpCollected: number;
   level: number;
@@ -58,8 +70,14 @@ export function createWorldState(seed: number, player: Plane): WorldState {
     player,
     enemies: [],
     bullets: [],
-    pilot: null,
+    pilots: [],
     pilotEjectTimeSec: 0,
+    playerScore: 0,
+    enemyScore: 0,
+    blimp: {
+      position: { x: WORLD_WIDTH / 2, y: 200 },
+      velocity: { x: 30, y: 0 },
+    },
     xpCollected: 0,
     level: 1,
     pendingLevelUp: false,

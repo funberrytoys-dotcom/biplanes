@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { tick } from './tick.js';
 import { createWorldState } from './world-state.js';
+import { findPilot } from '../entities/pilot.js';
 import {
   PLANE_INITIAL_HP,
   FIRE_THRESHOLD,
   FIRE_BURN_RATE,
-  TICK_DT,
 } from '@biplanes/shared';
 
 function makePlayerFlying(hp = PLANE_INITIAL_HP) {
@@ -28,15 +28,16 @@ function makePlayerFlying(hp = PLANE_INITIAL_HP) {
   };
 }
 
-const NO_OP = { rotate: 0 as const, fire: false, bomb: false, throttleDelta: 0 as const, eject: false };
+const NO_OP = { rotate: 0 as const, fire: false, bomb: false, throttleDelta: 0 as const, eject: false, jump: false };
 const EJECT_CMD = { ...NO_OP, eject: true };
 
 describe('eject + pilot lifecycle', () => {
-  it('eject spawns pilot and crashes plane', () => {
+  it('eject spawns player pilot and crashes plane', () => {
     const s = createWorldState(42, makePlayerFlying());
     const after = tick(s, EJECT_CMD);
-    expect(after.pilot).not.toBeNull();
-    expect(after.pilot!.state).toBe('parachute');
+    const pp = findPilot(after.pilots, 'player');
+    expect(pp).toBeDefined();
+    expect(pp!.state).toBe('parachute');
     expect(after.player.state).toBe('crashed');
   });
 
@@ -44,55 +45,49 @@ describe('eject + pilot lifecycle', () => {
     const taxiing = { ...makePlayerFlying(), state: 'taxi' as const };
     const s = createWorldState(42, taxiing);
     const after = tick(s, EJECT_CMD);
-    expect(after.pilot).toBeNull();
+    expect(findPilot(after.pilots, 'player')).toBeUndefined();
   });
 
   it('once ejected, player input affects pilot not plane', () => {
     const s = createWorldState(42, makePlayerFlying());
     const ejected = tick(s, EJECT_CMD);
     const planeBeforeX = ejected.player.kinematic.position.x;
-    // 10 more ticks holding rotate=1
     let s2 = ejected;
     for (let i = 0; i < 10; i++) {
       s2 = tick(s2, { ...NO_OP, rotate: 1 });
     }
-    // Plane stays put (state: crashed) — position frozen.
     expect(s2.player.kinematic.position.x).toBe(planeBeforeX);
-    // Pilot has drifted right.
-    expect(s2.pilot).not.toBeNull();
-    expect(s2.pilot!.position.x).toBeGreaterThan(ejected.pilot!.position.x);
+    const pp = findPilot(s2.pilots, 'player');
+    expect(pp).toBeDefined();
+    expect(pp!.position.x).toBeGreaterThan(findPilot(ejected.pilots, 'player')!.position.x);
   });
 
   it('plane does not auto-respawn while pilot is in play', () => {
     const s = createWorldState(42, makePlayerFlying());
     let s2 = tick(s, EJECT_CMD);
-    // 60 ticks = 1 second; default RESPAWN_DELAY is 3s but pilot should hold it.
     for (let i = 0; i < 300; i++) {
       s2 = tick(s2, NO_OP);
     }
-    // Plane should still be crashed because pilot is still descending.
     expect(s2.player.state).toBe('crashed');
-    expect(s2.pilot).not.toBeNull();
+    expect(findPilot(s2.pilots, 'player')).toBeDefined();
   });
 });
 
 describe('fire burn damage', () => {
   it('burn HP at FIRE_BURN_RATE when below FIRE_THRESHOLD', () => {
-    const lowHp = Math.floor(PLANE_INITIAL_HP * FIRE_THRESHOLD); // e.g. 25 of 100
+    const lowHp = Math.floor(PLANE_INITIAL_HP * FIRE_THRESHOLD);
     const s = createWorldState(42, makePlayerFlying(lowHp));
     let s2 = s;
-    // Tick for ~1 second
     for (let i = 0; i < 60; i++) {
       s2 = tick(s2, NO_OP);
     }
-    // Expect roughly FIRE_BURN_RATE less HP
     const lost = lowHp - s2.player.hp;
     expect(lost).toBeGreaterThan(FIRE_BURN_RATE * 0.7);
     expect(lost).toBeLessThan(FIRE_BURN_RATE * 1.3);
   });
 
   it('does NOT burn when HP above FIRE_THRESHOLD', () => {
-    const okHp = Math.floor(PLANE_INITIAL_HP * (FIRE_THRESHOLD + 0.2)); // above threshold
+    const okHp = Math.floor(PLANE_INITIAL_HP * (FIRE_THRESHOLD + 0.2));
     const s = createWorldState(42, makePlayerFlying(okHp));
     let s2 = s;
     for (let i = 0; i < 60; i++) {
@@ -103,12 +98,11 @@ describe('fire burn damage', () => {
 });
 
 describe('collision against pilot', () => {
-  it('any bullet hitting pilot kills them', async () => {
-    // Spawn pilot via eject, then plant a bullet on top of pilot manually.
+  it('enemy bullet hitting player pilot kills them', async () => {
     const s = createWorldState(42, makePlayerFlying());
     let s2 = tick(s, EJECT_CMD);
-    expect(s2.pilot).not.toBeNull();
-    // Inject a bullet at pilot position; owner not player so collision triggers.
+    const pp = findPilot(s2.pilots, 'player');
+    expect(pp).toBeDefined();
     s2 = {
       ...s2,
       bullets: [
@@ -116,7 +110,8 @@ describe('collision against pilot', () => {
         {
           id: 9999,
           ownerId: 12345,
-          position: { ...s2.pilot!.position },
+          ownerFaction: 'enemy',
+          position: { ...pp!.position },
           velocity: { x: 0, y: 0 },
           lifetime: 1.0,
           damage: 999,
@@ -125,7 +120,36 @@ describe('collision against pilot', () => {
       ],
     };
     s2 = tick(s2, NO_OP);
-    expect(s2.pilot).not.toBeNull();
-    expect(s2.pilot!.state).toBe('dead');
+    const after = findPilot(s2.pilots, 'player');
+    expect(after).toBeDefined();
+    expect(after!.state).toBe('dead');
+  });
+
+  it('player-owned bullet does NOT hurt own pilot (friendly fire skip)', async () => {
+    const s = createWorldState(42, makePlayerFlying());
+    let s2 = tick(s, EJECT_CMD);
+    const pp = findPilot(s2.pilots, 'player');
+    expect(pp).toBeDefined();
+    s2 = {
+      ...s2,
+      bullets: [
+        ...s2.bullets,
+        {
+          id: 9999,
+          ownerId: 1,
+          ownerFaction: 'player',
+          position: { ...pp!.position },
+          velocity: { x: 0, y: 0 },
+          lifetime: 1.0,
+          damage: 999,
+          alive: true,
+        },
+      ],
+    };
+    s2 = tick(s2, NO_OP);
+    const after = findPilot(s2.pilots, 'player');
+    expect(after).toBeDefined();
+    // Should still be alive — friendly fire on pilots is disabled.
+    expect(after!.state).not.toBe('dead');
   });
 });
