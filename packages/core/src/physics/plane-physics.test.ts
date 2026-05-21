@@ -1,68 +1,63 @@
 import { describe, it, expect } from 'vitest';
 import { stepPlane, isStalling, type PlaneKinematic } from './plane-physics.js';
-import { TICK_DT, G_MAX_LEVEL, G_STALL, GROUND_Y } from '@biplanes/shared';
+import { TICK_DT, G_MAX_LEVEL, GROUND_Y } from '@biplanes/shared';
 
 function makePlane(overrides: Partial<PlaneKinematic> = {}): PlaneKinematic {
   return {
     position: { x: 1000, y: 500 },
     velocity: { x: 1200, y: 0 },
-    heading: 0, // screen-radians
+    heading: 0,
     throttleOn: true,
-    g: 1200,       // px/sec, near level cruise
-    f: 0,          // facing forward (BT heading per facing)
-    facing: 3,     // right
-    turnCdSec: 0,
+    g: 1200,
+    facing: 1,
     throttle: true,
-    rotateAccumulator: 0,
     ...overrides,
   };
 }
 
-describe('plane-physics (BT model)', () => {
-  it('plane facing right at level cruise moves rightward', () => {
-    const p = makePlane({ f: 0, facing: 3, g: 1200 });
+describe('plane-physics (continuous model)', () => {
+  it('plane facing right (heading=0) at cruise speed moves rightward', () => {
+    const p = makePlane({ heading: 0, g: 1200, throttle: true });
     const after = stepPlane(p, { rotate: 0 }, TICK_DT);
     expect(after.position.x).toBeGreaterThan(p.position.x);
-    expect(Math.abs(after.position.y - p.position.y)).toBeLessThan(5); // roughly level
+    expect(Math.abs(after.position.y - p.position.y)).toBeLessThan(5);
   });
 
-  it('rotate input (with cooldown 0) advances frame by 1', () => {
-    const p = makePlane({ f: 0, facing: 3, turnCdSec: 0 });
-    const after = stepPlane(p, { rotate: -1 }, TICK_DT);
-    // facing right, rotate=-1 => stepDir = +1 => f++ (toward up via f=4)
-    expect(after.f).toBe(1);
-    expect(after.turnCdSec).toBeGreaterThan(0);
+  it('rotate=-1 continuously tips nose up (heading goes negative when facing right)', () => {
+    let p = makePlane({ heading: 0, g: 1200 });
+    for (let i = 0; i < 30; i++) p = stepPlane(p, { rotate: -1 }, TICK_DT);
+    expect(p.heading).toBeLessThan(0);
   });
 
-  it('rotate input ignored when cooldown > 0', () => {
-    const p = makePlane({ f: 5, facing: 3, turnCdSec: 0.05 });
-    const after = stepPlane(p, { rotate: 1 }, TICK_DT);
-    expect(after.f).toBe(5);
+  it('rotate=1 continuously tips nose down', () => {
+    let p = makePlane({ heading: 0, g: 1200 });
+    for (let i = 0; i < 30; i++) p = stepPlane(p, { rotate: 1 }, TICK_DT);
+    expect(p.heading).toBeGreaterThan(0);
   });
 
-  it('throttle adds speed when pitch is horizontal', () => {
-    const p = makePlane({ f: 0, facing: 3, g: 800, throttle: true });
+  it('throttle adds speed when horizontal', () => {
+    const p = makePlane({ heading: 0, g: 800, throttle: true });
     const after = stepPlane(p, { rotate: 0 }, TICK_DT);
     expect(after.g).toBeGreaterThan(p.g);
   });
 
-  it('climbing (f=4) bleeds speed over time', () => {
-    let s = makePlane({ f: 4, facing: 3, g: G_MAX_LEVEL, throttle: false });
+  it('climbing (heading near -π/2) bleeds speed over time', () => {
+    let s = makePlane({ heading: -1.2, g: G_MAX_LEVEL, throttle: false });
     for (let i = 0; i < 30; i++) s = stepPlane(s, { rotate: 0 }, TICK_DT);
     expect(s.g).toBeLessThan(G_MAX_LEVEL);
   });
 
-  it('diving (f=12) builds speed beyond level max', () => {
-    let s = makePlane({ f: 12, facing: 3, g: G_MAX_LEVEL, throttle: false });
+  it('diving (heading near +π/2) builds speed beyond level cap', () => {
+    let s = makePlane({ heading: 1.2, g: G_MAX_LEVEL, throttle: false });
     for (let i = 0; i < 60; i++) s = stepPlane(s, { rotate: 0 }, TICK_DT);
     expect(s.g).toBeGreaterThan(G_MAX_LEVEL);
   });
 
-  it('stall: g < G_STALL pulls plane downward in position even when nose is up', () => {
-    let s = makePlane({ f: 4, facing: 3, g: 100, throttle: false }); // nose-up but slow
+  it('soft stall: very low speed creates downward sink even when nose horizontal', () => {
+    let s = makePlane({ heading: 0, g: 100, throttle: false });
     const before = s.position.y;
     s = stepPlane(s, { rotate: 0 }, TICK_DT);
-    expect(s.position.y).toBeGreaterThan(before); // y increased = moved down
+    expect(s.position.y).toBeGreaterThan(before);
   });
 
   it('isStalling true when g < G_STALL', () => {
@@ -71,7 +66,7 @@ describe('plane-physics (BT model)', () => {
   });
 
   it('plane clamps to ground', () => {
-    const p = makePlane({ position: { x: 1000, y: GROUND_Y - 5 }, f: 12, facing: 3, g: 1500 });
+    const p = makePlane({ position: { x: 1000, y: GROUND_Y - 5 }, heading: 1.2, g: 1500 });
     const after = stepPlane(p, { rotate: 0 }, TICK_DT);
     expect(after.position.y).toBeLessThanOrEqual(GROUND_Y);
   });
@@ -83,22 +78,21 @@ describe('plane-physics (BT model)', () => {
     expect(a).toEqual(b);
   });
 
-  it('throttle pitch-modulated: vertical nose gives near-zero thrust', () => {
-    const p = makePlane({ f: 4, facing: 3, g: 800, throttle: true }); // nose UP -> sin(0°)=0 -> no thrust
+  it('thrust pitch-modulated: vertical nose gives near-zero thrust', () => {
+    const p = makePlane({ heading: -Math.PI / 2, g: 800, throttle: true });
     const after = stepPlane(p, { rotate: 0 }, TICK_DT);
-    // g should NOT increase from thrust (it may decrease from bleed)
     expect(after.g).toBeLessThanOrEqual(p.g);
   });
 
-  it('drag bleeds speed even in level flight without throttle', () => {
-    let s = makePlane({ f: 0, facing: 3, g: 1200, throttle: false });
+  it('drag bleeds speed in level flight without throttle', () => {
+    let s = makePlane({ heading: 0, g: 1200, throttle: false });
     for (let i = 0; i < 60; i++) s = stepPlane(s, { rotate: 0 }, TICK_DT);
     expect(s.g).toBeLessThan(1200);
   });
 
-  it('pitch bleed applies even at near-horizontal angles like f=1', () => {
-    let s = makePlane({ f: 1, facing: 3, g: 1200, throttle: false });
-    for (let i = 0; i < 60; i++) s = stepPlane(s, { rotate: 0 }, TICK_DT);
-    expect(s.g).toBeLessThan(1200); // was previously unchanged at f=1
+  it('facing flips to -1 when heading rotates past ±π/2', () => {
+    const p = makePlane({ heading: Math.PI * 0.8, g: 1200 });
+    const after = stepPlane(p, { rotate: 0 }, TICK_DT);
+    expect(after.facing).toBe(-1);
   });
 });

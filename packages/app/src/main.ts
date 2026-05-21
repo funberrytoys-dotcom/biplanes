@@ -36,7 +36,7 @@ function makePlayer(): Plane {
       velocity: { x: 1080, y: 0 },
       heading: 0,
       throttleOn: true,
-      g: 1080, f: 0, facing: 3, turnCdSec: 0, throttle: true, rotateAccumulator: 0,  // ~88% of G_MAX_LEVEL — gives stall-awareness from the first moment
+      g: 1080, facing: 1, throttle: true,  // ~88% of G_MAX_LEVEL — gives stall-awareness from the first moment
     },
     hp: PLANE_INITIAL_HP, maxHp: PLANE_INITIAL_HP,
     weaponCooldown: 0, alive: true,

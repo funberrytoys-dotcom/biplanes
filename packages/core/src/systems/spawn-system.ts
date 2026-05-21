@@ -41,19 +41,12 @@ export function makeEnemyPlane(id: EntityId, around: Vec2, rng: Rng): Plane {
   const py = around.y + Math.sin(angle) * distance;
 
   // Face the player along x-axis: if player is to our right, face right.
-  const facing: 2 | 3 = around.x >= px ? 3 : 2;
+  const facing: 1 | -1 = around.x >= px ? 1 : -1;
   const speed = 850 + Math.floor(rng.next() * 100); // 850-950, slower than player, varies a bit
-  // f = 0 = horizontal forward (left if facing=2, right if facing=3)
-  const f = 0;
-  // Initial velocity/heading consistent with BT model at f=0
-  // facing=3: BT deg=90 (right) -> screen rad = 0; vx = sin(90°)*g = g, vy = -cos(90°)*g = 0
-  // facing=2: BT deg=270 (left) -> screen rad = π; vx = sin(270°)*g = -g, vy = 0
-  const btDeg = facing === 3 ? 90 : 270;
-  const screenHeading = ((btDeg - 90) * Math.PI) / 180;
-  const sinH = Math.sin((btDeg * Math.PI) / 180);
-  const cosH = Math.cos((btDeg * Math.PI) / 180);
-  const vx = sinH * speed;
-  const vy = -cosH * speed;
+  // Horizontal heading: 0 = facing right (+x), π = facing left (-x)
+  const heading = facing === 1 ? 0 : Math.PI;
+  const vx = Math.cos(heading) * speed;
+  const vy = Math.sin(heading) * speed;
 
   return {
     id,
@@ -61,14 +54,11 @@ export function makeEnemyPlane(id: EntityId, around: Vec2, rng: Rng): Plane {
     kinematic: {
       position: { x: px, y: py },
       velocity: { x: vx, y: vy },
-      heading: screenHeading,
+      heading,
       throttleOn: true,
       g: speed,
-      f,
       facing,
-      turnCdSec: 0,
       throttle: true,
-      rotateAccumulator: 0,
     },
     hp: ENEMY_INITIAL_HP_LIGHT,
     maxHp: ENEMY_INITIAL_HP_LIGHT,

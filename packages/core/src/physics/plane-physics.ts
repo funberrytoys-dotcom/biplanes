@@ -6,7 +6,7 @@ import {
   THRUST_ACCEL_MAX,
   PITCH_BLEED_MAX,
   STALL_SINK_MAX,
-  TURN_COOLDOWN_SEC,
+  PLANE_TURN_RATE,
   GROUND_Y,
   WORLD_WIDTH,
   DRAG_COEFFICIENT,
@@ -14,40 +14,20 @@ import {
 } from '@biplanes/shared';
 
 export interface PlaneKinematic {
-  // === Derived/maintained fields (downstream code reads these) ===
-  position: Vec2;       // world px
-  velocity: Vec2;       // px/sec (computed each tick from g + heading + stall)
-  heading: number;      // radians, screen-standard (0 = pointing +x, π/2 = +y down)
-  throttleOn: boolean;  // legacy alias — same as throttle
+  // Public/derived fields (used by render/AI/weapon/collision)
+  position: Vec2;
+  velocity: Vec2;
+  heading: number;       // radians, screen-standard (0 = pointing +x right, π/2 = down, -π/2 = up)
+  throttleOn: boolean;
 
-  // === Source-of-truth (BT model) ===
-  g: number;            // scalar speed in px/sec (0..G_MAX_DIVE)
-  f: number;            // heading index 0..15
-  facing: 2 | 3;        // 2 = facing left, 3 = facing right
-  turnCdSec: number;    // seconds until next rotation allowed
-  throttle: boolean;    // true = throttle held, plane accelerates
-  rotateAccumulator: number; // accumulates fractional rotation input over time, NOT used in MVP
+  // Source-of-truth fields (continuous BT-inspired model)
+  g: number;             // scalar speed in px/sec
+  facing: 1 | -1;        // 1 = right (positive x direction default), -1 = left
+  throttle: boolean;
 }
 
 export interface PhysicsInput {
   rotate: -1 | 0 | 1;
-}
-
-// BT convention: 0° = nose-up, 90° = nose-right, 180° = nose-down, 270° = nose-left.
-const HEADINGS_BT_LEFT  = [270, 292, 315, 337,   0,  22,  45,  67,  90, 112, 135, 157, 180, 202, 225, 247];
-const HEADINGS_BT_RIGHT = [ 90,  67,  45,  22,   0, 337, 315, 292, 270, 247, 225, 202, 180, 157, 135, 112];
-
-function btHeadingDeg(facing: 2 | 3, f: number): number {
-  const table = facing === 2 ? HEADINGS_BT_LEFT : HEADINGS_BT_RIGHT;
-  return table[f] ?? 90;
-}
-
-// Convert BT-degree to screen-radian (0=right, CW positive, y-down)
-// BT: 0=up, 90=right, 180=down, 270=left
-// Us: 0=right, 90=down (screen), 180=left, 270=up
-// map: us = bt - 90, then to radians
-function btToScreenRadians(btDeg: number): number {
-  return ((btDeg - 90) * Math.PI) / 180;
 }
 
 export function isStalling(p: PlaneKinematic): boolean {
@@ -59,91 +39,80 @@ export function stepPlane(
   input: PhysicsInput,
   dt: number = TICK_DT
 ): PlaneKinematic {
-  // 1) Rotation (discrete, rate-limited)
-  let f = p.f;
-  const facing = p.facing;
-  let turnCdSec = Math.max(0, p.turnCdSec - dt);
+  // 1) Continuous rotation
+  // rotate=-1 → CCW (nose toward up when facing right)
+  // rotate=+1 → CW (nose toward down when facing right)
+  let heading = p.heading + input.rotate * PLANE_TURN_RATE * dt;
 
-  if (input.rotate !== 0 && turnCdSec === 0) {
-    // BT-style: pressing "left" (rotate=-1) always tips nose toward up first regardless of facing
-    // facing=3 (right): rotate=-1 means f-- (toward up via f=4 going via 0->15->14...)
-    //   wait actually re-check: with facing=3, rotate=-1 should pitch up
-    //   stepDir formula: facing===2 ? +rotate : -rotate
-    //   facing=3, rotate=-1 -> stepDir = +1 -> f goes 0->1->2->3->4 (toward up). Good.
-    const stepDir = facing === 2 ? +input.rotate : -input.rotate;
-    f = (f + stepDir + 16) % 16;
-    turnCdSec = TURN_COOLDOWN_SEC;
-  }
+  // Normalize to [-π, π]
+  while (heading > Math.PI) heading -= 2 * Math.PI;
+  while (heading < -Math.PI) heading += 2 * Math.PI;
 
-  // 2) Compute BT heading (degrees), then trig
-  const btDeg = btHeadingDeg(facing, f);
-  const h = (btDeg * Math.PI) / 180;
-  const sinH = Math.sin(h);
-  const cosH = Math.cos(h);
+  // 2) Facing derived from heading — presentational flag for sprite mirroring.
+  const facing: 1 | -1 = Math.abs(heading) <= Math.PI / 2 ? 1 : -1;
 
-  // 3) Throttle (pitch-modulated thrust)
+  // 3) Pitch components (screen-standard: vx = cos(h)*g, vy = sin(h)*g, y-down)
+  const sinH = Math.sin(heading);
+  const cosH = Math.cos(heading);
+
+  // 4) Throttle thrust — pitch-modulated: max at horizontal, zero at vertical.
   let g = p.g;
   if (p.throttle && g <= G_MAX_LEVEL) {
-    // Thrust grows by |sin(h)| * THRUST_ACCEL_MAX per second (so max accel at horizontal)
-    g = Math.min(G_MAX_LEVEL, g + Math.abs(sinH) * THRUST_ACCEL_MAX * dt);
+    const thrustFactor = Math.abs(cosH);
+    g = Math.min(G_MAX_LEVEL, g + thrustFactor * THRUST_ACCEL_MAX * dt);
   }
 
-  // 4) Pitch bleed/feed applies at ALL frames. cosH determines magnitude and direction.
-  // Climbing (cosH > 0 when nose above horizon) bleeds speed.
-  // Diving (cosH < 0) feeds speed up to G_MAX_DIVE.
-  const pitchEffect = cosH * PITCH_BLEED_MAX * dt;
+  // 5) Pitch bleed/feed — continuous across all angles.
+  // Climbing (sinH < 0, nose above horizon) bleeds speed.
+  // Diving (sinH > 0, nose below horizon) feeds speed up to G_MAX_DIVE.
+  const pitchEffect = -sinH * PITCH_BLEED_MAX * dt; // positive when climbing
   if (pitchEffect > 0) {
     g = Math.max(0, g - pitchEffect);
   } else {
     g = Math.min(G_MAX_DIVE, g - pitchEffect);
   }
 
-  // 4b) Mild constant drag — proportional to current speed. ~5% loss per second at cruise.
+  // 6) Constant drag
   g = Math.max(0, g - g * DRAG_COEFFICIENT * dt);
 
-  // 5) Velocity from speed + heading (BT convention: vx = sin(h)*g, vy = -cos(h)*g)
-  let vx = sinH * g;
-  let vy = -cosH * g;
+  // 7) Velocity from speed + heading
+  let vx = cosH * g;
+  let vy = sinH * g;
 
-  // 6) Stall sink (independent of heading, adds downward to vy)
-  if (g < G_STALL) {
-    const sinkRatio = (G_STALL - g) / G_STALL;  // 0..1
-    vy += STALL_SINK_MAX * sinkRatio;
+  // 8) Soft stall sink — gradual ramp instead of sharp cliff at G_STALL.
+  // Below G_MAX_LEVEL, sink ramps from 0 to STALL_SINK_MAX as g drops to 0.
+  if (g < G_MAX_LEVEL) {
+    const sinkRatio = (G_MAX_LEVEL - g) / G_MAX_LEVEL; // 0 at full, 1 at zero
+    const sinkPower = sinkRatio * sinkRatio; // softer curve early, steeper late
+    vy += STALL_SINK_MAX * sinkPower;
   }
 
-  // 7) Position update
+  // 9) Position update
   let px = p.position.x + vx * dt;
   let py = p.position.y + vy * dt;
 
-  // 8) World wrap on X
+  // 10) World wrap on X
   if (px < 0) px += WORLD_WIDTH;
   if (px >= WORLD_WIDTH) px -= WORLD_WIDTH;
 
-  // 9) Ground clamp
+  // 11) Ground/ceiling
   if (py > GROUND_Y) {
     py = GROUND_Y;
     if (vy > 0) vy = 0;
   }
-  // Ceiling penalty
   if (py < 0) {
     py = 0;
-    g = Math.max(0, g - 10);
+    g = Math.max(0, g - 100); // bumped ceiling penalty
     vy = 0;
   }
-
-  // 10) Compute screen-standard heading for downstream code
-  const screenHeading = btToScreenRadians(btDeg);
 
   return {
     position: { x: px, y: py },
     velocity: { x: vx, y: vy },
-    heading: screenHeading,
+    heading,
     throttleOn: p.throttle,
     g,
-    f,
     facing,
-    turnCdSec,
     throttle: p.throttle,
-    rotateAccumulator: 0,
   };
 }

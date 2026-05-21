@@ -9,7 +9,7 @@ function makePlayer(): Plane {
     id: 1, faction: 'player',
     kinematic: {
       position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 }, heading: 0, throttleOn: true,
-      g: 1200, f: 0, facing: 3, turnCdSec: 0, throttle: true, rotateAccumulator: 0,
+      g: 1200, facing: 1, throttle: true,
     },
     hp: PLANE_INITIAL_HP, maxHp: PLANE_INITIAL_HP,
     weaponCooldown: 0, alive: true,

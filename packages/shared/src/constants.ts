@@ -6,8 +6,7 @@ export const THRUST_ACCEL_MAX = 2500; // px/sec², at horizontal (h=90° BT or 0
 export const PITCH_BLEED_MAX = 1250;  // px/sec², speed bleed when nose fully vertical
 export const STALL_SINK_MAX = 1220;   // px/sec, downward push when g=0
 export const DRAG_COEFFICIENT = 0.05; // fractional speed loss per second
-export const TURN_COOLDOWN_SEC = 0.1; // 100ms between rotation steps
-export const HEADING_STEPS = 16;      // 16 discrete angles, 22.5° each
+export const PLANE_TURN_RATE = 3.5;   // radians/sec when rotate input held (was discrete 16 steps in 100ms)
 
 // === Existing tunables — KEEP unless physics-related ===
 export const PLANE_INITIAL_HP = 100;

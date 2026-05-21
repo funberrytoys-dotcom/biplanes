@@ -12,7 +12,7 @@ function makePlayer() {
       velocity: { x: 1200, y: 0 },
       heading: 0,
       throttleOn: true,
-      g: 1200, f: 0, facing: 3 as const, turnCdSec: 0, throttle: true, rotateAccumulator: 0,
+      g: 1200, facing: 1 as const, throttle: true,
     },
     hp: PLANE_INITIAL_HP,
     maxHp: PLANE_INITIAL_HP,
