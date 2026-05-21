@@ -12,6 +12,7 @@ import {
   createWorldState, tick,
   type WorldState,
   type Plane,
+  type Difficulty,
 } from '@biplanes/core';
 import {
   createPixiApp,
@@ -27,6 +28,7 @@ import {
   createKeyboardController,
   createTouchController,
 } from '@biplanes/input';
+import { createStartScreen } from './screens/start-screen.js';
 
 function makePlayer(): Plane {
   return {
@@ -79,6 +81,14 @@ export async function startGame(container: HTMLElement) {
   uiLayer.addChild(hud.container);
 
   let state: WorldState = createWorldState(Math.floor(Math.random() * 1e9), makePlayer());
+  let gameRunning = false;
+
+  const startScreen = createStartScreen(app.screen.width, app.screen.height, (d: Difficulty) => {
+    state = { ...state, difficulty: d };
+    startScreen.hide();
+    gameRunning = true;
+  });
+  uiLayer.addChild(startScreen.container);
 
   const kb = createKeyboardController();
   const touch = createTouchController(app.canvas);
@@ -109,6 +119,7 @@ export async function startGame(container: HTMLElement) {
 
   let acc = 0;
   app.ticker.add((ticker) => {
+    if (!gameRunning) return;
     const deltaMS = ticker.deltaMS;
     const dt = deltaMS / 1000;
     acc += dt;
@@ -155,6 +166,24 @@ export async function startGame(container: HTMLElement) {
     camera.tickShake();
   });
 
+  function resetToMenu() {
+    gameRunning = false;
+    // Clear enemy sprites — they'll be re-created when state has new enemies.
+    for (const [, s] of enemySprites) {
+      planeLayer.removeChild(s.container);
+    }
+    enemySprites.clear();
+    bullets.sync([]);
+    state = createWorldState(Math.floor(Math.random() * 1e9), makePlayer());
+    startScreen.show();
+  }
+
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'Escape') {
+      resetToMenu();
+    }
+  });
+
   const onResize = () => {
     const w = app.screen.width;
     const h = app.screen.height;
@@ -162,6 +191,7 @@ export async function startGame(container: HTMLElement) {
     camera.setScreen(w, h);
     hud.resize(w, h);
     touch.updateZones(w, h);
+    startScreen.resize(w, h);
   };
   window.addEventListener('resize', onResize);
 }

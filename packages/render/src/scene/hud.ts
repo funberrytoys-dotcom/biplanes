@@ -119,7 +119,7 @@ export function createHud(width: number, height: number) {
       // If also pitched outside ±0.4 rad of horizontal → looks "upside down" enough to warn.
       const h = s.player.kinematic.heading;
       const inverted = s.player.state === 'flying' && Math.abs(h) > Math.PI / 2 + 0.4 && Math.abs(h) < Math.PI - 0.4;
-      text.text = `TIME ${s.timeSec.toFixed(1)}s   ENEMIES ${enemyAlive}   SPD ${Math.round(g)}   THR ${Math.round(throttle * 100)}%${stalling ? ' STALL!' : ''}${inverted ? ' INVERTED' : ''}`;
+      text.text = `[${s.difficulty.toUpperCase()}]   TIME ${s.timeSec.toFixed(1)}s   ENEMIES ${enemyAlive}   SPD ${Math.round(g)}   THR ${Math.round(throttle * 100)}%${stalling ? ' STALL!' : ''}${inverted ? ' INVERTED' : ''}`;
 
       // Center overlay logic — pilot wins over plane states.
       const pilot = s.pilot;
