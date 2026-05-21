@@ -144,6 +144,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
   let pilotEjectTimeSec = state.pilotEjectTimeSec;
   let playerScore = state.playerScore;
   let enemyScore = state.enemyScore;
+  let playerEjectedThisTick = false;
 
   // ---- Player branch ----
   // When a player pilot is active, the player plane sits in 'crashed' and does NOT
@@ -193,6 +194,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
       pilots.push(spawnPilot(nextEntityId, ejectX, ejectY, 'player'));
       nextEntityId++;
       pilotEjectTimeSec = 0;
+      playerEjectedThisTick = true;
       player = {
         ...player,
         state: 'crashed',
@@ -334,10 +336,25 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
   const flyingEnemies = enemies.filter(e => e.alive && e.state !== 'crashed');
   const crashedOrDeadEnemies = enemies.filter(e => !(e.alive && e.state !== 'crashed'));
   const collision = resolveBulletPlaneHits(newBulletList, player, flyingEnemies, pilots);
+
+  // ---- Score plane kills as well as pilot kills ----
+  // Count enemies that transitioned alive→dead this tick (regardless of cause: bullets,
+  // ground crash, ceiling, fire-burn). Subtract any that ejected — they got away, not killed.
+  const wasPlayerAliveBefore = state.player.alive;
+  const enemyAliveCountBefore = state.enemies.filter(e => e.alive).length;
+  const enemyAliveCountAfter = collision.enemies.filter(e => e.alive).length;
+  const enemyEjectsThisTick = ejectedThisTick.length;
+  const enemiesKilledThisTick = Math.max(0, enemyAliveCountBefore - enemyAliveCountAfter - enemyEjectsThisTick);
+
   player = collision.player;
   pilots = collision.pilots;
-  playerScore += collision.playerScoreDelta;
+  playerScore += collision.playerScoreDelta + enemiesKilledThisTick;
   enemyScore += collision.enemyScoreDelta;
+
+  // If the player plane just died this tick AND they didn't choose to eject → +1 to enemy.
+  if (wasPlayerAliveBefore && !player.alive && !playerEjectedThisTick) {
+    enemyScore += 1;
+  }
 
   const collidedEnemies = collision.enemies.map(e => {
     if (!e.alive && e.state !== 'crashed') {
