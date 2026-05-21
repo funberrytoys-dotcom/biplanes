@@ -68,6 +68,18 @@ function stepPlaneByState(
 
   if (p.state === 'taxi') {
     const { kinematic, readyForLiftoff } = stepPlaneTaxi(p.kinematic, { rotate: cmd.rotate }, dt);
+    // If pilot taxis past the runway edge without lifting off → crash.
+    // Plane is destroyed, point goes to the opposing side via the standard "alive→dead" score path.
+    if (kinematic.position.x < 0 || kinematic.position.x > WORLD_WIDTH) {
+      return {
+        ...p,
+        kinematic,
+        state: 'crashed',
+        respawnTimer: p.faction === 'player' ? RESPAWN_DELAY_SEC : ENEMY_RESPAWN_DELAY_SEC,
+        alive: false,
+        hp: 0,
+      };
+    }
     return { ...p, kinematic, state: readyForLiftoff ? 'flying' : 'taxi' };
   }
 
