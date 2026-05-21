@@ -1,53 +1,56 @@
 import {
   TICK_DT,
-  PLANE_THRUST,
-  PLANE_GRAVITY,
-  PLANE_TURN_RATE,
-  PLANE_MAX_SPEED,
-  PLANE_MIN_LIFT_SPEED,
-  PLANE_STALL_ANGLE,
+  G_MAX_LEVEL,
+  G_MAX_DIVE,
+  G_STALL,
+  THRUST_ACCEL_MAX,
+  PITCH_BLEED_MAX,
+  STALL_SINK_MAX,
+  TURN_COOLDOWN_SEC,
   GROUND_Y,
   WORLD_WIDTH,
   type Vec2,
 } from '@biplanes/shared';
-import { length, angleOf } from '../math/vec2.js';
 
 export interface PlaneKinematic {
-  position: Vec2;
-  velocity: Vec2;
-  heading: number;     // radians; 0 = pointing +x (right)
-  throttleOn: boolean;
+  // === Derived/maintained fields (downstream code reads these) ===
+  position: Vec2;       // world px
+  velocity: Vec2;       // px/sec (computed each tick from g + heading + stall)
+  heading: number;      // radians, screen-standard (0 = pointing +x, π/2 = +y down)
+  throttleOn: boolean;  // legacy alias — same as throttle
+
+  // === Source-of-truth (BT model) ===
+  g: number;            // scalar speed in px/sec (0..G_MAX_DIVE)
+  f: number;            // heading index 0..15
+  facing: 2 | 3;        // 2 = facing left, 3 = facing right
+  turnCdSec: number;    // seconds until next rotation allowed
+  throttle: boolean;    // true = throttle held, plane accelerates
+  rotateAccumulator: number; // accumulates fractional rotation input over time, NOT used in MVP
 }
 
 export interface PhysicsInput {
   rotate: -1 | 0 | 1;
 }
 
-/**
- * Returns true if the plane's nose points significantly away from its velocity
- * vector AND the plane is moving slowly enough that lift collapses.
- *
- * This is the core BT-Biplanes feel: nose-up + slow = drop like a rock.
- */
+// BT convention: 0° = nose-up, 90° = nose-right, 180° = nose-down, 270° = nose-left.
+const HEADINGS_BT_LEFT  = [270, 292, 315, 337,   0,  22,  45,  67,  90, 112, 135, 157, 180, 202, 225, 247];
+const HEADINGS_BT_RIGHT = [ 90,  67,  45,  22,   0, 337, 315, 292, 270, 247, 225, 202, 180, 157, 135, 112];
+
+function btHeadingDeg(facing: 2 | 3, f: number): number {
+  const table = facing === 2 ? HEADINGS_BT_LEFT : HEADINGS_BT_RIGHT;
+  return table[f] ?? 90;
+}
+
+// Convert BT-degree to screen-radian (0=right, CW positive, y-down)
+// BT: 0=up, 90=right, 180=down, 270=left
+// Us: 0=right, 90=down (screen), 180=left, 270=up
+// map: us = bt - 90, then to radians
+function btToScreenRadians(btDeg: number): number {
+  return ((btDeg - 90) * Math.PI) / 180;
+}
+
 export function isStalling(p: PlaneKinematic): boolean {
-  const speed = length(p.velocity);
-  if (speed >= PLANE_MIN_LIFT_SPEED * 1.5) return false;
-
-  // If barely moving, "stalling" depends on heading vs gravity direction.
-  if (speed < 5) {
-    // Pointing roughly upward (heading is negative angle in screen coords)
-    return p.heading < -0.3 && p.heading > -Math.PI + 0.3;
-  }
-
-  const velAngle = angleOf(p.velocity);
-  let diff = p.heading - velAngle;
-  // Normalize to [-PI, PI]
-  while (diff > Math.PI) diff -= 2 * Math.PI;
-  while (diff < -Math.PI) diff += 2 * Math.PI;
-
-  // Stall if nose is more than STALL_ANGLE above velocity vector (i.e. trying to climb steeply while slow)
-  // In screen coords "up" is negative y, so nose above velocity = heading more negative
-  return diff < -PLANE_STALL_ANGLE || diff > Math.PI - PLANE_STALL_ANGLE;
+  return p.g < G_STALL;
 }
 
 export function stepPlane(
@@ -55,46 +58,87 @@ export function stepPlane(
   input: PhysicsInput,
   dt: number = TICK_DT
 ): PlaneKinematic {
-  // 1) Update heading from rotation input
-  const heading = p.heading + input.rotate * PLANE_TURN_RATE * dt;
+  // 1) Rotation (discrete, rate-limited)
+  let f = p.f;
+  const facing = p.facing;
+  let turnCdSec = Math.max(0, p.turnCdSec - dt);
 
-  // 2) Compute thrust acceleration (in heading direction)
-  const stalling = isStalling(p);
-  const effectiveThrust = stalling ? PLANE_THRUST * 0.2 : (p.throttleOn ? PLANE_THRUST : 0);
-
-  let ax = Math.cos(heading) * effectiveThrust;
-  let ay = Math.sin(heading) * effectiveThrust;
-
-  // 3) Gravity
-  ay += PLANE_GRAVITY;
-
-  // 4) Velocity update
-  let vx = p.velocity.x + ax * dt;
-  let vy = p.velocity.y + ay * dt;
-
-  // 5) Speed cap
-  const speed = Math.sqrt(vx * vx + vy * vy);
-  if (speed > PLANE_MAX_SPEED) {
-    vx = (vx / speed) * PLANE_MAX_SPEED;
-    vy = (vy / speed) * PLANE_MAX_SPEED;
+  if (input.rotate !== 0 && turnCdSec === 0) {
+    // BT-style: pressing "left" (rotate=-1) always tips nose toward up first regardless of facing
+    // facing=3 (right): rotate=-1 means f-- (toward up via f=4 going via 0->15->14...)
+    //   wait actually re-check: with facing=3, rotate=-1 should pitch up
+    //   stepDir formula: facing===2 ? +rotate : -rotate
+    //   facing=3, rotate=-1 -> stepDir = +1 -> f goes 0->1->2->3->4 (toward up). Good.
+    const stepDir = facing === 2 ? +input.rotate : -input.rotate;
+    f = (f + stepDir + 16) % 16;
+    turnCdSec = TURN_COOLDOWN_SEC;
   }
 
-  // 6) Position update
+  // 2) Compute BT heading (degrees), then trig
+  const btDeg = btHeadingDeg(facing, f);
+  const h = (btDeg * Math.PI) / 180;
+  const sinH = Math.sin(h);
+  const cosH = Math.cos(h);
+
+  // 3) Throttle (pitch-modulated thrust)
+  let g = p.g;
+  if (p.throttle && g <= G_MAX_LEVEL) {
+    // Thrust grows by |sin(h)| * THRUST_ACCEL_MAX per second (so max accel at horizontal)
+    g = Math.min(G_MAX_LEVEL, g + Math.abs(sinH) * THRUST_ACCEL_MAX * dt);
+  }
+
+  // 4) Pitch bleed/feed (the "gravity" expressed on scalar speed)
+  // Climbing frames: f in 2..6  => cosH > 0 => g decreases by cosH * PITCH_BLEED_MAX * dt
+  // Diving frames:   f in 10..14 => cosH < 0 => g INCREASES (same formula), cap G_MAX_DIVE
+  if (f >= 2 && f <= 6) {
+    g = Math.max(0, g - cosH * PITCH_BLEED_MAX * dt);
+  } else if (f >= 10 && f <= 14) {
+    g = Math.min(G_MAX_DIVE, g - cosH * PITCH_BLEED_MAX * dt);
+  }
+
+  // 5) Velocity from speed + heading (BT convention: vx = sin(h)*g, vy = -cos(h)*g)
+  let vx = sinH * g;
+  let vy = -cosH * g;
+
+  // 6) Stall sink (independent of heading, adds downward to vy)
+  if (g < G_STALL) {
+    const sinkRatio = (G_STALL - g) / G_STALL;  // 0..1
+    vy += STALL_SINK_MAX * sinkRatio;
+  }
+
+  // 7) Position update
   let px = p.position.x + vx * dt;
   let py = p.position.y + vy * dt;
 
-  // 7) World bounds (wrap on x, clamp on y to ground)
+  // 8) World wrap on X
   if (px < 0) px += WORLD_WIDTH;
   if (px >= WORLD_WIDTH) px -= WORLD_WIDTH;
+
+  // 9) Ground clamp
   if (py > GROUND_Y) {
     py = GROUND_Y;
-    vy = Math.min(vy, 0);
+    if (vy > 0) vy = 0;
   }
+  // Ceiling penalty
+  if (py < 0) {
+    py = 0;
+    g = Math.max(0, g - 10);
+    vy = 0;
+  }
+
+  // 10) Compute screen-standard heading for downstream code
+  const screenHeading = btToScreenRadians(btDeg);
 
   return {
     position: { x: px, y: py },
     velocity: { x: vx, y: vy },
-    heading,
-    throttleOn: p.throttleOn,
+    heading: screenHeading,
+    throttleOn: p.throttle,
+    g,
+    f,
+    facing,
+    turnCdSec,
+    throttle: p.throttle,
+    rotateAccumulator: 0,
   };
 }

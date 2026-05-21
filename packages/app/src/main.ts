@@ -31,7 +31,13 @@ import { createDeathScreen } from './screens/death-screen.js';
 function makePlayer(): Plane {
   return {
     id: 1, faction: 'player',
-    kinematic: { position: { x: 2000, y: 1000 }, velocity: { x: 250, y: 0 }, heading: 0, throttleOn: true },
+    kinematic: {
+      position: { x: 2000, y: 1000 },
+      velocity: { x: 1200, y: 0 },
+      heading: 0,
+      throttleOn: true,
+      g: 1200, f: 0, facing: 3, turnCdSec: 0, throttle: true, rotateAccumulator: 0,
+    },
     hp: PLANE_INITIAL_HP, maxHp: PLANE_INITIAL_HP,
     weaponCooldown: 0, alive: true,
   };
