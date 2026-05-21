@@ -8,3 +8,6 @@ export * from './physics/pilot-physics.js';
 export * from './upgrades/upgrade-pool.js';
 export * from './upgrades/apply-upgrade.js';
 export * from './rng/mulberry32.js';
+export * from './ai/difficulty.js';
+export { aiCommand, createAiState, chasePolicy } from './ai/chase-policy.js';
+export type { AiState } from './ai/chase-policy.js';
