@@ -64,5 +64,7 @@ export function makeEnemyPlane(id: EntityId, around: Vec2, rng: Rng): Plane {
     maxHp: ENEMY_INITIAL_HP_LIGHT,
     weaponCooldown: 0.5 + rng.next() * 1.0,
     alive: true,
+    state: 'flying',
+    respawnTimer: 0,
   };
 }

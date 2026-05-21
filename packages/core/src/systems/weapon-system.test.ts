@@ -18,6 +18,8 @@ function makePlayer(): Plane {
     maxHp: 100,
     weaponCooldown: 0,
     alive: true,
+    state: 'flying',
+    respawnTimer: 0,
   };
 }
 

@@ -17,6 +17,8 @@ function makePlane(x: number, y: number, heading: number): Plane {
     maxHp: 30,
     weaponCooldown: 0,
     alive: true,
+    state: 'flying',
+    respawnTimer: 0,
   };
 }
 

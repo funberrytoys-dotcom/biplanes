@@ -10,6 +10,10 @@ import {
   GROUND_Y,
   WORLD_WIDTH,
   DRAG_COEFFICIENT,
+  TAKEOFF_ROLL_ACCEL,
+  TAKEOFF_LIFTOFF_SPEED,
+  TAKEOFF_LIFTOFF_PITCH,
+  RUNWAY_Y,
   type Vec2,
 } from '@biplanes/shared';
 
@@ -116,3 +120,86 @@ export function stepPlane(
     throttle: p.throttle,
   };
 }
+
+/**
+ * Ground-roll physics. Returns the new kinematic plus a flag indicating liftoff readiness.
+ *
+ * On the runway, the plane has automatic throttle, accelerates along its facing direction,
+ * and the player can tilt the nose up to roughly TAKEOFF_LIFTOFF_PITCH radians.
+ * Liftoff is signalled when speed is high enough AND the nose is tilted upward.
+ *
+ * The plane's facing (1 = right, -1 = left) determines roll direction. While taxiing,
+ * heading is constrained to the upper hemisphere of the facing direction (no diving
+ * into the dirt while still on the ground).
+ */
+export function stepPlaneTaxi(
+  p: PlaneKinematic,
+  input: PhysicsInput,
+  dt: number = TICK_DT
+): { kinematic: PlaneKinematic; readyForLiftoff: boolean } {
+  const facing: 1 | -1 = p.facing;
+
+  // Ground roll acceleration (throttle always on while taxiing)
+  const g = Math.min(G_MAX_LEVEL, p.g + TAKEOFF_ROLL_ACCEL * dt);
+
+  // Rotation — same input semantics as in flight (rotate=-1 tips nose up when facing right).
+  let heading = p.heading + input.rotate * PLANE_TURN_RATE * dt;
+  while (heading > Math.PI) heading -= 2 * Math.PI;
+  while (heading < -Math.PI) heading += 2 * Math.PI;
+
+  // Clamp heading: while on the ground the plane can only pitch up (toward the sky),
+  // never below horizontal. Express this relative to facing.
+  // Facing right (facing=1): horizontal heading is 0; pitch-up = negative heading.
+  //   Allowed range: [-π/2 + 0.05, 0]   (cannot pitch past straight up, cannot pitch below horizon)
+  // Facing left (facing=-1): horizontal heading is ±π; pitch-up means heading toward +π/2 side
+  //   In normalized [-π,π] this is heading near ±π, but rotated so nose goes up.
+  //   We work in "facing-relative" terms: a positive pitchUp means nose above horizon.
+  //
+  // For simplicity & symmetry, we only support facing=1 for taxi (player runway is on the left
+  // and the player faces right; AI taxi starts facing left and we mirror by flipping heading).
+  if (facing === 1) {
+    if (heading > 0) heading = 0;             // can't dip below horizon on the ground
+    if (heading < -Math.PI / 2 + 0.05) heading = -Math.PI / 2 + 0.05;
+  } else {
+    // Facing left: horizontal heading is π (or -π). Pitch-up = heading in (π/2, π).
+    // Normalize heading toward π for comparison.
+    let h = heading;
+    if (h < 0) h += 2 * Math.PI; // bring into [0, 2π)
+    // Allowed: [π, 3π/2 - 0.05]  (horizon to just before straight up on the left side)
+    if (h < Math.PI) h = Math.PI;
+    if (h > 3 * Math.PI / 2 - 0.05) h = 3 * Math.PI / 2 - 0.05;
+    heading = h > Math.PI ? h - 2 * Math.PI : h;
+  }
+
+  // Position rolls along the runway in the facing direction.
+  const px = p.position.x + facing * g * dt;
+  const py = RUNWAY_Y;
+  const vx = facing * g;
+  const vy = 0;
+
+  // Liftoff condition: enough speed + enough nose-up tilt.
+  // Pitch-up amount (in radians, positive when nose is above horizon):
+  let pitchUp: number;
+  if (facing === 1) {
+    pitchUp = -heading;                       // heading negative when nose-up while facing right
+  } else {
+    // Facing left: horizontal heading = ±π. Nose-up means heading is in (π/2, π) or (-π, -π/2).
+    pitchUp = Math.PI - Math.abs(heading);    // 0 at horizon, π/2 when pointing straight up
+  }
+  const readyForLiftoff = g >= TAKEOFF_LIFTOFF_SPEED && pitchUp >= TAKEOFF_LIFTOFF_PITCH;
+
+  return {
+    kinematic: {
+      position: { x: px, y: py },
+      velocity: { x: vx, y: vy },
+      heading,
+      throttleOn: true,
+      g,
+      facing,
+      throttle: true,
+    },
+    readyForLiftoff,
+  };
+}
+
+

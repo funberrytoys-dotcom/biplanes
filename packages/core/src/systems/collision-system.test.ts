@@ -13,6 +13,8 @@ function makePlane(id: number, x: number, y: number, faction: 'player' | 'enemy'
     },
     hp, maxHp: hp,
     weaponCooldown: 0, alive: true,
+    state: 'flying',
+    respawnTimer: 0,
   };
 }
 

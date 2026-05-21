@@ -13,6 +13,8 @@ function makePlayer(): Plane {
     },
     hp: PLANE_INITIAL_HP, maxHp: PLANE_INITIAL_HP,
     weaponCooldown: 0, alive: true,
+    state: 'flying',
+    respawnTimer: 0,
   };
 }
 
