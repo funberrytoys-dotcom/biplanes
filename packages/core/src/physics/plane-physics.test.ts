@@ -36,7 +36,7 @@ describe('plane-physics (continuous model)', () => {
   });
 
   it('throttle adds speed when horizontal', () => {
-    const p = makePlane({ heading: 0, g: 800, throttle: true });
+    const p = makePlane({ heading: 0, g: G_MAX_LEVEL * 0.5, throttle: true });
     const after = stepPlane(p, { rotate: 0 }, TICK_DT);
     expect(after.g).toBeGreaterThan(p.g);
   });
