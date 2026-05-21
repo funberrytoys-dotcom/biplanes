@@ -1,10 +1,16 @@
 import { Container, Graphics } from 'pixi.js';
 import type { Plane } from '@biplanes/core';
+import { SMOKE_THRESHOLD, FIRE_THRESHOLD } from '@biplanes/shared';
+import type { DamageFx } from './damage-fx.js';
 
-export function createPlaneSprite(faction: 'player' | 'enemy'): { container: Container; update: (p: Plane) => void } {
+export interface PlaneSpriteHandle {
+  container: Container;
+  update: (p: Plane, dt: number, fx?: DamageFx) => void;
+}
+
+export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandle {
   const c = new Container();
 
-  // Sprite is drawn pointing right (+x). We flip via scale.x when facing left.
   const body = new Graphics()
     .moveTo(20, 0)
     .lineTo(-16, -10)
@@ -18,14 +24,17 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): { container: Con
 
   c.addChild(wingTop, wingBot, body);
 
+  // Track previous state to detect the moment of death (for explosion burst).
+  let wasAlive = true;
+  // Particle emission accumulator — emit ~30Hz for smoke, ~50Hz for fire regardless of frame rate.
+  let smokeAcc = 0;
+  let fireAcc = 0;
+
   return {
     container: c,
-    update(p: Plane) {
+    update(p: Plane, dt: number, fx?: DamageFx) {
       c.x = p.kinematic.position.x;
       c.y = p.kinematic.position.y;
-      // When facing left we set scale.x = -1 to mirror; the rotation is the math heading.
-      // To make a left-facing plane visually upright, we rotate by (heading - π) so its
-      // body remains the same shape after the horizontal flip.
       if (p.kinematic.facing === -1) {
         c.scale.x = -1;
         c.rotation = Math.PI - p.kinematic.heading;
@@ -34,6 +43,49 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): { container: Con
         c.rotation = p.kinematic.heading;
       }
       c.alpha = p.state === 'crashed' ? 0 : 1;
+
+      // ---- Damage effects ----
+      const aliveAndFlying = p.alive && p.state === 'flying';
+      if (fx) {
+        // Tail world-space position (~16 px behind the nose direction).
+        // Nose direction is +cos/+sin of heading; tail is the opposite.
+        const tailDist = 18;
+        const tailX = p.kinematic.position.x - Math.cos(p.kinematic.heading) * tailDist;
+        const tailY = p.kinematic.position.y - Math.sin(p.kinematic.heading) * tailDist;
+
+        if (aliveAndFlying) {
+          const hpFrac = p.hp / p.maxHp;
+          if (hpFrac <= FIRE_THRESHOLD) {
+            // Fire + lighter smoke
+            fireAcc += dt;
+            while (fireAcc >= 1 / 50) {
+              fx.addFireTrail({ x: tailX, y: tailY }, 1);
+              fireAcc -= 1 / 50;
+            }
+            smokeAcc += dt;
+            while (smokeAcc >= 1 / 25) {
+              fx.addSmokeTrail({ x: tailX, y: tailY }, 1);
+              smokeAcc -= 1 / 25;
+            }
+          } else if (hpFrac <= SMOKE_THRESHOLD) {
+            smokeAcc += dt;
+            while (smokeAcc >= 1 / 30) {
+              fx.addSmokeTrail({ x: tailX, y: tailY }, 1);
+              smokeAcc -= 1 / 30;
+            }
+          } else {
+            smokeAcc = 0;
+            fireAcc = 0;
+          }
+        }
+
+        // Just died / just crashed → explosion burst.
+        if (wasAlive && (!p.alive || p.state === 'crashed')) {
+          fx.addExplosion({ x: p.kinematic.position.x, y: p.kinematic.position.y });
+        }
+      }
+
+      wasAlive = p.alive && p.state !== 'crashed';
     },
   };
 }

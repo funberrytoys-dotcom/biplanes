@@ -1,5 +1,5 @@
-import { Container, Graphics } from 'pixi.js';
-import { GROUND_Y, CEILING_Y } from '@biplanes/shared';
+import { Container, Graphics, Text, TextStyle } from 'pixi.js';
+import { GROUND_Y, CEILING_Y, RUNWAY_X } from '@biplanes/shared';
 
 /**
  * Static single-screen background:
@@ -78,6 +78,45 @@ export function createSkyBackground(width: number, height: number): Container {
       .fill(0x140d08);
     c.addChild(body, roof);
   }
+
+  // Player hangar — large contrasting building at RUNWAY_X so the pilot knows where to run.
+  const phW = 150;
+  const phH = 95;
+  const phTop = GROUND_Y - phH;
+  const phLeft = RUNWAY_X - phW / 2;
+  // Bright contrasting wall (warm orange/red so it pops against the dark ground strip)
+  const playerHangar = new Graphics()
+    .rect(phLeft, phTop, phW, phH)
+    .fill(0xb84a2a)
+    .stroke({ color: 0x000000, width: 2 });
+  // Wide door (lighter)
+  const doorW = 56;
+  const doorH = 62;
+  const door = new Graphics()
+    .rect(phLeft + (phW - doorW) / 2, GROUND_Y - doorH, doorW, doorH)
+    .fill(0x2a2018)
+    .stroke({ color: 0xeeeeee, width: 2 });
+  // Roof triangle
+  const playerHangarRoof = new Graphics()
+    .moveTo(phLeft - 10, phTop)
+    .lineTo(phLeft + phW / 2, phTop - 32)
+    .lineTo(phLeft + phW + 10, phTop)
+    .closePath()
+    .fill(0x6e2a15);
+  c.addChild(playerHangar, playerHangarRoof, door);
+
+  // "H" label above the door
+  const hStyle = new TextStyle({
+    fontFamily: 'monospace',
+    fontSize: 36,
+    fill: 0xffffff,
+    fontWeight: 'bold',
+    stroke: { color: 0x000000, width: 3 },
+  });
+  const hLabel = new Text({ text: 'H', style: hStyle });
+  hLabel.x = RUNWAY_X - hLabel.width / 2;
+  hLabel.y = phTop + 6;
+  c.addChild(hLabel);
 
   // Control tower — taller, narrow rectangle with a small cabin on top.
   const towerX = width * 0.5 - 18;
