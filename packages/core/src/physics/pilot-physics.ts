@@ -1,20 +1,30 @@
 import {
   GROUND_Y,
-  RUNWAY_X,
   WORLD_WIDTH,
   PARACHUTE_FALL_SPEED,
   PARACHUTE_DRIFT_SPEED,
   PILOT_WALK_SPEED,
   PILOT_HANGAR_ARRIVAL_DIST,
+  PILOT_JUMP_VELOCITY,
+  PILOT_GRAVITY,
+  PILOT_JUMP_COOLDOWN,
+  PLAYER_HANGAR_X,
+  ENEMY_HANGAR_X,
 } from '@biplanes/shared';
-import type { Pilot } from '../entities/pilot.js';
+import type { Pilot, Faction } from '../entities/pilot.js';
 
 export interface PilotInput {
-  rotate: -1 | 0 | 1; // -1 = drift/walk left, +1 = drift/walk right
+  rotate: -1 | 0 | 1; // -1 = drift/walk left, +1 = drift/walk right, 0 = stand still
+  jump?: boolean;     // only consumed in walking state, on ground, when cooldown ≤ 0
+}
+
+/** X-coordinate of the hangar where this faction's pilot is safe. */
+export function ownHangarX(faction: Faction): number {
+  return faction === 'player' ? PLAYER_HANGAR_X : ENEMY_HANGAR_X;
 }
 
 /**
- * Parachute descent. Gentle vertical fall; player input adds horizontal drift.
+ * Parachute descent. Gentle vertical fall; input adds horizontal drift.
  * Transitions to 'walking' when pilot reaches the ground.
  */
 export function stepPilotParachute(p: Pilot, input: PilotInput, dt: number): Pilot {
@@ -31,14 +41,15 @@ export function stepPilotParachute(p: Pilot, input: PilotInput, dt: number): Pil
   // Ground contact → switch to walking
   if (py >= GROUND_Y) {
     py = GROUND_Y;
-    // Face toward hangar by default on landing
-    const facing: 1 | -1 = px > RUNWAY_X ? -1 : 1;
+    const hangarX = ownHangarX(p.faction);
+    const facing: 1 | -1 = px > hangarX ? -1 : 1;
     return {
       ...p,
       position: { x: px, y: py },
       velocity: { x: 0, y: 0 },
       state: 'walking',
       facing,
+      groundedJumpCooldown: 0,
     };
   }
 
@@ -50,38 +61,73 @@ export function stepPilotParachute(p: Pilot, input: PilotInput, dt: number): Pil
 }
 
 /**
- * Walking on the ground. Heads toward the nearest player-side hangar (RUNWAY_X).
- * Player can override direction with input.rotate, but default is autonomous.
- * Transitions to 'safe' when reaching within PILOT_HANGAR_ARRIVAL_DIST of RUNWAY_X.
+ * Walking on the ground. Direction is PURELY driven by input.rotate:
+ *   -1 → walk left, +1 → walk right, 0 → stand still.
+ * No auto-walk. Optional jump (input.jump) gives a short hop while
+ * gravity pulls back to GROUND_Y.
+ * Transitions to 'safe' when within PILOT_HANGAR_ARRIVAL_DIST of own-faction hangar
+ * (only valid when grounded — can't enter hangar mid-jump).
  */
 export function stepPilotWalking(p: Pilot, input: PilotInput, dt: number): Pilot {
-  // Direction: prefer player input if any, else auto-walk toward hangar
-  let dir: 1 | -1;
-  if (input.rotate !== 0) {
-    dir = input.rotate === 1 ? 1 : -1;
-  } else {
-    dir = p.position.x > RUNWAY_X ? -1 : 1;
+  // Horizontal motion strictly from input.
+  let vx = 0;
+  let facing = p.facing;
+  if (input.rotate === -1) {
+    vx = -PILOT_WALK_SPEED;
+    facing = -1;
+  } else if (input.rotate === 1) {
+    vx = PILOT_WALK_SPEED;
+    facing = 1;
   }
 
-  const px = p.position.x + dir * PILOT_WALK_SPEED * dt;
-  const py = GROUND_Y;
+  // Vertical: jump trigger + gravity.
+  const grounded = p.position.y >= GROUND_Y - 0.5;
+  let vy = p.velocity.y;
+  let jumpCd = Math.max(0, p.groundedJumpCooldown - dt);
 
-  // Check arrival
-  if (Math.abs(px - RUNWAY_X) < PILOT_HANGAR_ARRIVAL_DIST) {
+  if (input.jump && grounded && jumpCd <= 0) {
+    vy = -PILOT_JUMP_VELOCITY; // negative = upward in screen coords
+    jumpCd = PILOT_JUMP_COOLDOWN;
+  } else {
+    // Apply gravity when above ground or already moving vertically
+    if (!grounded || vy < 0) {
+      vy += PILOT_GRAVITY * dt;
+    } else {
+      vy = 0;
+    }
+  }
+
+  let px = p.position.x + vx * dt;
+  let py = p.position.y + vy * dt;
+
+  if (py >= GROUND_Y) {
+    py = GROUND_Y;
+    if (vy > 0) vy = 0;
+  }
+
+  // World wrap on X
+  if (px < 0) px += WORLD_WIDTH;
+  if (px >= WORLD_WIDTH) px -= WORLD_WIDTH;
+
+  // Arrival at own hangar — only when grounded.
+  const hangarX = ownHangarX(p.faction);
+  if (py >= GROUND_Y - 0.5 && Math.abs(px - hangarX) < PILOT_HANGAR_ARRIVAL_DIST) {
     return {
       ...p,
       position: { x: px, y: py },
       velocity: { x: 0, y: 0 },
       state: 'safe',
-      facing: dir,
+      facing,
+      groundedJumpCooldown: 0,
     };
   }
 
   return {
     ...p,
     position: { x: px, y: py },
-    velocity: { x: dir * PILOT_WALK_SPEED, y: 0 },
-    facing: dir,
+    velocity: { x: vx, y: vy },
+    facing,
+    groundedJumpCooldown: jumpCd,
   };
 }
 

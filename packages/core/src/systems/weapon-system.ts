@@ -17,6 +17,7 @@ export function makeBulletFromPlane(plane: Plane, id: EntityId): Bullet {
   return {
     id,
     ownerId: plane.id,
+    ownerFaction: plane.faction,
     position: {
       x: plane.kinematic.position.x + cos * offset,
       y: plane.kinematic.position.y + sin * offset,
