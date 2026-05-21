@@ -1,0 +1,58 @@
+import type { Plane } from '../entities/plane.js';
+import type { Bullet } from '../entities/bullet.js';
+
+const PLANE_HIT_RADIUS = 22;
+
+export interface CollisionResult {
+  bullets: Bullet[];
+  player: Plane;
+  enemies: Plane[];
+  kills: number;
+}
+
+export function resolveBulletPlaneHits(
+  bullets: readonly Bullet[],
+  player: Plane,
+  enemies: readonly Plane[]
+): CollisionResult {
+  let newPlayer = { ...player };
+  const newEnemies = enemies.map(e => ({ ...e }));
+  const remainingBullets: Bullet[] = [];
+  let kills = 0;
+
+  for (const b of bullets) {
+    let consumed = false;
+
+    // Check player (if bullet not from player)
+    if (b.ownerId !== player.id && player.alive) {
+      const dx = b.position.x - player.kinematic.position.x;
+      const dy = b.position.y - player.kinematic.position.y;
+      if (dx * dx + dy * dy < PLANE_HIT_RADIUS * PLANE_HIT_RADIUS) {
+        newPlayer = { ...newPlayer, hp: Math.max(0, newPlayer.hp - b.damage) };
+        if (newPlayer.hp === 0) newPlayer.alive = false;
+        consumed = true;
+      }
+    }
+
+    if (!consumed) {
+      for (const e of newEnemies) {
+        if (e.id === b.ownerId || !e.alive) continue;
+        const dx = b.position.x - e.kinematic.position.x;
+        const dy = b.position.y - e.kinematic.position.y;
+        if (dx * dx + dy * dy < PLANE_HIT_RADIUS * PLANE_HIT_RADIUS) {
+          e.hp = Math.max(0, e.hp - b.damage);
+          if (e.hp === 0 && e.alive) {
+            e.alive = false;
+            kills++;
+          }
+          consumed = true;
+          break;
+        }
+      }
+    }
+
+    if (!consumed) remainingBullets.push(b);
+  }
+
+  return { bullets: remainingBullets, player: newPlayer, enemies: newEnemies, kills };
+}
