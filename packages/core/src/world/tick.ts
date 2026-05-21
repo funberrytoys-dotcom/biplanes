@@ -31,7 +31,9 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
   const fireResult = firePlayerWeapon(
     { ...state.player, weaponCooldown: decrementedPlayerCooldown },
     playerCommand.fire,
-    nextEntityId
+    nextEntityId,
+    state.damageMultiplier,
+    state.fireRateMultiplier
   );
   if (fireResult.bullet) {
     newBulletList.push(fireResult.bullet);

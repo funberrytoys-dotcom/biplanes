@@ -39,14 +39,18 @@ export interface FireResult {
 export function firePlayerWeapon(
   plane: Plane,
   fireInput: boolean,
-  bulletId: EntityId
+  bulletId: EntityId,
+  damageMultiplier: number = 1,
+  fireRateMultiplier: number = 1
 ): FireResult {
   if (!fireInput || plane.weaponCooldown > 0 || !plane.alive) {
     return { newCooldown: plane.weaponCooldown };
   }
+  const bullet = makeBulletFromPlane(plane, bulletId);
+  bullet.damage = bullet.damage * damageMultiplier;
   return {
-    bullet: makeBulletFromPlane(plane, bulletId),
-    newCooldown: MACHINE_GUN_COOLDOWN,
+    bullet,
+    newCooldown: MACHINE_GUN_COOLDOWN / fireRateMultiplier,
   };
 }
 
