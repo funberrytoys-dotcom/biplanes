@@ -57,6 +57,14 @@ export interface AiParams {
   // === EJECT BEHAVIOUR ===
   /** probability per second of bailing out when on fire (HP fraction <= FIRE_THRESHOLD) */
   ejectChancePerSec: number;
+
+  // === COMBAT STATS (per-difficulty asymmetry) ===
+  /** multiplier on enemy plane max HP (1.0 = base, >1 = tougher) */
+  hpMultiplier: number;
+  /** multiplier on enemy bullet damage */
+  damageMultiplier: number;
+  /** multiplier on enemy fire rate (1.0 = same as player, >1 = faster shots) */
+  fireRateMultiplier: number;
 }
 
 export const DIFFICULTIES: Record<Difficulty, AiParams> = {
@@ -83,6 +91,9 @@ export const DIFFICULTIES: Record<Difficulty, AiParams> = {
     climbThrottle: 1.0,
     rookieMistakeChancePerSec: 0.5,   // a mistake every ~2 seconds
     ejectChancePerSec: 0.3,           // rarely bails, dies in plane
+    hpMultiplier: 0.7,                 // fragile — goes down quickly
+    damageMultiplier: 0.7,             // weak bullets
+    fireRateMultiplier: 0.7,           // slow trigger finger
   },
   medium: {
     stallAvoidEnabled: true,
@@ -105,6 +116,9 @@ export const DIFFICULTIES: Record<Difficulty, AiParams> = {
     climbThrottle: 1.0,
     rookieMistakeChancePerSec: 0.05,
     ejectChancePerSec: 1.5,
+    hpMultiplier: 1.5,                 // moderately tougher than player baseline
+    damageMultiplier: 1.0,
+    fireRateMultiplier: 1.2,           // shoots a bit faster
   },
   hard: {
     // Ace. Manages energy, predicts player, rarely crashes, bails when burning.
@@ -128,5 +142,8 @@ export const DIFFICULTIES: Record<Difficulty, AiParams> = {
     climbThrottle: 1.0,
     rookieMistakeChancePerSec: 0,
     ejectChancePerSec: 3.0,           // always bails when burning
+    hpMultiplier: 2.5,                 // really tough — takes 75 dmg to down (vs player 100)
+    damageMultiplier: 1.8,             // bullets bite hard
+    fireRateMultiplier: 1.8,           // rapid-fire (~6 shots/sec vs player ~3)
   },
 };

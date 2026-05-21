@@ -109,7 +109,8 @@ function applyFireBurn(p: Plane, dt: number): Plane {
   return { ...p, hp: newHp, alive };
 }
 
-function spawnEnemy(id: number): Plane {
+function spawnEnemy(id: number, hpMultiplier: number = 1): Plane {
+  const maxHp = Math.round(ENEMY_INITIAL_HP_LIGHT * hpMultiplier);
   return {
     id,
     faction: 'enemy',
@@ -123,8 +124,8 @@ function spawnEnemy(id: number): Plane {
       throttle: false,
       throttleLevel: 0,  // Enemy also starts stationary — AI throttle policy will open it up.
     },
-    hp: ENEMY_INITIAL_HP_LIGHT,
-    maxHp: ENEMY_INITIAL_HP_LIGHT,
+    hp: maxHp,
+    maxHp,
     weaponCooldown: 0,
     alive: true,
     state: 'taxi',
@@ -319,7 +320,11 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
 
     if (cmd.fire && newCooldown === 0 && stepped.state === 'flying' && stepped.alive) {
       const fakeForFire = { ...stepped, weaponCooldown: 0 };
-      const result = firePlayerWeapon(fakeForFire, true, nextEntityId);
+      const result = firePlayerWeapon(
+        fakeForFire, true, nextEntityId,
+        params.damageMultiplier,
+        params.fireRateMultiplier,
+      );
       if (result.bullet) {
         newBulletList.push(result.bullet);
         nextEntityId++;
@@ -445,7 +450,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
   const newTime = state.timeSec + TICK_DT;
   const enemyPilotInPlay = findPilot(pilots, 'enemy') !== undefined;
   if (livingEnemyCount === 0 && newTime > 1.0 && !enemyPilotInPlay) {
-    enemies.push(spawnEnemy(nextEntityId));
+    enemies.push(spawnEnemy(nextEntityId, params.hpMultiplier));
     nextEntityId++;
   }
 
