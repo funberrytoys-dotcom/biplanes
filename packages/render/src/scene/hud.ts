@@ -115,7 +115,11 @@ export function createHud(width: number, height: number) {
       throttleFill.clear().rect(THR_X, THR_Y, THR_W * throttle, THR_H).fill(0xff8c19);
 
       const enemyAlive = s.enemies.filter(e => e.state !== 'crashed').length;
-      text.text = `TIME ${s.timeSec.toFixed(1)}s   ENEMIES ${enemyAlive}   SPD ${Math.round(g)}   THR ${Math.round(throttle * 100)}%${stalling ? ' STALL!' : ''}`;
+      // Detect inverted flight: heading wraps to |heading| > π/2 means cos<0 → flying left.
+      // If also pitched outside ±0.4 rad of horizontal → looks "upside down" enough to warn.
+      const h = s.player.kinematic.heading;
+      const inverted = s.player.state === 'flying' && Math.abs(h) > Math.PI / 2 + 0.4 && Math.abs(h) < Math.PI - 0.4;
+      text.text = `TIME ${s.timeSec.toFixed(1)}s   ENEMIES ${enemyAlive}   SPD ${Math.round(g)}   THR ${Math.round(throttle * 100)}%${stalling ? ' STALL!' : ''}${inverted ? ' INVERTED' : ''}`;
 
       // Center overlay logic — pilot wins over plane states.
       const pilot = s.pilot;

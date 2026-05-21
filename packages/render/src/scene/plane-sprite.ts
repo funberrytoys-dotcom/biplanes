@@ -35,13 +35,10 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
     update(p: Plane, dt: number, fx?: DamageFx) {
       c.x = p.kinematic.position.x;
       c.y = p.kinematic.position.y;
-      if (p.kinematic.facing === -1) {
-        c.scale.x = -1;
-        c.rotation = Math.PI - p.kinematic.heading;
-      } else {
-        c.scale.x = 1;
-        c.rotation = p.kinematic.heading;
-      }
+      // No mirroring — plane rotates smoothly through 360°. When flying left, plane
+      // is visually inverted; player completes another half-loop to right itself.
+      c.scale.x = 1;
+      c.rotation = p.kinematic.heading;
       c.alpha = p.state === 'crashed' ? 0 : 1;
 
       // ---- Damage effects ----
