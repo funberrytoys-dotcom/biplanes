@@ -14,18 +14,26 @@
 
 ## 2. Жанр и вайб
 
-**Дизельпанк + романтика неба.** Тёплый, ламповый, обжитой мир, а не мрачная антиутопия. Чувство приключения, а не выживания.
+**Дизельпанк pulp-aviation.** Война клонов в небе, насыщенная, военно-приключенческая. Тон — как pulp-журналы 1930-х: Doc Savage, ранний Индиана Джонс, комиксы про лётчиков-героев. **НЕ милый, НЕ детский.** Адреналин, керосин, машинное масло, дерзость.
 
 ### Главные референсы (по убыванию приоритета)
 
-1. **Studio Ghibli — «Порко Россо», «Замок в небе»** — палитра, романтика, тёплое освещение, любовь к технике. Самый сильный мудбоард.
-2. **«Чудеса на виражах»** (Disney TaleSpin, 1990) — мультяшная подача, добрые персонажи, тропическая жара.
-3. **Crimson Skies** (Microsoft, 2003) — самолёты с обратной стреловидностью, цеппелины-крепости, пилоты-герои.
-4. **Last Exile** (аниме, 2003) — гигантские воздушные крейсеры, эстетика медной авионики, дисциплина экипажа.
-5. **BioShock Infinite — Columbia** — образ парящей цивилизации, патриотические плакаты, барокко в небе.
-6. **Sky Gamblers** — современная мобильная стилизация (для понимания «как это выглядит в HD на телефоне»).
+1. **Crimson Skies** (Microsoft, 2003) — **ГЛАВНЫЙ референс самолётов**. Devastator и компания: двухмоторные коробки, клёпаная броня, открытые радиальные двигатели, бронированные фонари, жирные номера на хвосте, военное обветшание. Pulp 1930-х в чистом виде. Альтернативная история США 1937 года, балканизированная на территории, воздушные пираты-фракции. Это ровно наш мир, только без «архипелаг скал» вместо штатов.
+2. **Sky Captain and the World of Tomorrow** (2004) — sepia-pulp эстетика, ретро-футуризм, гигантские дирижабли, авиа-эскадрильи в строю.
+3. **Last Exile** (аниме, 2003) — гигантские воздушные крейсеры, эстетика медной авионики, дисциплина экипажа, форма пилотов.
+4. **BioShock Infinite — Columbia** — образ парящей цивилизации, патриотические плакаты, барокко в небе.
+5. **Hellboy / Mignola pulp art** — графический стиль, плотные тени, контрастные акценты.
+6. **«Порко Россо»** (Ghibli, 1992) — только за романтику средиземноморских заходов солнца, НЕ за милоту дизайна персонажей.
+7. **«Чудеса на виражах»** — только для понимания тёплого антропоморфизма Чико, а не для общего стиля.
 
-**Чего избегать:** Mad Max (слишком пыльно/жестоко), Warhammer 40k (слишком готично), современный реализм, советская военная техника, киберпанк.
+**Чего избегать:**
+- Mad Max (слишком пыльно/жестоко, нет неба)
+- Современный реализм
+- Аниме с большими глазами
+- Cute Ghibli design (детский кавай)
+- Cyberpunk / unstreampunk
+- Советская военная техника (формы не той эпохи)
+- Чистенькие «hangar queen» самолёты — всё должно быть в работе, в копоти, с заплатками
 
 ---
 
@@ -33,25 +41,28 @@
 
 ### Небо (основной фон, видно постоянно)
 
-- **Верх неба** — глубокий кобальтовый синий `#1f4f8b` → переход
-- **Горизонт** — тёплый оранжевый-охра `#d8985c`
-- **Облака** — кремово-белые с жёлтым `#f4e4c1`, полупрозрачные
-- **Дальние скалы (силуэты)** — холодно-фиолетовый `#3d3a5a`, размытый
+- **Верх неба** — глубокий грозовой синий `#1a3a5c` (темнее чем было — pulp-драма)
+- **Горизонт** — янтарно-сепия `#c87a2f`, как закат над пустыней
+- **Облака** — кремовые с жёлто-оранжевым подбрюшьем `#e8c890`, плотнее и драматичнее
+- **Дальние скалы (силуэты)** — графит `#2a2a3a`, чётко очерченные
 
 ### Земля / скалы / постройки
 
-- **Земля под полосой** — терракотовый `#c87a3b`
-- **Растительность** — оливковый `#6b7a3d`
-- **Камни/скалы** — серо-бежевый `#a89888`
-- **Дерево построек** — тёплый коричневый `#8b5e3c`
-- **Крыши** — приглушённый красный/охра `#a8463a`
+- **Земля под полосой** — выжженный терракот `#a85a2a`
+- **Растительность** — тёмная олива `#4a5a2a`
+- **Камни/скалы** — серый камень `#787068`, тёмнее
+- **Дерево/металл построек** — тёмный коричневый + полосы металла `#5a3a28`
+- **Крыши** — выгоревший красный `#8a3828`
 
-### Металл (самолёты, дирижабли)
+### Металл (самолёты — основная масса самолёта тёмная!)
 
-- **Латунь** — `#b8893a` (тёплое золото)
-- **Старая медь** — `#8b6a3a` с зелёным окислом `#3a5a4a`
-- **Сталь** — серебристо-серый `#8a8a8a`
-- **Тёмная сталь** — антрацит `#3a3a3a`
+- **База корпуса (большинство самолётов)** — тёмно-серый военный, gunmetal `#3a3a42`
+- **Олива (армейская)** — `#5a5a32`
+- **Тёмно-синий (морская авиация)** — `#1a2a4a`
+- **Клёпки/болты** — почти чёрные `#1a1a1a`
+- **Открытые двигатели (цилиндры радиальные)** — потемневшая сталь + латунные акценты + масляные потёки
+- **Латунь (только акценты — кран, ручки)** — `#a87838`
+- **Стекло фонаря** — мутно-янтарное `#d4a838`, с бликами
 
 ### Акценты команд
 
@@ -69,55 +80,65 @@
 
 ---
 
-## 4. Самолёты
+## 4. Самолёты — Crimson Skies аэродинамика
 
-### Общая стилистика
+### Общая стилистика (важно — НЕ милые бипланы)
 
-- **Бипланы** (два крыла друг над другом) — основной тип, классика
-- **Обратная стреловидность** крыльев (крылья назад) — визуальная подпись мира, узнаваемо
-- **Один поршневой двигатель** спереди, обтекатель округлый
-- **Кокпит открытый или с фонарём** — пилот видно, очки/шлем/шарф
-- **Заклёпки**, обшивка парусиной + металл вокруг капота
-- **Хвост** — короткий, с двумя плавниками или одним крупным
-- **Шасси** — фиксированные, с обтекателями (не убираются)
-- **Маркировка** — большой опознавательный знак клана на крыльях и фюзеляже
-- **Размер** — компактный, на одного пилота. НЕ бомбардировщик.
+- **Тяжёлые, коренастые** — машины-«коробки», а не элегантные птички. Сила, а не грация.
+- **Конструкция**: бипланы И моноплавы оба ок. Многие — **двухмоторные** (как Devastator) с моторами на крыльях.
+- **Обратная стреловидность** крыльев (крылья назад) — фирменная фишка нашего мира, сохраняем.
+- **Открытые радиальные двигатели** — видно цилиндры звездой, как у реальных самолётов 30-х. Часто пара двигателей на крыльях или один большой в носу.
+- **Полностью металлическая обшивка** — никакой парусины. Клёпаные стальные/алюминиевые листы с видимыми головками заклёпок.
+- **Бронированный фонарь** — кокпит с толстым желтоватым стеклом, металлические рёбра.
+- **Хвост** — массивный, часто **сдвоенные кили** (twin tails) для пафоса.
+- **Шасси** — фиксированные, в обтекателях из листового металла.
+- **Маркировка** — **жирная и крупная**:
+  - Большой номер эскадрильи на хвосте (трафаретный, белый или жёлтый)
+  - Опознавательный знак клана на фюзеляже и крыльях
+  - Часто painted nose-art (девушки в стиле pin-up, оскал, надписи)
+  - «Kill marks» — маленькие силуэты сбитых врагов на фюзеляже
+- **Военное обветшание** — масляные потёки от двигателей, копоть из выхлопов, царапины от пуль, заплатки разного оттенка металла, выцвевшая краска.
+- **Размер** — крупные машины, на 1-2 пилотов (1 на наших спрайтах). Чувство веса.
 
 ### Самолёт Чико (главный герой)
 
-- Цвета: **жёлтый корпус + кобальтовые крылья**
-- Имя на фюзеляже: «BERRY 01» или «CHICO» (определимся позже)
-- Слегка изношенный, но любовно ухоженный
-- На носу нарисован шеврон или ягода (отсылка к бренду)
-- Размер: средний — сбалансированный
-- Характер: тёплый, надёжный, не агрессивный
+- **База** — gunmetal-серый `#3a3a42` (как военный истребитель)
+- **Акценты** — жёлтые `#f4d35e` полосы на крыльях/хвосте, кобальтовый нос `#1a2a4a`
+- **Тип** — одномоторный истребитель-биплан с **обратной стреловидностью**, открытый радиальный двигатель в носу
+- **Маркировка** — белая «01» на хвосте, силуэт ягоды-чикоберри на капоте (бренд-знак)
+- **Обвес** — два спаренных пулемёта по бокам капота, видны стволы
+- **Состояние** — «надёжный воин», много миль за плечами, но в полном порядке. Несколько kill-marks под кокпитом.
+- **Характер дизайна** — герой, но не «новенький» — это работяга-ветеран
 
 ### Самолёты Багровых Шакалов
 
-- Цвета: **кроваво-красный + чёрный**
-- Угловатые формы, лезвия по краям крыльев и носа
-- На носу зубастая морда (шарк-маут)
-- Изношенные, в копоти, заплатки
-- На вершине капота — шипы
-- Характер: брутальный, голодный, стая
+- **База** — кроваво-красный `#a8281f` поверх тёмно-серого металла
+- **Акценты** — чёрные крылья с белой «зубастой» окантовкой, чёрные капоты
+- **Тип** — **двухмоторные** короткие истребители (а-ля Devastator) — два радиальных двигателя на крыльях
+- **Маркировка** — череп с костями на хвосте, оскаленная пасть с зубами на носу (shark-mouth), номера трафаретом белым
+- **Обвес** — несколько пулемётов в крыльях, может ракеты под крыльями
+- **Состояние** — в шрамах, копоти, латаные. Видно что воюют постоянно.
+- **Характер** — голодный, агрессивный, стая
 
 ### Самолёты Латунного Картеля
 
-- Цвета: **золото + бордовый**
-- Гравировка на металле, вензели, орнаменты
-- Жирнее и тяжелее остальных — больше брони
-- На фюзеляже геральдические гербы
-- Эстетика декаданса — золотые цепочки на пилоте, перья в шлеме
-- Характер: высокомерный, богатый, опасный
+- **База** — тёмно-бордовый `#5a1a2a` с **широкими латунными полосами** `#a87838` по бортам
+- **Акценты** — золотая гравировка по краям, вензели, орнаменты в стиле Art Deco
+- **Тип** — крупные **двухмоторные** монопланы с длинным фюзеляжем — премиум-машины, тяжелее остальных
+- **Маркировка** — геральдический герб (лев, орёл), фигурный шрифт номеров (готика/каллиграфия)
+- **Обвес** — крупнокалиберные пулемёты в носу + бомбовые подвески
+- **Состояние** — относительно чистые, надраенные — деньги есть на ремонт
+- **Характер** — высокомерный богатый клан, опасный из-за денег и оборудования
 
 ### Самолёты Стаи Альбатроса
 
-- Цвета: **белый + графит + бирюзовый акцент**
-- Экспериментальные формы — крылья другой геометрии, доп. винты
-- Чистые поверхности, минимум деталей
-- Тесла-катушки или плазменные пушки вместо классических пулемётов
-- Эстетика безумного учёного — выхлопы пара, провода
-- Характер: технократы, эксперимент превыше всего
+- **База** — холодный белый `#e8e8e8` + графит `#2a2a2a` контрастно
+- **Акценты** — бирюзовые `#3a8a8a` линии вдоль фюзеляжа, медные катушки
+- **Тип** — экспериментальные форм-факторы: **flying wing**, или биплан с дополнительными винтами на хвосте, или тандем-крылья
+- **Маркировка** — минималистичная: чёрный треугольник или цифровой код, без украшений
+- **Обвес** — **тесла-катушки** вместо пулемётов (видны медные спирали с искрами), плазменные пушки
+- **Состояние** — стерильно чистые, но с торчащими проводами и «инженерным хаосом» внутренних деталей
+- **Характер** — фанатики прогресса, технократы, испытывают на тебе свои прототипы
 
 ---
 
@@ -227,89 +248,163 @@
 ### Базовый стиль (использовать в каждом промпте)
 
 ```
-dieselpunk biplane game asset, Studio Ghibli meets Crimson Skies aesthetic,
-warm golden hour lighting, hand-painted illustrative style,
-clean line art with painterly shading, no photo-realism,
-warm color palette of ochre, cobalt blue, brass, olive green,
-flat side-view, no perspective
+Crimson Skies aviation game asset, pulp 1930s dieselpunk aesthetic,
+hand-painted digital illustration with bold outlines and painterly shading,
+weathered military aircraft with riveted metal panels and exposed radial engines,
+oil streaks and combat wear, bold faction colors,
+golden hour or stormy sky lighting,
+gunmetal gray base palette with strong faction-color accents,
+NO Ghibli cuteness, NO anime, NO photorealism — pulp comic book illustration style,
+flat side-view, no perspective distortion
 ```
 
-### Самолёт Чико
+### Самолёт Чико (главный герой)
 
 ```
-A vibrant yellow biplane with cobalt blue swept-back wings, single piston engine,
-open cockpit with brave anthropomorphic pilot wearing leather flight cap and yellow scarf,
-brass rivets and weathered fabric panels, fixed landing gear,
-side profile, white background, game sprite ready,
+A weathered single-engine biplane fighter with reverse-swept wings,
+gunmetal gray body with bright yellow stripe along the fuselage and cobalt blue nose cowling,
+exposed radial engine showing brass cylinders, brass propeller spinner,
+heavily riveted metal panels with visible bolts,
+armored amber-tinted bubble canopy with metal frame,
+twin machine guns mounted on either side of the engine cowling,
+white squadron number "01" stenciled on the tail,
+small berry-icon emblem painted on the engine cowling,
+small kill marks (tiny silhouettes) stenciled under the cockpit,
+fixed landing gear with metal spats,
+oil streaks running back from the engine, battle-worn but well-maintained,
+side profile view, transparent background, game sprite,
 [base style block]
 ```
 
-### Вражеский биплан Багровых Шакалов
+### Вражеский истребитель Багровых Шакалов
 
 ```
-A menacing crimson red biplane with black accents and shark-tooth nose art,
-swept-back wings with razor edges, exposed engine pipes,
-patched and scarred fabric, pirate insignia on fuselage,
-aggressive low stance, single propeller, side profile, white background, game sprite ready,
+A menacing twin-engine pirate fighter inspired by the Crimson Skies Devastator,
+crimson red over gunmetal gray base, glossy black wing tips,
+two exposed radial engines mounted on the swept-back wings,
+shark-mouth nose art with sharp white teeth on a black background,
+skull-and-crossbones emblem on the tail,
+twin tail booms with vertical stabilizers,
+multiple machine guns visible in the wings,
+heavily riveted armored panels, scorched paint, patches of mismatched metal,
+white stencil squadron number on tail,
+oil and soot streaks, look hungry and aggressive,
+side profile view, transparent background, game sprite,
 [base style block]
 ```
 
-### Цеппелин Латунного Картеля (босс)
+### Тяжёлый истребитель Латунного Картеля
 
 ```
-A massive ornate dirigible casino airship, polished brass and burgundy hull,
-gold filigree decorations and heraldic crests, multiple anti-aircraft turrets along the sides,
-panoramic viewing windows like a luxury liner, ornate gondola underneath,
-dieselpunk excess, side profile, painterly digital illustration,
+A luxurious heavy twin-engine fighter for an aristocratic sky pirate cartel,
+dark burgundy red base with wide polished brass strips along the fuselage,
+art deco gold filigree borders, embossed heraldic crest of a roaring lion on the tail,
+two large exposed radial engines with brass cowlings,
+elongated armored fuselage, ornate gothic-script squadron number,
+heavy machine guns in the nose, bomb racks under the wings,
+relatively clean and polished — they pay for maintenance,
+amber-tinted armored canopy, side profile view, transparent background, game sprite,
+[base style block]
+```
+
+### Экспериментальный истребитель Стаи Альбатроса
+
+```
+A bizarre experimental aircraft — a flying-wing design or tandem-wing biplane,
+crisp white over graphite gray base, turquoise accent lines along the fuselage,
+copper Tesla coils mounted where guns would be, sparking with electricity,
+minimalist markings — black triangle and digital-code number,
+exposed wires and engineering chaos visible through panels,
+sterile clean look mixed with mad-scientist contraptions,
+exhaust steam venting from side ports,
+side profile view, transparent background, game sprite,
+[base style block]
+```
+
+### Авианосец Чико (фон / лор)
+
+```
+A massive dieselpunk carrier-dirigible airship, the home base of the player,
+cream and brass hull with riveted panels and gun turrets along the side,
+multiple under-slung hangars for biplanes with open bay doors,
+bridge tower on top with brass instruments and antennas,
+huge propellers at the stern, painted squadron emblem on the fuselage,
+floating above sky-archipelago of rock islands at golden hour,
+illustrative concept art, dieselpunk pulp aviation aesthetic
+```
+
+### Цеппелин-казино Латунного Картеля (босс)
+
+```
+A massive ornate dirigible casino airship belonging to the brass cartel,
+burgundy hull with extensive polished brass plating and art deco gold filigree,
+panoramic illuminated windows like a luxury ocean liner,
+multiple anti-aircraft turrets bristling along the sides,
+heraldic crest of a lion on the side, gondola underneath full of slot machines,
+gilded ornaments, decadent excess,
+floating in stormy sky, dramatic lighting,
+side profile, painterly pulp illustration,
 [base style block]
 ```
 
 ### Скала-город (фон)
 
 ```
-A floating rock island city in the clouds, hand-painted in Studio Ghibli style,
-dieselpunk wooden buildings with red rooftops on a plateau,
-exposed roots and waterfalls cascading from the bottom of the rock,
-mooring masts for dirigibles on the edges,
-warm golden hour lighting, distant sky archipelago in background,
-illustrative concept art
+A floating rock island city in stormy skies, pulp adventure aesthetic,
+dieselpunk industrial buildings with smokestacks and corrugated metal roofs on a plateau,
+exposed rock face with iron mooring towers for dirigibles on the edges,
+waterfalls cascading from the bottom of the rock into the cloud sea below,
+golden hour sunset breaking through dramatic clouds,
+illustrative concept art, Crimson Skies meets BioShock Infinite Columbia
 ```
 
 ### Пилот-герой (Чико, портрет)
 
 ```
-Portrait of a brave anthropomorphic captain pilot, friendly determined face,
-leather flying jacket with sheepskin collar, yellow scarf, leather flight cap with goggles on forehead,
-in cockpit of a biplane, warm sunset light through canopy,
-Studio Ghibli character design, painterly style, mid-shot
+Portrait of a brave anthropomorphic pilot captain (a chico-berry character),
+weathered leather flight jacket with sheepskin collar, yellow scarf with bullet hole patches,
+brown leather flight cap with brass-rimmed goggles pushed up on forehead,
+determined expression, scar across cheek, paint smudge on face,
+standing in front of his battered biplane on the runway,
+pulp 1930s aviation hero, painterly comic illustration,
+strong rim light from sunset, mid-shot, dynamic pose
 ```
 
-### Пилот-пират
+### Пилот-пират Багровых Шакалов
 
 ```
-Portrait of a rugged sky pirate, tattooed arms, eyepatch, metal-plated leather jacket,
-crimson red clan symbol on shoulder, fierce grin, wind-tousled hair,
-standing in front of his crimson biplane,
-hand-painted illustration in Studio Ghibli meets Crimson Skies style,
+Portrait of a fierce sky pirate from the Crimson Jackals clan,
+tattooed muscular arms, leather eyepatch, riveted metal-plated leather vest over red shirt,
+heavy belt with revolver and combat knife, fingerless gloves,
+white shark-tooth necklace, crimson red clan armband on shoulder,
+fierce grin showing gold tooth, wind-tousled dark hair,
+standing in front of his crimson biplane with oil stains,
+pulp comic book illustration, strong shadows, dramatic lighting,
 character design sheet
 ```
 
-### Ангар (Чико)
+### Ангар (Чико, левая сторона полосы)
 
 ```
-A wooden hangar with red gabled roof, large white letter H painted on the front doors,
-warm afternoon sun, dirt runway with dashed white markings extending to the right,
-control tower with brass instruments in the background,
-side view, painterly illustration, dieselpunk aviation,
-[base style block]
+A weathered industrial hangar with red gabled corrugated metal roof,
+large white letter "H" stenciled on the wooden front doors,
+brass plaque with the squadron name above the doors,
+dirt runway with white dashed markings extending to the right,
+parked oil drums and tool crates outside,
+control tower with brass instruments visible in the background,
+warm afternoon sun, long shadows, dieselpunk pulp aviation aesthetic,
+side view, illustration
 ```
 
 ### Облака и небо (parallax-слой)
 
 ```
-Stylized fluffy cumulus clouds against a gradient sky from cobalt blue at top
-to warm ochre at horizon, painterly soft edges, semi-transparent,
-silhouettes of floating rock islands in the distance,
+Dramatic stylized cumulus clouds against a gradient sky,
+top half stormy navy blue transitioning to amber sepia at the horizon,
+clouds have warm orange underbellies catching sunset light,
+silhouettes of distant floating rock islands in dark graphite tone,
+painterly soft edges, semi-transparent layered look,
+pulp 1930s adventure mood, NOT Ghibli soft and cute,
 side view background plate for a 2D game, no foreground objects,
 [base style block]
 ```
