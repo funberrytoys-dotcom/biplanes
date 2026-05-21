@@ -19,6 +19,7 @@ import {
   createSkyBackground,
   createPlaneSprite,
   createPilotSprite,
+  createBlimpSprite,
   BulletPool,
   createCamera,
   createHud,
@@ -56,6 +57,10 @@ export async function startGame(container: HTMLElement) {
   const sky = createSkyBackground(WORLD_WIDTH, WORLD_HEIGHT);
   worldLayer.addChild(sky);
 
+  // Blimp sits between the sky and the action — visible but subtle (alpha set inside).
+  const blimpSprite = createBlimpSprite();
+  worldLayer.addChild(blimpSprite.container);
+
   const bulletLayer = new Container();
   const planeLayer = new Container();
   const fxLayer = new Container();
@@ -68,10 +73,8 @@ export async function startGame(container: HTMLElement) {
 
   const enemySprites = new Map<number, ReturnType<typeof createPlaneSprite>>();
 
-  // Pilot sprite — single instance, shown only when state.pilot !== null
-  const pilotSprite = createPilotSprite();
-  pilotSprite.container.visible = false;
-  planeLayer.addChild(pilotSprite.container);
+  // Pilot sprites — keyed by pilot.id like enemy planes. Faction baked in at creation.
+  const pilotSprites = new Map<number, ReturnType<typeof createPilotSprite>>();
 
   const camera = createCamera(worldLayer, app.screen.width, app.screen.height);
 
@@ -103,6 +106,7 @@ export async function startGame(container: HTMLElement) {
       bomb: k.bomb || t.bomb,
       throttleDelta: (k.throttleDelta || t.throttleDelta) as -1 | 0 | 1,
       eject: k.eject || t.eject,
+      jump: k.jump || t.jump,
     };
   }
 
@@ -131,7 +135,6 @@ export async function startGame(container: HTMLElement) {
       safety--;
     }
 
-    // Render
     playerSprite.update(state.player, dt, damageFx);
 
     const seenEnemy = new Set<number>();
@@ -152,27 +155,42 @@ export async function startGame(container: HTMLElement) {
       }
     }
 
-    // Pilot rendering
-    if (state.pilot) {
-      pilotSprite.container.visible = true;
-      pilotSprite.update(state.pilot);
-    } else {
-      pilotSprite.container.visible = false;
+    // Pilot rendering — Map<id, sprite> synced against state.pilots.
+    const seenPilot = new Set<number>();
+    for (const p of state.pilots) {
+      seenPilot.add(p.id);
+      let s = pilotSprites.get(p.id);
+      if (!s) {
+        s = createPilotSprite(p.faction);
+        planeLayer.addChild(s.container);
+        pilotSprites.set(p.id, s);
+      }
+      s.update(p);
+    }
+    for (const [id, s] of pilotSprites) {
+      if (!seenPilot.has(id)) {
+        planeLayer.removeChild(s.container);
+        pilotSprites.delete(id);
+      }
     }
 
     bullets.sync(state.bullets);
     damageFx.update(dt);
+    blimpSprite.update(state);
     hud.update(state);
     camera.tickShake();
   });
 
   function resetToMenu() {
     gameRunning = false;
-    // Clear enemy sprites — they'll be re-created when state has new enemies.
     for (const [, s] of enemySprites) {
       planeLayer.removeChild(s.container);
     }
     enemySprites.clear();
+    for (const [, s] of pilotSprites) {
+      planeLayer.removeChild(s.container);
+    }
+    pilotSprites.clear();
     bullets.sync([]);
     state = createWorldState(Math.floor(Math.random() * 1e9), makePlayer());
     startScreen.show();
