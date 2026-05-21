@@ -29,7 +29,10 @@ export function createKeyboardController(): KeyboardController {
 
       return {
         rotate,
+        // Space serves a dual purpose: fire when piloting a plane, jump when controlling
+        // the ejected pilot on foot. The tick router decides which based on world state.
         fire: keys.has('Space'),
+        jump: keys.has('Space'),
         bomb: keys.has('ShiftLeft') || keys.has('KeyB'),
         throttleDelta,
         eject: keys.has('KeyE'),

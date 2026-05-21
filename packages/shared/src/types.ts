@@ -11,6 +11,7 @@ export interface PlayerCommand {
   bomb: boolean;
   throttleDelta: -1 | 0 | 1; // -1 = decrease throttle, 0 = hold, +1 = increase
   eject: boolean;            // E key — player only, leave plane via parachute
+  jump: boolean;             // Space — when controlling pilot on ground, do a short hop
 }
 
 export interface Rect {

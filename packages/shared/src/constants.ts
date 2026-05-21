@@ -46,7 +46,17 @@ export const FIRE_BURN_RATE = 4;               // HP/sec extra decay while on fi
 export const PARACHUTE_FALL_SPEED = 80;        // px/sec downward
 export const PARACHUTE_DRIFT_SPEED = 40;       // px/sec horizontal when steering
 export const PILOT_WALK_SPEED = 100;           // px/sec walking on ground
-export const PILOT_HANGAR_ARRIVAL_DIST = 50;   // distance to RUNWAY_X that counts as "safe"
+export const PILOT_HANGAR_ARRIVAL_DIST = 50;   // distance to own-faction hangar that counts as "safe"
 export const PILOT_DEATH_DURATION = 2.0;       // sec on ground before pilot is cleaned up
 export const PLANE_RESPAWN_AFTER_PILOT_DEATH = 5.0; // total sec since eject for plane respawn after pilot death
+
+// Pilot jump (Space when controlling pilot on ground)
+export const PILOT_JUMP_VELOCITY = 380;        // initial upward velocity (px/sec), negative-y = up
+export const PILOT_GRAVITY = 900;              // px/sec² downward while airborne
+export const PILOT_JUMP_COOLDOWN = 0.45;       // sec between jumps
+
+// Two hangars: player on the left at RUNWAY_X, enemy mirrored on the right.
+export const PLAYER_HANGAR_X = RUNWAY_X;            // 200
+export const ENEMY_HANGAR_X = WORLD_WIDTH - RUNWAY_X; // 1720
+export const HANGAR_ARRIVAL_DIST = PILOT_HANGAR_ARRIVAL_DIST;
 
