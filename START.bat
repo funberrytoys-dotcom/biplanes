@@ -50,7 +50,6 @@ echo.
 start "" cmd /c "timeout /t 4 /nobreak >nul && start http://localhost:5173"
 call "%PNPM_CMD%" dev
 
-REM If dev exited (server crashed), pause so user can read the error
 echo.
 echo  [Server stopped]
 pause
