@@ -1,56 +1,47 @@
 @echo off
-chcp 65001 >nul
-title Biplanes
 cd /d "%~dp0"
+title Biplanes
 
-REM Find pnpm: try PATH, then npm global folder explicitly.
+echo.
+echo  ==========================================
+echo    BIPLANES - dev server
+echo  ==========================================
+echo.
+echo  Working directory: %CD%
+echo.
+
+REM Resolve pnpm path with fallback
 set "PNPM_CMD=pnpm"
 where pnpm >nul 2>&1
 if errorlevel 1 (
     if exist "%APPDATA%\npm\pnpm.cmd" (
         set "PNPM_CMD=%APPDATA%\npm\pnpm.cmd"
+        echo  Using pnpm at: %APPDATA%\npm\pnpm.cmd
     ) else (
         echo.
-        echo  [ERROR] pnpm not found.
-        echo.
-        echo  To fix this, open PowerShell and run:
+        echo  [ERROR] pnpm not found in PATH and not at %APPDATA%\npm\pnpm.cmd
+        echo  Install Node.js from https://nodejs.org then run in PowerShell:
         echo      npm install -g pnpm
         echo.
-        echo  If you don't have Node.js, install from https://nodejs.org first.
-        echo.
         pause
         exit /b 1
     )
-)
-
-if not exist "node_modules\" (
-    echo.
-    echo  First run - installing dependencies (about a minute)...
-    echo.
-    call "%PNPM_CMD%" install
-    if errorlevel 1 (
-        echo.
-        echo  [ERROR] Install failed. See messages above.
-        pause
-        exit /b 1
-    )
+) else (
+    echo  pnpm found in PATH.
 )
 
 echo.
-echo  ==========================================
-echo    BIPLANES
-echo  ==========================================
+echo  Open this URL in your browser when ready:
+echo      http://localhost:5173
 echo.
-echo    Starting the game on http://localhost:5173
-echo    Browser will open in about 4 seconds.
+echo  (Wait ~5 seconds after server says "ready" before refreshing.)
 echo.
-echo    To STOP: close this window.
+echo  To stop the game: close this window.
+echo  ==========================================
 echo.
 
-start "" cmd /c "timeout /t 4 /nobreak >nul && start http://localhost:5173"
-call "%PNPM_CMD%" dev
+"%PNPM_CMD%" dev
 
-REM If dev exited (server crashed), pause so user can read the error
 echo.
-echo  [Server stopped]
-pause
+echo  [Server stopped — press any key to close]
+pause >nul
