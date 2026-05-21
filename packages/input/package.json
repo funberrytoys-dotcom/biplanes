@@ -1,0 +1,14 @@
+{
+  "name": "@biplanes/input",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --max-warnings 0"
+  },
+  "dependencies": {
+    "@biplanes/shared": "workspace:*"
+  }
+}
