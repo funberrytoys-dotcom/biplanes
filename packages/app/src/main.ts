@@ -2,16 +2,16 @@ import { Container } from 'pixi.js';
 import {
   TICK_DT,
   PLANE_INITIAL_HP,
+  WORLD_WIDTH,
+  WORLD_HEIGHT,
+  RUNWAY_X,
+  RUNWAY_Y,
   type PlayerCommand,
 } from '@biplanes/shared';
 import {
   createWorldState, tick,
-  applyUpgrade,
-  rollUpgradeChoices,
-  createRng,
   type WorldState,
   type Plane,
-  type UpgradeId,
 } from '@biplanes/core';
 import {
   createPixiApp,
@@ -25,34 +25,33 @@ import {
   createKeyboardController,
   createTouchController,
 } from '@biplanes/input';
-import { createLevelUpScreen } from './screens/level-up-screen.js';
-import { createDeathScreen } from './screens/death-screen.js';
 
 function makePlayer(): Plane {
   return {
     id: 1, faction: 'player',
     kinematic: {
-      position: { x: 2000, y: 1000 },
-      velocity: { x: 1080, y: 0 },
+      position: { x: RUNWAY_X, y: RUNWAY_Y },
+      velocity: { x: 0, y: 0 },
       heading: 0,
       throttleOn: true,
-      g: 1080, facing: 1, throttle: true,  // ~88% of G_MAX_LEVEL — gives stall-awareness from the first moment
+      g: 0, facing: 1, throttle: true,
     },
     hp: PLANE_INITIAL_HP, maxHp: PLANE_INITIAL_HP,
     weaponCooldown: 0, alive: true,
+    state: 'taxi',
+    respawnTimer: 0,
   };
 }
 
 export async function startGame(container: HTMLElement) {
   const app = await createPixiApp(container);
-  const { width, height } = app.screen;
 
-  // World layer (camera follows)
+  // World layer holds the 1920×1080 logical playfield.
+  // We scale + letterbox it to fit the canvas so the game looks correct on any aspect ratio.
   const worldLayer = new Container();
   app.stage.addChild(worldLayer);
 
-  const sky = createSkyBackground(8000, 4000);
-  sky.x = -2000; sky.y = -1000;
+  const sky = createSkyBackground(WORLD_WIDTH, WORLD_HEIGHT);
   worldLayer.addChild(sky);
 
   const bulletLayer = new Container();
@@ -65,33 +64,21 @@ export async function startGame(container: HTMLElement) {
 
   const enemySprites = new Map<number, ReturnType<typeof createPlaneSprite>>();
 
-  const camera = createCamera(worldLayer, width, height);
+  // Camera is kept for shake only — no follow.
+  const camera = createCamera(worldLayer, app.screen.width, app.screen.height);
 
-  // UI layer (fixed)
+  // UI layer (screen-space, never scaled)
   const uiLayer = new Container();
   app.stage.addChild(uiLayer);
-  const hud = createHud(width, height);
+  const hud = createHud(app.screen.width, app.screen.height);
   uiLayer.addChild(hud.container);
 
   let state: WorldState = createWorldState(Math.floor(Math.random() * 1e9), makePlayer());
-  let pendingChoices: ReturnType<typeof rollUpgradeChoices> = [];
-
-  const levelUpScreen = createLevelUpScreen(width, height, (id) => {
-    state = applyUpgrade(state, id as UpgradeId);
-    levelUpScreen.hide();
-  });
-  uiLayer.addChild(levelUpScreen.container);
-
-  const deathScreen = createDeathScreen(width, height, () => {
-    state = createWorldState(Math.floor(Math.random() * 1e9), makePlayer());
-    deathScreen.hide();
-  });
-  uiLayer.addChild(deathScreen.container);
 
   // Input
   const kb = createKeyboardController();
   const touch = createTouchController(app.canvas);
-  touch.updateZones(width, height);
+  touch.updateZones(app.screen.width, app.screen.height);
 
   function currentCommand(): PlayerCommand {
     const k = kb.current();
@@ -102,6 +89,18 @@ export async function startGame(container: HTMLElement) {
       bomb: k.bomb || t.bomb,
     };
   }
+
+  // Letterbox layout — scale world to fit, center it.
+  function layoutWorld() {
+    const cw = app.screen.width;
+    const ch = app.screen.height;
+    const scale = Math.min(cw / WORLD_WIDTH, ch / WORLD_HEIGHT);
+    worldLayer.scale.set(scale);
+    worldLayer.x = (cw - WORLD_WIDTH * scale) / 2;
+    worldLayer.y = (ch - WORLD_HEIGHT * scale) / 2;
+    camera.setBase(worldLayer.x, worldLayer.y);
+  }
+  layoutWorld();
 
   // Fixed-timestep loop with interpolation accumulator
   let acc = 0;
@@ -114,22 +113,6 @@ export async function startGame(container: HTMLElement) {
       state = tick(state, cmd);
       acc -= TICK_DT;
       safety--;
-
-      // Trigger level-up screen
-      if (state.pendingLevelUp && !levelUpScreen.container.visible) {
-        const rng = createRng(state.rngState);
-        pendingChoices = rollUpgradeChoices(state.appliedUpgradeIds, rng);
-        if (pendingChoices.length === 0) {
-          state = { ...state, pendingLevelUp: false };
-        } else {
-          levelUpScreen.show(pendingChoices);
-        }
-      }
-
-      // Death screen
-      if (state.gameOver && !deathScreen.container.visible) {
-        deathScreen.show(state);
-      }
     }
 
     // Render
@@ -156,17 +139,17 @@ export async function startGame(container: HTMLElement) {
 
     bullets.sync(state.bullets);
     hud.update(state);
-    camera.follow(state.player);
+    // Camera shake still ticks (for hit feedback), but no follow.
+    camera.tickShake();
   });
 
   // Resize
   const onResize = () => {
     const w = app.screen.width;
     const h = app.screen.height;
+    layoutWorld();
     camera.setScreen(w, h);
     hud.resize(w, h);
-    levelUpScreen.resize(w, h);
-    deathScreen.resize(w, h);
     touch.updateZones(w, h);
   };
   window.addEventListener('resize', onResize);
