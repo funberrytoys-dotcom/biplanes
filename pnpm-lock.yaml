@@ -27,6 +27,34 @@ importers:
         specifier: ^2.0.0
         version: 2.1.9(@types/node@22.19.19)
 
+  apps/web:
+    dependencies:
+      '@biplanes/app':
+        specifier: workspace:*
+        version: link:../../packages/app
+    devDependencies:
+      vite:
+        specifier: ^5.4.0
+        version: 5.4.21(@types/node@22.19.19)
+
+  packages/app:
+    dependencies:
+      '@biplanes/core':
+        specifier: workspace:*
+        version: link:../core
+      '@biplanes/input':
+        specifier: workspace:*
+        version: link:../input
+      '@biplanes/render':
+        specifier: workspace:*
+        version: link:../render
+      '@biplanes/shared':
+        specifier: workspace:*
+        version: link:../shared
+      pixi.js:
+        specifier: ^8.2.0
+        version: 8.18.1
+
   packages/core:
     dependencies:
       '@biplanes/shared':
