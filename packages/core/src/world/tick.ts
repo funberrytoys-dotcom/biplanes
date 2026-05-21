@@ -26,7 +26,6 @@ import { findPilot } from '../entities/pilot.js';
 import type { WorldState } from './world-state.js';
 
 const ENEMY_RESPAWN_DELAY_SEC = 3.0;
-const ENEMY_EJECT_CHANCE_PER_SEC = 1.5;  // ~1.5 rolls per sec when burning
 
 /** Reset a plane's kinematic state back to its faction's runway, taxiing. */
 function resetToRunway(p: Plane): Plane {
@@ -263,6 +262,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
 
     const taxiPitchUp: -1 | 0 | 1 = e.kinematic.facing === 1 ? -1 : 1;
     let cmd: PlayerCommand;
+    const wasFlyingThisTick = e.state === 'flying';
     if (e.state === 'taxi') {
       cmd = { rotate: taxiPitchUp, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false };
     } else {
@@ -274,14 +274,25 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
       const prevHp = state.prevEnemyHp.get(e.id) ?? e.hp;
       // Priority target: ejected player pilot (it's the only target if player plane is down).
       const result = playerPilotForAi
-        ? aiCommandPilotTarget(e, playerPilotForAi, params, aiState, prevHp, TICK_DT, state.timeSec)
-        : aiCommand(e, player, params, aiState, prevHp, TICK_DT, state.timeSec);
+        ? aiCommandPilotTarget(e, playerPilotForAi, params, aiState, prevHp, TICK_DT, state.timeSec, wasFlyingThisTick)
+        : aiCommand(e, player, params, aiState, prevHp, TICK_DT, state.timeSec, wasFlyingThisTick);
       cmd = result.cmd;
       state.enemyAiStates.set(e.id, result.aiState);
     }
     state.prevEnemyHp.set(e.id, e.hp);
 
-    let stepped = stepPlaneByState(e, { rotate: cmd.rotate }, TICK_DT);
+    // Apply AI throttle BEFORE stepping physics (mirrors how the player branch
+    // handles throttleDelta). Only effective when the AI bothers to manage throttle
+    // (manageThrottle=false → throttleDelta stays 0 → no change).
+    let eWithThrottle = e;
+    if (cmd.throttleDelta !== 0 && e.state === 'flying') {
+      const newThrottle = Math.max(0, Math.min(1,
+        e.kinematic.throttleLevel + cmd.throttleDelta * THROTTLE_CHANGE_RATE * TICK_DT
+      ));
+      eWithThrottle = { ...e, kinematic: { ...e.kinematic, throttleLevel: newThrottle } };
+    }
+
+    let stepped = stepPlaneByState(eWithThrottle, { rotate: cmd.rotate }, TICK_DT);
     stepped = applyFireBurn(stepped, TICK_DT);
 
     if (!stepped.alive && stepped.state !== 'crashed') {
@@ -310,7 +321,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
       && stepped.state === 'flying'
       && stepped.hp / stepped.maxHp <= FIRE_THRESHOLD
       && !enemyPilotAlreadyOut
-      && Math.random() < ENEMY_EJECT_CHANCE_PER_SEC * TICK_DT
+      && Math.random() < params.ejectChancePerSec * TICK_DT
     ) {
       const ejectX = stepped.kinematic.position.x;
       const ejectY = stepped.kinematic.position.y;
