@@ -79,8 +79,9 @@ export function stepPlane(
 
   // 4) Throttle: defines target cruise speed (G_MAX_LEVEL × throttleLevel).
   // Below target -> engine accelerates (pitch-modulated, max thrust at horizontal).
-  // Above target -> engine brakes (proportional to gap), giving real-time speed control.
-  // In a dive (g > G_MAX_LEVEL) we let physics/drag handle bleed naturally.
+  // Above target -> engine brakes at any speed (including dive). Brake fights gravity
+  // and drag together, so in a steep dive with throttle 0 you'll still gain some speed
+  // from pitch-feed but more slowly than at full throttle.
   let g = p.g;
   const throttleLevel = Math.max(0, Math.min(1, p.throttleLevel));
   const targetSpeed = G_MAX_LEVEL * throttleLevel;
@@ -88,8 +89,8 @@ export function stepPlane(
   if (g < targetSpeed) {
     // Accelerate toward target
     g = Math.min(targetSpeed, g + thrustFactor * THRUST_ACCEL_MAX * dt);
-  } else if (g > targetSpeed && g <= G_MAX_LEVEL) {
-    // Engine brake — actively bleeds speed toward the lower target
+  } else if (g > targetSpeed) {
+    // Engine brake — actively bleeds speed toward target, works at any speed.
     const ENGINE_BRAKE_RATE = 500; // px/sec² when throttling down
     g = Math.max(targetSpeed, g - ENGINE_BRAKE_RATE * dt);
   }
