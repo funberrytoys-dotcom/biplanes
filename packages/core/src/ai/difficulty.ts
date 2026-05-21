@@ -1,57 +1,132 @@
 export type Difficulty = 'easy' | 'medium' | 'hard';
 
+/**
+ * AI parameters split across the three behaviour layers used by `aiCommand`:
+ *
+ *   Layer 1 (Survival)   — stall avoidance, ground/ceiling pull-out, post-takeoff
+ *                          stabilisation. Highest priority; overrides combat.
+ *   Layer 2 (Positioning)— altitude offset relative to target, energy management
+ *                          (dive-for-speed before climbs).
+ *   Layer 3 (Aiming)     — fire cone, range, target leading, turn precision.
+ *
+ * Plus throttle management, reaction time and rookie-mistake personality knobs.
+ */
 export interface AiParams {
-  // Aim & combat
-  fireConeRad: number;         // half-angle of acceptable firing arc (radians)
-  fireRange: number;           // max distance to fire
-  leadFactor: number;          // 0 = no lead, 1 = perfect lead based on target velocity
-  turnDeadzoneRad: number;     // how close to perfect heading before AI stops correcting
-  // Reaction
-  reactionDelaySec: number;    // command lag — AI sees stale player state by N seconds
-  // Survival
-  groundAvoidY: number;        // y threshold below which AI prioritizes pulling up
-  ceilingAvoidY: number;       // y threshold above which AI eases off climb
-  collisionAvoidDist: number;  // if within this distance to player head-on, AI swerves
-  // Personality
-  evasionChanceWhenHit: number;// 0..1 probability of starting an evasion maneuver per second when damaged
-  errorWobbleRad: number;      // random rotation noise per tick (Easy = high, Hard = low)
+  // === LAYER 1: SURVIVAL ===
+  /** whether the AI is even aware of stall risk */
+  stallAvoidEnabled: boolean;
+  /** px above GROUND_Y at which ground-avoid pull-up engages (larger = earlier) */
+  groundClearance: number;
+  /** px below the top of the world at which ceiling-avoid dive engages */
+  ceilingClearance: number;
+  /** seconds after liftoff during which the AI just levels out to build speed */
+  postTakeoffStabilizationSec: number;
+
+  // === LAYER 2: POSITIONING ===
+  /** when false, the AI ignores positioning and just aims straight at the target */
+  positioningEnabled: boolean;
+  /** desired y-offset relative to the target (negative = above, since y-down) */
+  preferredAltitudeOffset: number;
+  /** when true, the AI dives to gain speed before committing to a climb */
+  energyManagement: boolean;
+
+  // === LAYER 3: AIMING ===
+  fireConeRad: number;
+  fireRange: number;
+  /** 0..1 — fraction of "perfect" bullet-lead applied to target prediction */
+  leadFactor: number;
+  /** how close to the desired heading before the AI stops correcting (radians) */
+  turnDeadzoneRad: number;
+
+  // === Reaction & personality ===
+  reactionDelaySec: number;
+  errorWobbleRad: number;
+  evasionChanceWhenHit: number;
+
+  // === THROTTLE MANAGEMENT ===
+  /** when false, the AI never touches throttleDelta (effectively always full) */
+  manageThrottle: boolean;
+  cruiseThrottle: number;
+  diveThrottle: number;
+  climbThrottle: number;
+
+  // === ROOKIE MISTAKES (easy) ===
+  /** probability per second of doing something silly (random heading/throttle flip) */
+  rookieMistakeChancePerSec: number;
+
+  // === EJECT BEHAVIOUR ===
+  /** probability per second of bailing out when on fire (HP fraction <= FIRE_THRESHOLD) */
+  ejectChancePerSec: number;
 }
 
 export const DIFFICULTIES: Record<Difficulty, AiParams> = {
   easy: {
-    fireConeRad: Math.PI / 4,       // ±45° — sloppy aim
-    fireRange: 350,                 // shorter range — won't snipe from far
-    leadFactor: 0.0,                // no leading — shoots at current position
-    turnDeadzoneRad: 0.2,           // wide deadzone — corrects slowly
-    reactionDelaySec: 0.4,          // 400ms reaction lag
-    groundAvoidY: 600,              // out of 990 — starts pulling up only when very low
-    ceilingAvoidY: 200,             // starts caring at y=200
-    collisionAvoidDist: 80,         // only swerves when very close
-    evasionChanceWhenHit: 0.5,      // 50%/sec chance to evade — sometimes
-    errorWobbleRad: 0.06,           // visible wobble
+    // Green rookie. Doesn't manage energy, often climbs into stalls, sloppy aim,
+    // occasionally does silly things (kills throttle, jerks the stick).
+    stallAvoidEnabled: false,
+    groundClearance: 80,             // pulls up far too late
+    ceilingClearance: 60,
+    postTakeoffStabilizationSec: 0.5, // barely stabilises before chasing
+    positioningEnabled: false,        // dumb chase only
+    preferredAltitudeOffset: 0,
+    energyManagement: false,
+    fireConeRad: Math.PI / 3.5,      // ±51° — really sloppy
+    fireRange: 300,
+    leadFactor: 0,
+    turnDeadzoneRad: 0.25,
+    reactionDelaySec: 0.5,
+    errorWobbleRad: 0.08,
+    evasionChanceWhenHit: 0.3,
+    manageThrottle: false,            // always full → climbs into stalls
+    cruiseThrottle: 1.0,
+    diveThrottle: 1.0,
+    climbThrottle: 1.0,
+    rookieMistakeChancePerSec: 0.5,   // a mistake every ~2 seconds
+    ejectChancePerSec: 0.3,           // rarely bails, dies in plane
   },
   medium: {
-    fireConeRad: Math.PI / 6,       // ±30°
+    stallAvoidEnabled: true,
+    groundClearance: 200,
+    ceilingClearance: 120,
+    postTakeoffStabilizationSec: 1.5,
+    positioningEnabled: true,
+    preferredAltitudeOffset: -50,
+    energyManagement: false,          // simple chase, no energy fight
+    fireConeRad: Math.PI / 6,         // ±30°
     fireRange: 550,
-    leadFactor: 0.4,                // partial lead
+    leadFactor: 0.5,
     turnDeadzoneRad: 0.1,
-    reactionDelaySec: 0.15,         // 150ms
-    groundAvoidY: 750,
-    ceilingAvoidY: 150,
-    collisionAvoidDist: 140,
-    evasionChanceWhenHit: 1.0,      // always evades when shot
+    reactionDelaySec: 0.18,
     errorWobbleRad: 0.025,
+    evasionChanceWhenHit: 1.0,
+    manageThrottle: true,
+    cruiseThrottle: 1.0,
+    diveThrottle: 0.8,
+    climbThrottle: 1.0,
+    rookieMistakeChancePerSec: 0.05,
+    ejectChancePerSec: 1.5,
   },
   hard: {
-    fireConeRad: Math.PI / 9,       // ±20° — tight aim
-    fireRange: 750,                 // longer reach
-    leadFactor: 0.85,               // strong lead
-    turnDeadzoneRad: 0.05,
-    reactionDelaySec: 0.03,         // near-instant
-    groundAvoidY: 850,              // climbs out of trouble early
-    ceilingAvoidY: 100,             // hugs the ceiling without scraping
-    collisionAvoidDist: 200,        // swerves with margin
-    evasionChanceWhenHit: 1.5,      // always evades, sometimes pre-evades
-    errorWobbleRad: 0.01,           // almost no noise
+    // Ace. Manages energy, predicts player, rarely crashes, bails when burning.
+    stallAvoidEnabled: true,
+    groundClearance: 350,             // pulls up with lots of margin
+    ceilingClearance: 180,
+    postTakeoffStabilizationSec: 2.0, // patient — sets up properly
+    positioningEnabled: true,
+    preferredAltitudeOffset: -120,    // aggressively positions above player
+    energyManagement: true,           // dives for speed before climbing
+    fireConeRad: Math.PI / 10,        // ±18°
+    fireRange: 800,
+    leadFactor: 0.95,
+    turnDeadzoneRad: 0.04,
+    reactionDelaySec: 0.04,           // basically instant
+    errorWobbleRad: 0.005,
+    evasionChanceWhenHit: 2.0,        // pre-evades when in danger
+    manageThrottle: true,
+    cruiseThrottle: 1.0,
+    diveThrottle: 0.6,                // controlled dives
+    climbThrottle: 1.0,
+    rookieMistakeChancePerSec: 0,
+    ejectChancePerSec: 3.0,           // always bails when burning
   },
 };
