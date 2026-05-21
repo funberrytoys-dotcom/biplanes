@@ -1,6 +1,7 @@
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import type { WorldState } from '@biplanes/core';
-import { RUNWAY_X } from '@biplanes/shared';
+import { findPilot } from '@biplanes/core';
+import { PLAYER_HANGAR_X } from '@biplanes/shared';
 
 const G_MAX_REF = 950;      // dive max for bar scale (matches G_MAX_DIVE)
 const G_STALL_LINE = 620;   // stall warning threshold (matches G_STALL)
@@ -16,7 +17,7 @@ export function createHud(width: number, height: number) {
   const speedBg = new Graphics().rect(20, 50, 240, 10).fill(0x000000);
   const speedFill = new Graphics().rect(22, 52, 0, 6).fill(0x66d9ef);
 
-  // Throttle bar — taller / more prominent (the "power gauge")
+  // Throttle bar
   const THR_X = 20;
   const THR_Y = 66;
   const THR_W = 240;
@@ -26,7 +27,6 @@ export function createHud(width: number, height: number) {
     .stroke({ color: 0xffffff, width: 1 });
   const throttleBg = new Graphics().rect(THR_X, THR_Y, THR_W, THR_H).fill(0x1a1a1a);
   const throttleFill = new Graphics().rect(THR_X, THR_Y, 0, THR_H).fill(0xff8c19);
-  // Ticks at 25/50/75%
   const tickLayer = new Graphics();
   for (const frac of [0.25, 0.5, 0.75]) {
     const tx = THR_X + THR_W * frac;
@@ -46,7 +46,7 @@ export function createHud(width: number, height: number) {
   const text = new Text({ text: '', style });
   text.x = 20; text.y = THR_Y + THR_H + 8;
 
-  // Center overlay (crashed / takeoff hint / pilot status)
+  // Center overlay
   const overlayStyle = new TextStyle({
     fontFamily: 'monospace',
     fontSize: 42,
@@ -58,7 +58,6 @@ export function createHud(width: number, height: number) {
   const overlay = new Text({ text: '', style: overlayStyle });
   overlay.visible = false;
 
-  // Arrow graphic for "RUN TO HANGAR" (points left or right toward RUNWAY_X)
   const arrow = new Graphics();
   arrow.visible = false;
 
@@ -94,7 +93,6 @@ export function createHud(width: number, height: number) {
   return {
     container: c,
     update(s: WorldState) {
-      // HP — show pilot HP marker when pilot is active
       const hpPct = Math.max(0, s.player.hp / s.player.maxHp);
       hpFill.clear().rect(22, 22, 236 * hpPct, 16).fill(0xe74c3c);
 
@@ -110,31 +108,26 @@ export function createHud(width: number, height: number) {
       const speedColor = (r << 16) | (gC << 8) | b;
       speedFill.clear().rect(22, 52, 236 * speedPct, 6).fill(speedColor);
 
-      // Throttle bar
       const throttle = s.player.kinematic.throttleLevel ?? 1;
       throttleFill.clear().rect(THR_X, THR_Y, THR_W * throttle, THR_H).fill(0xff8c19);
 
       const enemyAlive = s.enemies.filter(e => e.state !== 'crashed').length;
-      // Detect inverted flight: heading wraps to |heading| > π/2 means cos<0 → flying left.
-      // If also pitched outside ±0.4 rad of horizontal → looks "upside down" enough to warn.
       const h = s.player.kinematic.heading;
       const inverted = s.player.state === 'flying' && Math.abs(h) > Math.PI / 2 + 0.4 && Math.abs(h) < Math.PI - 0.4;
-      text.text = `[${s.difficulty.toUpperCase()}]   TIME ${s.timeSec.toFixed(1)}s   ENEMIES ${enemyAlive}   SPD ${Math.round(g)}   THR ${Math.round(throttle * 100)}%${stalling ? ' STALL!' : ''}${inverted ? ' INVERTED' : ''}`;
+      text.text = `[${s.difficulty.toUpperCase()}]  YOU ${s.playerScore} — ENEMY ${s.enemyScore}  TIME ${s.timeSec.toFixed(1)}s  ENEMIES ${enemyAlive}  SPD ${Math.round(g)}  THR ${Math.round(throttle * 100)}%${stalling ? ' STALL!' : ''}${inverted ? ' INVERTED' : ''}`;
 
-      // Center overlay logic — pilot wins over plane states.
-      const pilot = s.pilot;
-      if (pilot) {
+      // Pilot-overlay: prioritise player pilot for the center messaging.
+      const playerPilot = findPilot(s.pilots, 'player');
+      if (playerPilot) {
         overlay.style.fontSize = 36;
-        if (pilot.state === 'parachute') {
+        if (playerPilot.state === 'parachute') {
           overlay.text = 'EJECTED — STEER LEFT/RIGHT';
           arrow.visible = false;
-        } else if (pilot.state === 'walking' || pilot.state === 'safe') {
-          overlay.text = 'RUN TO HANGAR';
-          // Arrow points from pilot toward hangar.
-          const dir: 1 | -1 = pilot.position.x > RUNWAY_X ? -1 : 1;
+        } else if (playerPilot.state === 'walking' || playerPilot.state === 'safe') {
+          overlay.text = 'RUN TO HANGAR — SPACE TO JUMP';
+          const dir: 1 | -1 = playerPilot.position.x > PLAYER_HANGAR_X ? -1 : 1;
           drawArrow(dir, width, height);
-        } else if (pilot.state === 'dead') {
-          // Show countdown to plane respawn (PLANE_RESPAWN_AFTER_PILOT_DEATH = 5s since eject)
+        } else if (playerPilot.state === 'dead') {
           const remaining = Math.max(0, 5.0 - s.pilotEjectTimeSec);
           overlay.text = `PILOT DOWN\nrespawn in ${remaining.toFixed(1)}`;
           arrow.visible = false;

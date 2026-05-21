@@ -5,4 +5,5 @@ export * from './scene/bullet-sprite.js';
 export * from './scene/hud.js';
 export * from './scene/damage-fx.js';
 export * from './scene/pilot-sprite.js';
+export * from './scene/blimp-sprite.js';
 export * from './camera.js';
