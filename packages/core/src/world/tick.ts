@@ -42,8 +42,8 @@ function resetToRunway(p: Plane): Plane {
       throttleOn: true,
       g: 0,
       facing,
-      throttle: true,
-      throttleLevel: 1,
+      throttle: false,
+      throttleLevel: 0,  // Plane starts stationary on the runway — player/AI must open throttle.
     },
     hp: p.maxHp,
     alive: true,
@@ -117,11 +117,11 @@ function spawnEnemy(id: number): Plane {
       position: { x: WORLD_WIDTH - RUNWAY_X, y: RUNWAY_Y },
       velocity: { x: 0, y: 0 },
       heading: Math.PI,
-      throttleOn: true,
+      throttleOn: false,
       g: 0,
       facing: -1,
-      throttle: true,
-      throttleLevel: 1,
+      throttle: false,
+      throttleLevel: 0,  // Enemy also starts stationary — AI throttle policy will open it up.
     },
     hp: ENEMY_INITIAL_HP_LIGHT,
     maxHp: ENEMY_INITIAL_HP_LIGHT,
@@ -186,7 +186,10 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     pilotEjectTimeSec += TICK_DT;
   } else {
     let playerThrottleLevel = state.player.kinematic.throttleLevel;
-    if (state.player.state === 'flying' && playerCommand.throttleDelta !== 0) {
+    if (
+      (state.player.state === 'flying' || state.player.state === 'taxi')
+      && playerCommand.throttleDelta !== 0
+    ) {
       playerThrottleLevel = Math.max(0, Math.min(1,
         playerThrottleLevel + playerCommand.throttleDelta * THROTTLE_CHANGE_RATE * TICK_DT
       ));
@@ -276,7 +279,8 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     let cmd: PlayerCommand;
     const wasFlyingThisTick = e.state === 'flying';
     if (e.state === 'taxi') {
-      cmd = { rotate: taxiPitchUp, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false };
+      // While taxiing, AI always opens throttle (delta=+1 each tick) and holds pitch-up.
+      cmd = { rotate: taxiPitchUp, fire: false, bomb: false, throttleDelta: 1, eject: false, jump: false };
     } else {
       let aiState = state.enemyAiStates.get(e.id);
       if (!aiState) {
@@ -297,7 +301,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     // handles throttleDelta). Only effective when the AI bothers to manage throttle
     // (manageThrottle=false → throttleDelta stays 0 → no change).
     let eWithThrottle = e;
-    if (cmd.throttleDelta !== 0 && e.state === 'flying') {
+    if (cmd.throttleDelta !== 0 && (e.state === 'flying' || e.state === 'taxi')) {
       const newThrottle = Math.max(0, Math.min(1,
         e.kinematic.throttleLevel + cmd.throttleDelta * THROTTLE_CHANGE_RATE * TICK_DT
       ));

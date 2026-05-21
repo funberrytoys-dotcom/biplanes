@@ -169,8 +169,15 @@ export function stepPlaneTaxi(
 ): { kinematic: PlaneKinematic; readyForLiftoff: boolean } {
   const facing: 1 | -1 = p.facing;
 
-  // Ground roll acceleration (throttle always on while taxiing)
-  const g = Math.min(G_MAX_LEVEL, p.g + TAKEOFF_ROLL_ACCEL * dt);
+  // Ground roll acceleration scaled by throttle (0 = stationary, 1 = full roll).
+  // Also a small constant rolling friction: when throttle is off, the plane bleeds speed
+  // to a stop rather than coasting forever along the runway.
+  const throttle = Math.max(0, Math.min(1, p.throttleLevel));
+  const accel = TAKEOFF_ROLL_ACCEL * throttle;
+  const rollingFriction = 200; // px/sec² always pulling speed toward 0
+  let g = p.g + accel * dt - rollingFriction * dt;
+  if (g < 0) g = 0;
+  g = Math.min(G_MAX_LEVEL, g);
 
   // Rotation — same input semantics as in flight (rotate=-1 tips nose up when facing right).
   let heading = p.heading + input.rotate * PLANE_TURN_RATE * dt;
@@ -227,7 +234,7 @@ export function stepPlaneTaxi(
       g,
       facing,
       throttle: true,
-      throttleLevel: 1,  // taxi always full throttle
+      throttleLevel: p.throttleLevel, // preserve player/AI-controlled throttle
     },
     readyForLiftoff,
   };

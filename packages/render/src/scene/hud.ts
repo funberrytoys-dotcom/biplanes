@@ -141,7 +141,7 @@ export function createHud(width: number, height: number) {
         arrow.visible = false;
         centerOverlay(width, height);
       } else if (s.player.state === 'taxi') {
-        overlay.text = 'TAXI — pull UP to take off';
+        overlay.text = 'PRESS W TO START ENGINE — A to pitch up';
         overlay.style.fontSize = 28;
         overlay.visible = true;
         arrow.visible = false;
