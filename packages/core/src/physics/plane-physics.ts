@@ -52,6 +52,23 @@ export function stepPlane(
   while (heading > Math.PI) heading -= 2 * Math.PI;
   while (heading < -Math.PI) heading += 2 * Math.PI;
 
+  // 1b) CEILING FORCE — when too close to the top of the world, an aerodynamic force
+  // overrides player input and tilts the nose downward into a dive. Player has to
+  // first reach safer altitude before they regain full control.
+  const CEILING_ZONE = 120;
+  if (p.position.y < CEILING_ZONE) {
+    const ceilingProximity = Math.max(0, (CEILING_ZONE - p.position.y) / CEILING_ZONE); // 0..1
+    const diveTarget = Math.PI / 2; // nose-down in screen coords
+    let diff = diveTarget - heading;
+    while (diff > Math.PI) diff -= 2 * Math.PI;
+    while (diff < -Math.PI) diff += 2 * Math.PI;
+    // Force strength scales with proximity. At y=0, this dominates player input.
+    const CEILING_FORCE_RATE = 6.0; // rad/sec at full proximity
+    heading += diff * ceilingProximity * CEILING_FORCE_RATE * dt;
+    while (heading > Math.PI) heading -= 2 * Math.PI;
+    while (heading < -Math.PI) heading += 2 * Math.PI;
+  }
+
   // 2) Facing derived from heading — presentational flag for sprite mirroring.
   const facing: 1 | -1 = Math.abs(heading) <= Math.PI / 2 ? 1 : -1;
 
@@ -106,8 +123,8 @@ export function stepPlane(
   }
   if (py < 0) {
     py = 0;
-    g = Math.max(0, g - 100); // bumped ceiling penalty
-    vy = 0;
+    g = Math.max(0, g - 50); // light impact penalty (most of the effect is the forced dive above)
+    if (vy < 0) vy = 0;       // can't keep going up after hitting ceiling
   }
 
   return {
