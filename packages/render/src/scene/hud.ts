@@ -1,8 +1,8 @@
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import type { WorldState } from '@biplanes/core';
 
-const G_MAX_REF = 1710;     // dive max for bar scale
-const G_STALL_LINE = 1120;  // stall warning threshold
+const G_MAX_REF = 950;      // dive max for bar scale (matches G_MAX_DIVE)
+const G_STALL_LINE = 620;   // stall warning threshold (matches G_STALL)
 
 export function createHud(width: number, height: number) {
   const c = new Container();
@@ -11,9 +11,13 @@ export function createHud(width: number, height: number) {
   const speedBg = new Graphics().rect(20, 50, 240, 10).fill(0x000000);
   const speedFill = new Graphics().rect(22, 52, 0, 6).fill(0x66d9ef);
 
+  // Throttle bar (third row)
+  const throttleBg = new Graphics().rect(20, 66, 240, 10).fill(0x000000);
+  const throttleFill = new Graphics().rect(22, 68, 0, 6).fill(0xf39c12);
+
   const style = new TextStyle({ fontFamily: 'monospace', fontSize: 16, fill: 0xffffff });
   const text = new Text({ text: '', style });
-  text.x = 20; text.y = 68;
+  text.x = 20; text.y = 84;
 
   // Center overlay (crashed / takeoff hint)
   const overlayStyle = new TextStyle({
@@ -27,7 +31,7 @@ export function createHud(width: number, height: number) {
   const overlay = new Text({ text: '', style: overlayStyle });
   overlay.visible = false;
 
-  c.addChild(hpBg, hpFill, speedBg, speedFill, text, overlay);
+  c.addChild(hpBg, hpFill, speedBg, speedFill, throttleBg, throttleFill, text, overlay);
 
   let pulseT = 0;
 
@@ -54,8 +58,12 @@ export function createHud(width: number, height: number) {
       const speedColor = (r << 16) | (gC << 8) | b;
       speedFill.clear().rect(22, 52, 236 * speedPct, 6).fill(speedColor);
 
+      // Throttle bar
+      const throttle = s.player.kinematic.throttleLevel ?? 1;
+      throttleFill.clear().rect(22, 68, 236 * throttle, 6).fill(0xf39c12);
+
       const enemyAlive = s.enemies.filter(e => e.state !== 'crashed').length;
-      text.text = `TIME ${s.timeSec.toFixed(1)}s   ENEMIES ${enemyAlive}   SPD ${Math.round(g)}${stalling ? ' STALL!' : ''}`;
+      text.text = `TIME ${s.timeSec.toFixed(1)}s   ENEMIES ${enemyAlive}   SPD ${Math.round(g)}   THR ${Math.round(throttle * 100)}%${stalling ? ' STALL!' : ''}`;
 
       // Overlay: crash countdown, or takeoff hint while taxiing.
       if (s.player.state === 'crashed') {

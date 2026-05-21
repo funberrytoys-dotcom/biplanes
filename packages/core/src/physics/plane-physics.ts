@@ -22,12 +22,13 @@ export interface PlaneKinematic {
   position: Vec2;
   velocity: Vec2;
   heading: number;       // radians, screen-standard (0 = pointing +x right, π/2 = down, -π/2 = up)
-  throttleOn: boolean;
+  throttleOn: boolean;   // legacy alias — true when throttleLevel > 0
 
   // Source-of-truth fields (continuous BT-inspired model)
   g: number;             // scalar speed in px/sec
   facing: 1 | -1;        // 1 = right (positive x direction default), -1 = left
-  throttle: boolean;
+  throttle: boolean;     // legacy alias — same as throttleOn
+  throttleLevel: number; // 0..1 — fraction of max thrust currently applied
 }
 
 export interface PhysicsInput {
@@ -76,11 +77,13 @@ export function stepPlane(
   const sinH = Math.sin(heading);
   const cosH = Math.cos(heading);
 
-  // 4) Throttle thrust — pitch-modulated: max at horizontal, zero at vertical.
+  // 4) Throttle thrust — pitch-modulated (max at horizontal, zero at vertical) AND
+  // scaled by current throttleLevel (0..1).
   let g = p.g;
-  if (p.throttle && g <= G_MAX_LEVEL) {
+  const throttleLevel = Math.max(0, Math.min(1, p.throttleLevel));
+  if (throttleLevel > 0 && g <= G_MAX_LEVEL) {
     const thrustFactor = Math.abs(cosH);
-    g = Math.min(G_MAX_LEVEL, g + thrustFactor * THRUST_ACCEL_MAX * dt);
+    g = Math.min(G_MAX_LEVEL, g + thrustFactor * THRUST_ACCEL_MAX * throttleLevel * dt);
   }
 
   // 5) Pitch bleed/feed — continuous across all angles.
@@ -131,10 +134,11 @@ export function stepPlane(
     position: { x: px, y: py },
     velocity: { x: vx, y: vy },
     heading,
-    throttleOn: p.throttle,
+    throttleOn: throttleLevel > 0,
     g,
     facing,
-    throttle: p.throttle,
+    throttle: throttleLevel > 0,
+    throttleLevel,
   };
 }
 
@@ -214,6 +218,7 @@ export function stepPlaneTaxi(
       g,
       facing,
       throttle: true,
+      throttleLevel: 1,  // taxi always full throttle
     },
     readyForLiftoff,
   };

@@ -8,6 +8,7 @@ export const PITCH_BLEED_MAX = 700;   // px/sec², speed bleed when nose fully v
 export const STALL_SINK_MAX = 680;    // px/sec, downward push when g=0
 export const DRAG_COEFFICIENT = 0.05; // fractional speed loss per second (scale-invariant)
 export const PLANE_TURN_RATE = 2.2;   // radians/sec when rotate input held (was 3.5)
+export const THROTTLE_CHANGE_RATE = 1.5; // throttle units/sec (full sweep 0→1 in ~0.67s)
 
 // === Existing tunables — KEEP unless physics-related ===
 export const PLANE_INITIAL_HP = 100;

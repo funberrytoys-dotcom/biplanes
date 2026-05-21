@@ -7,6 +7,7 @@ import {
   RESPAWN_DELAY_SEC,
   CRASH_VY_THRESHOLD,
   ENEMY_INITIAL_HP_LIGHT,
+  THROTTLE_CHANGE_RATE,
   type PlayerCommand,
 } from '@biplanes/shared';
 import { stepPlane, stepPlaneTaxi } from '../physics/plane-physics.js';
@@ -34,6 +35,7 @@ function resetToRunway(p: Plane): Plane {
       g: 0,
       facing,
       throttle: true,
+      throttleLevel: 1,
     },
     hp: p.maxHp,
     alive: true,
@@ -94,6 +96,7 @@ function spawnEnemy(id: number): Plane {
       g: 0,
       facing: -1,
       throttle: true,
+      throttleLevel: 1,
     },
     hp: ENEMY_INITIAL_HP_LIGHT,
     maxHp: ENEMY_INITIAL_HP_LIGHT,
@@ -109,8 +112,20 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
 
   let nextEntityId = state.nextEntityId;
 
-  // 1. Player physics + weapon
-  let player = stepPlaneByState(state.player, { rotate: playerCommand.rotate }, TICK_DT);
+  // 1. Player throttle adjustment (only while flying — taxi has auto-throttle)
+  let playerThrottleLevel = state.player.kinematic.throttleLevel;
+  if (state.player.state === 'flying' && playerCommand.throttleDelta !== 0) {
+    playerThrottleLevel = Math.max(0, Math.min(1,
+      playerThrottleLevel + playerCommand.throttleDelta * THROTTLE_CHANGE_RATE * TICK_DT
+    ));
+  }
+  const playerWithThrottle: Plane = {
+    ...state.player,
+    kinematic: { ...state.player.kinematic, throttleLevel: playerThrottleLevel },
+  };
+
+  // 2. Player physics + weapon
+  let player = stepPlaneByState(playerWithThrottle, { rotate: playerCommand.rotate }, TICK_DT);
 
   // Weapon — only fire while flying.
   const newBulletList = stepBullets(state.bullets);
@@ -147,7 +162,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     const taxiPitchUp: -1 | 0 | 1 = e.kinematic.facing === 1 ? -1 : 1;
     const cmd: PlayerCommand =
       e.state === 'taxi'
-        ? { rotate: taxiPitchUp, fire: false, bomb: false }
+        ? { rotate: taxiPitchUp, fire: false, bomb: false, throttleDelta: 0 }
         : chasePolicy(e, player);
 
     const stepped = stepPlaneByState(e, { rotate: cmd.rotate }, TICK_DT);

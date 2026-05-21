@@ -11,6 +11,7 @@ function makePlane(overrides: Partial<PlaneKinematic> = {}): PlaneKinematic {
     g: 1200,
     facing: 1,
     throttle: true,
+    throttleLevel: 1,
     ...overrides,
   };
 }

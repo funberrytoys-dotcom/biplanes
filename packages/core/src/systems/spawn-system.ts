@@ -59,6 +59,7 @@ export function makeEnemyPlane(id: EntityId, around: Vec2, rng: Rng): Plane {
       g: speed,
       facing,
       throttle: true,
+      throttleLevel: 1,
     },
     hp: ENEMY_INITIAL_HP_LIGHT,
     maxHp: ENEMY_INITIAL_HP_LIGHT,

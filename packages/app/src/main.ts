@@ -34,7 +34,7 @@ function makePlayer(): Plane {
       velocity: { x: 0, y: 0 },
       heading: 0,
       throttleOn: true,
-      g: 0, facing: 1, throttle: true,
+      g: 0, facing: 1, throttle: true, throttleLevel: 1,
     },
     hp: PLANE_INITIAL_HP, maxHp: PLANE_INITIAL_HP,
     weaponCooldown: 0, alive: true,
@@ -87,6 +87,7 @@ export async function startGame(container: HTMLElement) {
       rotate: (k.rotate || t.rotate) as -1 | 0 | 1,
       fire: k.fire || t.fire,
       bomb: k.bomb || t.bomb,
+      throttleDelta: (k.throttleDelta || t.throttleDelta) as -1 | 0 | 1,
     };
   }
 

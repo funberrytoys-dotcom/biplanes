@@ -20,10 +20,18 @@ export function createKeyboardController(): KeyboardController {
       if (left && !right) rotate = -1;
       else if (right && !left) rotate = 1;
 
+      // W = throttle up, S = throttle down (no input = hold current)
+      const throttleUp = keys.has('KeyW') || keys.has('ArrowUp');
+      const throttleDown = keys.has('KeyS') || keys.has('ArrowDown');
+      let throttleDelta: -1 | 0 | 1 = 0;
+      if (throttleUp && !throttleDown) throttleDelta = 1;
+      else if (throttleDown && !throttleUp) throttleDelta = -1;
+
       return {
         rotate,
         fire: keys.has('Space'),
         bomb: keys.has('ShiftLeft') || keys.has('KeyB'),
+        throttleDelta,
       };
     },
     destroy() {
