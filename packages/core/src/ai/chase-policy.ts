@@ -1,19 +1,39 @@
 import type { PlayerCommand } from '@biplanes/shared';
-import { GROUND_Y } from '@biplanes/shared';
+import { GROUND_Y, G_STALL, G_MAX_LEVEL, BULLET_SPEED } from '@biplanes/shared';
 import type { Plane } from '../entities/plane.js';
 import type { Pilot } from '../entities/pilot.js';
 import type { AiParams } from './difficulty.js';
 import { DIFFICULTIES } from './difficulty.js';
 
+/**
+ * Per-enemy AI state kept across ticks.
+ *
+ * Tracks reaction-buffered target snapshots (for delayed reaction), the current
+ * evasion maneuver, deterministic-per-enemy wobble seed, time-since-liftoff for
+ * post-takeoff stabilisation, and the current rookie-mistake action (EASY only).
+ */
 export interface AiState {
   reactionBuffer: { pos: { x: number; y: number }; vel: { x: number; y: number }; t: number }[];
-  evasionTimer: number;    // seconds until evasion maneuver ends
-  evasionDir: -1 | 0 | 1;  // direction of current evasion
-  wobbleSeed: number;      // for deterministic noise per enemy
+  evasionTimer: number;
+  evasionDir: -1 | 0 | 1;
+  wobbleSeed: number;
+  /** seconds spent in the 'flying' state; resets when the AI is not flying */
+  timeFlyingSec: number;
+  /** seconds remaining on the current rookie mistake (if any) */
+  rookieMistakeTimer: number;
+  rookieMistakeAction: 'climb' | 'dive' | 'throttle-off' | 'wrong-turn' | 'none';
 }
 
 export function createAiState(seed: number): AiState {
-  return { reactionBuffer: [], evasionTimer: 0, evasionDir: 0, wobbleSeed: seed };
+  return {
+    reactionBuffer: [],
+    evasionTimer: 0,
+    evasionDir: 0,
+    wobbleSeed: seed,
+    timeFlyingSec: 0,
+    rookieMistakeTimer: 0,
+    rookieMistakeAction: 'none',
+  };
 }
 
 // Mulberry32-style noise so AI wobble is deterministic per-enemy
@@ -25,18 +45,45 @@ function noise(seed: number, t: number): number {
   return (((x ^ (x >>> 14)) >>> 0) / 4294967296) * 2 - 1;
 }
 
+/** Wrap a heading delta into (-π, π]. */
+function normalizeAngle(a: number): number {
+  while (a > Math.PI) a -= 2 * Math.PI;
+  while (a < -Math.PI) a += 2 * Math.PI;
+  return a;
+}
+
+/**
+ * Three-layer AI command:
+ *   1) SURVIVAL  — stall recovery, ground/ceiling avoidance, post-takeoff level out
+ *   2) POSITION  — pick a desired aim point (above/below target) and throttle setting
+ *   3) AIM/FIRE  — lead the target, fire only when inside cone+range
+ *
+ * Layer 1 overrides 2 and 3 when triggered (no firing while pulling out of a stall).
+ *
+ * @param wasFlying  true if the plane was already in the 'flying' state coming
+ *                   into this tick. Used to manage `timeFlyingSec` so that a
+ *                   freshly-airborne AI doesn't immediately try to chase.
+ */
 export function aiCommand(
   self: Plane,
   target: Plane,
   params: AiParams,
   aiState: AiState,
-  prevTargetHp: number,
+  prevSelfHp: number,
   dt: number,
   currentTime: number,
+  wasFlying: boolean = true,
 ): { cmd: PlayerCommand; aiState: AiState } {
   const newState: AiState = { ...aiState };
 
-  // 1. Record current target state into reaction buffer; we'll read from N ms ago.
+  // ----- Track time spent flying (resets on respawn / taxi) -----
+  if (!wasFlying) {
+    newState.timeFlyingSec = 0;
+  } else {
+    newState.timeFlyingSec = aiState.timeFlyingSec + dt;
+  }
+
+  // ----- Reaction buffer: read target state from N ms ago -----
   newState.reactionBuffer = [
     ...aiState.reactionBuffer,
     {
@@ -44,9 +91,8 @@ export function aiCommand(
       vel: { ...target.kinematic.velocity },
       t: currentTime,
     },
-  ].filter(e => currentTime - e.t <= 2.0);  // keep up to 2s of history
+  ].filter(e => currentTime - e.t <= 2.0);
 
-  // 2. Find the buffered sample reactionDelaySec ago.
   let bufferedPos = { ...target.kinematic.position };
   let bufferedVel = { ...target.kinematic.velocity };
   for (let i = newState.reactionBuffer.length - 1; i >= 0; i--) {
@@ -58,101 +104,236 @@ export function aiCommand(
     }
   }
 
-  // 3. Lead the target by predicting where it'll be in `leadTime` seconds.
-  const distance = Math.hypot(
-    bufferedPos.x - self.kinematic.position.x,
-    bufferedPos.y - self.kinematic.position.y,
-  );
-  const BULLET_TRAVEL_TIME = distance / 1000;  // approx using BULLET_SPEED 1000
-  const leadTime = BULLET_TRAVEL_TIME * params.leadFactor;
-  const aimX = bufferedPos.x + bufferedVel.x * leadTime;
-  const aimY = bufferedPos.y + bufferedVel.y * leadTime;
+  // ============================================================
+  // LAYER 1: SURVIVAL
+  // ============================================================
+  // Compute an override heading + throttle. If any clause fires, the AI ignores
+  // combat positioning this tick. Order matters: ground > stall > ceiling.
+  let overrideHeading: number | null = null;
+  let overrideThrottle = params.cruiseThrottle;
+  let inSurvival = false;
 
-  // 4. Compute desired heading to aim point.
-  let dx = aimX - self.kinematic.position.x;
-  let dy = aimY - self.kinematic.position.y;
+  const sinH = Math.sin(self.kinematic.heading);
+  const y = self.kinematic.position.y;
+  const g = self.kinematic.g;
 
-  // 5. OVERRIDE: ground avoidance. If we're below groundAvoidY, force pull-up.
-  if (self.kinematic.position.y > params.groundAvoidY) {
-    // Drag aim upward proportional to how dangerous it is
-    const danger = (self.kinematic.position.y - params.groundAvoidY) / Math.max(1, GROUND_Y - params.groundAvoidY);
-    dy -= 1000 * danger;
+  // 1a. Post-takeoff stabilisation — level out and build speed.
+  if (newState.timeFlyingSec < params.postTakeoffStabilizationSec) {
+    overrideHeading = 0;                       // horizontal in world frame
+    overrideThrottle = 1.0;
+    inSurvival = true;
+  }
+  // 1b. Ground crash imminent — pull up. Always wins over stall avoid because
+  // hitting the ground is more immediately fatal than a recoverable stall.
+  else if (y > GROUND_Y - params.groundClearance) {
+    // Pull up, but if we're very slow AND nose-up, ease the climb angle to
+    // avoid trading ground impact for stall fall.
+    const slow = g < G_STALL * 1.05;
+    overrideHeading = slow ? -0.15 : -0.45;
+    overrideThrottle = 1.0;
+    inSurvival = true;
+  }
+  // 1c. Stall risk — flatten and dive slightly to recover energy.
+  // sinH < -0.3 means nose is meaningfully above the horizon (sin is positive
+  // toward y-down, so negative sin = nose up in screen coords).
+  else if (params.stallAvoidEnabled && g < G_STALL * 1.15 && sinH < -0.3) {
+    overrideHeading = 0.1;                     // slight dive to feed speed
+    overrideThrottle = 1.0;
+    inSurvival = true;
+  }
+  // 1d. Ceiling avoidance — dive, throttle back so we don't over-accelerate.
+  else if (y < params.ceilingClearance) {
+    overrideHeading = 0.4;
+    overrideThrottle = 0.7;
+    inSurvival = true;
   }
 
-  // 6. OVERRIDE: ceiling avoidance. If above ceilingAvoidY, force pull-down.
-  if (self.kinematic.position.y < params.ceilingAvoidY) {
-    const danger = (params.ceilingAvoidY - self.kinematic.position.y) / Math.max(1, params.ceilingAvoidY);
-    dy += 1000 * danger;
+  // ============================================================
+  // LAYER 2 + 3: POSITIONING + AIMING (only if not in survival)
+  // ============================================================
+  // Choose an aim point and desired throttle.
+  let targetHeading: number;
+  let targetThrottle: number;
+
+  if (inSurvival) {
+    targetHeading = overrideHeading!;
+    targetThrottle = overrideThrottle;
+  } else {
+    // --- Layer 2: Positioning ---
+    // Compute aim point (with optional altitude offset).
+    let aimX: number;
+    let aimY: number;
+
+    if (params.positioningEnabled) {
+      // Position above (or below) target by preferredAltitudeOffset.
+      aimX = bufferedPos.x;
+      aimY = bufferedPos.y + params.preferredAltitudeOffset;
+    } else {
+      aimX = bufferedPos.x;
+      aimY = bufferedPos.y;
+    }
+
+    // Energy management: if target is above us AND we're slow AND we have
+    // altitude to spare, dive first to gain speed instead of climbing directly.
+    // The dive is roughly "as far below us as the target is above us".
+    let throttleIntent: number;
+    const dyToTarget = aimY - self.kinematic.position.y;
+    const targetIsAbove = dyToTarget < -40;
+    const ourSpeedRatio = g / G_MAX_LEVEL;
+
+    if (params.energyManagement && targetIsAbove && ourSpeedRatio < 0.9) {
+      // Dive to convert altitude (we have none) into speed; actually trade by
+      // pointing slightly down to feed speed, then climb. We do this by
+      // overriding the aim point downward briefly.
+      aimY = self.kinematic.position.y + 80;
+      throttleIntent = params.diveThrottle;
+    } else if (dyToTarget < -20) {
+      // Target above us → climbing
+      throttleIntent = params.climbThrottle;
+    } else if (dyToTarget > 60) {
+      // Target below us → diving on them; control speed
+      throttleIntent = params.diveThrottle;
+    } else {
+      throttleIntent = params.cruiseThrottle;
+    }
+    targetThrottle = throttleIntent;
+
+    // --- Layer 3: Aiming with lead ---
+    const dx0 = aimX - self.kinematic.position.x;
+    const dy0 = aimY - self.kinematic.position.y;
+    const distance = Math.hypot(dx0, dy0);
+    const bulletTravelTime = distance / BULLET_SPEED;
+    const leadTime = bulletTravelTime * params.leadFactor;
+    const finalAimX = aimX + bufferedVel.x * leadTime;
+    const finalAimY = aimY + bufferedVel.y * leadTime;
+
+    targetHeading = Math.atan2(
+      finalAimY - self.kinematic.position.y,
+      finalAimX - self.kinematic.position.x,
+    );
   }
 
-  // 7. OVERRIDE: collision avoidance. If head-on close to target, swerve.
-  const closingFromAhead =
-    distance < params.collisionAvoidDist &&
-    Math.sign(target.kinematic.velocity.x) !== Math.sign(self.kinematic.velocity.x);
-  if (closingFromAhead) {
-    // Swerve up or down — pick whichever is more out of the way
-    dy += dy < 0 ? -500 : 500;
-  }
-
-  // 8. EVASION: if HP dropped this tick AND chance triggered, start an evasion timer.
-  const wasHit = self.hp < prevTargetHp;
-  if (wasHit && Math.random() < params.evasionChanceWhenHit * dt && newState.evasionTimer <= 0) {
+  // ============================================================
+  // EVASION (folded into heading bias when the AI just got hit)
+  // ============================================================
+  const wasHit = self.hp < prevSelfHp;
+  if (
+    !inSurvival
+    && wasHit
+    && Math.random() < params.evasionChanceWhenHit * dt
+    && newState.evasionTimer <= 0
+  ) {
     newState.evasionTimer = 0.6;
     newState.evasionDir = Math.random() < 0.5 ? -1 : 1;
   }
   if (newState.evasionTimer > 0) {
     newState.evasionTimer -= dt;
-    // Add a strong rotation bias for evasion
-    dy += newState.evasionDir * 600;
-    dx += newState.evasionDir * 300;
+    if (!inSurvival) {
+      // bias heading perpendicular to current motion
+      targetHeading += newState.evasionDir * 0.6;
+    }
   }
 
-  // 9. Compute angle to aim point AFTER overrides
-  const angleToAim = Math.atan2(dy, dx);
+  // ============================================================
+  // ROOKIE MISTAKES (easy only)
+  // ============================================================
+  if (params.rookieMistakeChancePerSec > 0 && !inSurvival) {
+    if (newState.rookieMistakeTimer > 0) {
+      newState.rookieMistakeTimer -= dt;
+    } else if (Math.random() < params.rookieMistakeChancePerSec * dt) {
+      const r = Math.random();
+      if (r < 0.35) {
+        newState.rookieMistakeAction = 'climb';
+      } else if (r < 0.6) {
+        newState.rookieMistakeAction = 'dive';
+      } else if (r < 0.85) {
+        newState.rookieMistakeAction = 'wrong-turn';
+      } else {
+        newState.rookieMistakeAction = 'throttle-off';
+      }
+      newState.rookieMistakeTimer = 0.6 + Math.random() * 0.8;
+    } else {
+      newState.rookieMistakeAction = 'none';
+    }
 
-  // 10. Compute heading diff, normalize
-  let diff = angleToAim - self.kinematic.heading;
-  while (diff > Math.PI) diff -= 2 * Math.PI;
-  while (diff < -Math.PI) diff += 2 * Math.PI;
+    if (newState.rookieMistakeTimer > 0) {
+      if (newState.rookieMistakeAction === 'climb') targetHeading = -1.2;
+      else if (newState.rookieMistakeAction === 'dive') targetHeading = 0.8;
+      else if (newState.rookieMistakeAction === 'wrong-turn') {
+        targetHeading = self.kinematic.heading + 1.2;
+      } else if (newState.rookieMistakeAction === 'throttle-off') {
+        // handled below where we resolve throttle
+      }
+    }
+  }
 
-  // 11. Add wobble noise (Easy = high, Hard = low)
+  // ============================================================
+  // TRANSLATE → COMMAND
+  // ============================================================
+  // Heading diff w/ wobble + deadzone
+  let diff = normalizeAngle(targetHeading - self.kinematic.heading);
   diff += noise(newState.wobbleSeed, currentTime) * params.errorWobbleRad;
 
-  // 12. Rotation command with deadzone
   let rotate: -1 | 0 | 1 = 0;
   if (diff > params.turnDeadzoneRad) rotate = 1;
   else if (diff < -params.turnDeadzoneRad) rotate = -1;
 
-  // 13. Fire if in cone AND in range (use UNADJUSTED aim — don't fire during evasion/avoidance)
-  const realDx = target.kinematic.position.x - self.kinematic.position.x;
-  const realDy = target.kinematic.position.y - self.kinematic.position.y;
-  const realDist = Math.hypot(realDx, realDy);
-  const realAngle = Math.atan2(realDy, realDx);
-  let realDiff = realAngle - self.kinematic.heading;
-  while (realDiff > Math.PI) realDiff -= 2 * Math.PI;
-  while (realDiff < -Math.PI) realDiff += 2 * Math.PI;
-  const inCone = Math.abs(realDiff) < params.fireConeRad;
-  const inRange = realDist < params.fireRange;
-  const fire = inCone && inRange && newState.evasionTimer <= 0;
+  // Throttle
+  let throttleDelta: -1 | 0 | 1 = 0;
+  if (params.manageThrottle) {
+    let effectiveTargetThrottle = targetThrottle;
+    if (newState.rookieMistakeTimer > 0 && newState.rookieMistakeAction === 'throttle-off') {
+      effectiveTargetThrottle = 0;
+    }
+    const currentThrottle = self.kinematic.throttleLevel;
+    if (currentThrottle < effectiveTargetThrottle - 0.05) throttleDelta = 1;
+    else if (currentThrottle > effectiveTargetThrottle + 0.05) throttleDelta = -1;
+  }
+
+  // Fire: only if NOT in survival override AND target is in cone+range.
+  // Use real (unbuffered, unled) target geometry for the fire decision so the
+  // AI doesn't fire wildly into space when the lead+wobble compose poorly.
+  let fire = false;
+  if (!inSurvival && newState.evasionTimer <= 0) {
+    const realDx = target.kinematic.position.x - self.kinematic.position.x;
+    const realDy = target.kinematic.position.y - self.kinematic.position.y;
+    const realDist = Math.hypot(realDx, realDy);
+    const realAngle = Math.atan2(realDy, realDx);
+    const realDiff = normalizeAngle(realAngle - self.kinematic.heading);
+    const inCone = Math.abs(realDiff) < params.fireConeRad;
+    const inRange = realDist < params.fireRange;
+    fire = inCone && inRange;
+  }
 
   return {
-    cmd: { rotate, fire, bomb: false, throttleDelta: 0, eject: false, jump: false },
+    cmd: { rotate, throttleDelta, fire, bomb: false, eject: false, jump: false },
     aiState: newState,
   };
 }
 
-// Legacy export — uses Medium difficulty with no internal state for callers that don't track it.
+// Legacy export — kept for the chase-policy.test.ts callers and any external
+// importer that wants a simple "turn toward target and fire" behaviour without
+// positioning offsets or throttle management. Uses Medium tuning for cone /
+// range / lead but disables positioning so it aims straight at the target.
+const LEGACY_CHASE_PARAMS: AiParams = {
+  ...DIFFICULTIES.medium,
+  positioningEnabled: false,
+  preferredAltitudeOffset: 0,
+  energyManagement: false,
+  manageThrottle: false,
+  rookieMistakeChancePerSec: 0,
+  postTakeoffStabilizationSec: 0,
+  errorWobbleRad: 0,
+};
 export function chasePolicy(self: Plane, target: Plane): PlayerCommand {
   const dummyState = createAiState(self.id);
-  return aiCommand(self, target, DIFFICULTIES.medium, dummyState, self.hp, 1 / 60, 0).cmd;
+  // wasFlying=true to bypass post-takeoff stabilisation in unit tests.
+  return aiCommand(self, target, LEGACY_CHASE_PARAMS, dummyState, self.hp, 1 / 60, 0, true).cmd;
 }
 
 /**
  * AI command when the target is an ejected pilot rather than a plane.
- * Re-uses aiCommand by adapting the pilot into a "virtual plane" with zero
- * velocity (pilots move slowly enough that lead = 0 is fine) and a synthetic
- * heading. Stable across pilot states — when the pilot dies the caller falls
- * back to the regular aiCommand against the player plane.
+ * Wraps the pilot into a virtual zero-velocity plane and re-uses aiCommand.
  */
 export function aiCommandPilotTarget(
   self: Plane,
@@ -162,8 +343,8 @@ export function aiCommandPilotTarget(
   prevSelfHp: number,
   dt: number,
   currentTime: number,
+  wasFlying: boolean = true,
 ): { cmd: PlayerCommand; aiState: AiState } {
-  // Build a virtual plane standing where the pilot is, with zero velocity.
   const virtual: Plane = {
     id: -1,
     faction: pilot.faction,
@@ -184,5 +365,5 @@ export function aiCommandPilotTarget(
     state: 'flying',
     respawnTimer: 0,
   };
-  return aiCommand(self, virtual, params, aiState, prevSelfHp, dt, currentTime);
+  return aiCommand(self, virtual, params, aiState, prevSelfHp, dt, currentTime, wasFlying);
 }
