@@ -77,13 +77,21 @@ export function stepPlane(
   const sinH = Math.sin(heading);
   const cosH = Math.cos(heading);
 
-  // 4) Throttle thrust — pitch-modulated (max at horizontal, zero at vertical) AND
-  // scaled by current throttleLevel (0..1).
+  // 4) Throttle: defines target cruise speed (G_MAX_LEVEL × throttleLevel).
+  // Below target -> engine accelerates (pitch-modulated, max thrust at horizontal).
+  // Above target -> engine brakes (proportional to gap), giving real-time speed control.
+  // In a dive (g > G_MAX_LEVEL) we let physics/drag handle bleed naturally.
   let g = p.g;
   const throttleLevel = Math.max(0, Math.min(1, p.throttleLevel));
-  if (throttleLevel > 0 && g <= G_MAX_LEVEL) {
-    const thrustFactor = Math.abs(cosH);
-    g = Math.min(G_MAX_LEVEL, g + thrustFactor * THRUST_ACCEL_MAX * throttleLevel * dt);
+  const targetSpeed = G_MAX_LEVEL * throttleLevel;
+  const thrustFactor = Math.abs(cosH); // 1 at horizontal, 0 at vertical
+  if (g < targetSpeed) {
+    // Accelerate toward target
+    g = Math.min(targetSpeed, g + thrustFactor * THRUST_ACCEL_MAX * dt);
+  } else if (g > targetSpeed && g <= G_MAX_LEVEL) {
+    // Engine brake — actively bleeds speed toward the lower target
+    const ENGINE_BRAKE_RATE = 500; // px/sec² when throttling down
+    g = Math.max(targetSpeed, g - ENGINE_BRAKE_RATE * dt);
   }
 
   // 5) Pitch bleed/feed — continuous across all angles.
