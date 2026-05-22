@@ -32,6 +32,7 @@ import {
   BULLET_LIFETIME,
   DYING_SPIN_RATE,
   DYING_GRAVITY_MULTIPLIER,
+  TAKEOFF_LIFTOFF_SPEED,
   type Vec2,
   type PlayerCommand,
 } from '@biplanes/shared';
@@ -368,8 +369,12 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     let cmd: PlayerCommand;
     const wasFlyingThisTick = e.state === 'flying';
     if (e.state === 'taxi') {
-      // While taxiing, AI always opens throttle (delta=+1 each tick) and holds pitch-up.
-      cmd = { rotate: taxiPitchUp, fire: false, bomb: false, throttleDelta: 1, eject: false, jump: false };
+      // Realistic takeoff: build ground speed first, only rotate the nose up
+      // once we're close to liftoff speed. Otherwise the plane visually points
+      // skyward while still rolling, which looks absurd.
+      const closeToLiftoff = e.kinematic.g >= TAKEOFF_LIFTOFF_SPEED * 0.85;
+      const rotate: -1 | 0 | 1 = closeToLiftoff ? taxiPitchUp : 0;
+      cmd = { rotate, fire: false, bomb: false, throttleDelta: 1, eject: false, jump: false };
     } else {
       let aiState = state.enemyAiStates.get(e.id);
       if (!aiState) {
