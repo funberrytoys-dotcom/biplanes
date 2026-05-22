@@ -63,6 +63,9 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
   // Throttle bob tracking for pilot head (Task 2.4)
   let prevThrottle = 0;
 
+  // Heat shimmer accumulator (Task 2.6)
+  let heatAcc = 0;
+
   return {
     container: c,
     update(
@@ -128,6 +131,24 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
         }
         fuselageContainer.x = shakeX;
         fuselageContainer.y = shakeY;
+      }
+
+      // Heat shimmer at full throttle (Task 2.6)
+      {
+        const throttle = p.kinematic.throttleLevel ?? 0;
+        if (fx && aliveAndFlying && throttle >= 0.95) {
+          heatAcc += dt;
+          while (heatAcc >= 1 / 20) {
+            const cos = Math.cos(p.kinematic.heading);
+            const sin = Math.sin(p.kinematic.heading);
+            const nx = p.kinematic.position.x + cos * 18;
+            const ny = p.kinematic.position.y + sin * 18;
+            fx.addHeatWave({ x: nx, y: ny });
+            heatAcc -= 1 / 20;
+          }
+        } else {
+          heatAcc = 0;
+        }
       }
 
       // 1. Interactive Propeller Spinning Animation

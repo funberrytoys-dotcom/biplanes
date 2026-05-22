@@ -145,6 +145,23 @@ export class DamageFx {
     });
   }
 
+  addHeatWave(position: { x: number; y: number }) {
+    const g = this.acquire(0xffffff, 4, 'spark');
+    g.x = position.x + (Math.random() - 0.5) * 6;
+    g.y = position.y;
+    g.alpha = 0.18;
+    this.active.push({
+      g,
+      vx: 0,
+      vy: -40,
+      life: 0.4,
+      maxLife: 0.4,
+      baseAlpha: 0.18,
+      baseRadius: 4,
+      type: 'spark',
+    });
+  }
+
   addImpactFlash(position: { x: number; y: number }) {
     const g = this.acquire(0xffffff, 14, 'spark'); // routes through glow container via type=spark
     g.x = position.x;
