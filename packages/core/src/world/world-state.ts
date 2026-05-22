@@ -7,6 +7,7 @@ import type { Bomb } from '../entities/bomb.js';
 import type { Rocket } from '../entities/rocket.js';
 import type { Difficulty } from '../ai/difficulty.js';
 import type { AiState } from '../ai/chase-policy.js';
+import type { PlaneCollisionEvent } from '../systems/plane-collision.js';
 
 /** Decorative score-blimp that drifts slowly across the sky. */
 export interface Blimp {
@@ -71,6 +72,14 @@ export interface WorldState {
   // to immutable Map.set() rebuild here.
   enemyAiStates: Map<number, AiState>;   // enemyId -> state
   prevEnemyHp: Map<number, number>;      // for hit detection
+
+  // === Plane-vs-plane collision (Phase 5) ===
+  // Per-pair cooldowns (tick counts) so a single brush doesn't retrigger every frame
+  // while still inside the collision radius.
+  planeCollisionCooldowns: Map<string, number>;
+  // Events emitted DURING the current tick — replaced each tick (not accumulated).
+  // Render reads these for VFX (sparks, shake, hit-pause, RAM notice).
+  planeCollisionEvents: PlaneCollisionEvent[];
 }
 
 export function createWorldState(seed: number, player: Plane): WorldState {
@@ -114,5 +123,7 @@ export function createWorldState(seed: number, player: Plane): WorldState {
     difficulty: 'medium',
     enemyAiStates: new Map(),
     prevEnemyHp: new Map(),
+    planeCollisionCooldowns: new Map(),
+    planeCollisionEvents: [],
   };
 }

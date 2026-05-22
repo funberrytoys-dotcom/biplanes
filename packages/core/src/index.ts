@@ -14,3 +14,5 @@ export * from './rng/mulberry32.js';
 export * from './ai/difficulty.js';
 export { aiCommand, createAiState, chasePolicy } from './ai/chase-policy.js';
 export type { AiState } from './ai/chase-policy.js';
+export { resolvePlanePlaneCollisions } from './systems/plane-collision.js';
+export type { PlaneCollisionEvent } from './systems/plane-collision.js';

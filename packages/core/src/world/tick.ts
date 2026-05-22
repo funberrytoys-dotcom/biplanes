@@ -39,6 +39,7 @@ import { stepPlane, stepPlaneTaxi } from '../physics/plane-physics.js';
 import { stepPilotParachute, stepPilotWalking, stepPilotDead } from '../physics/pilot-physics.js';
 import { firePlayerWeapon, stepBullets } from '../systems/weapon-system.js';
 import { resolveBulletPlaneHits, applyExplosionDamage } from '../systems/collision-system.js';
+import { resolvePlanePlaneCollisions } from '../systems/plane-collision.js';
 import { aiCommand, aiCommandPilotTarget, createAiState } from '../ai/chase-policy.js';
 import { DIFFICULTIES } from '../ai/difficulty.js';
 import type { Plane } from '../entities/plane.js';
@@ -809,6 +810,28 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     player = { ...player, state: 'crashed', respawnTimer: RESPAWN_DELAY_SEC };
   }
 
+  // === Plane-vs-plane collision (Phase 5) ===
+  // Run after bullet collisions + recombine so the resolver sees the authoritative
+  // alive/state of each plane this tick. Events drive VFX (sparks/shake/RAM!).
+  const planeCol = resolvePlanePlaneCollisions(
+    player,
+    enemies,
+    state.planeCollisionCooldowns,
+    rngState,
+  );
+  player = planeCol.player;
+  enemies = planeCol.enemies;
+  const planeCollisionEvents = planeCol.events;
+  const planeCollisionCooldowns = planeCol.newCooldowns;
+
+  // Score: player rams enemy and that enemy dies → +1 score (whether or not player survived)
+  for (const ev of planeCollisionEvents) {
+    const playerIsA = ev.aFaction === 'player';
+    const playerIsB = ev.bFaction === 'player';
+    const enemyDied = (playerIsA && ev.bDied) || (playerIsB && ev.aDied);
+    if (enemyDied) playerScore++;
+  }
+
   // Pilot lifecycle resolution
   const survivingPilots: Pilot[] = [];
   for (const pp of pilots) {
@@ -904,5 +927,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     level,
     pendingLevelUp,
     gameOver: enemyScore >= ENEMY_SCORE_GAME_OVER,
+    planeCollisionCooldowns,
+    planeCollisionEvents,
   };
 }

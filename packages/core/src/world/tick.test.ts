@@ -250,6 +250,23 @@ describe('world tick', () => {
     expect(stillDying).toBe(false);
   });
 
+  it('plane-plane collision is deterministic', () => {
+    const player = makePlayer();
+    const enemy = {
+      ...makePlayer(),
+      id: 2,
+      faction: 'enemy' as const,
+      kinematic: { ...makePlayer().kinematic, position: { x: 1200, y: 500 } },
+    };
+    const s1 = { ...createWorldState(42, player), enemies: [enemy] };
+    const s2 = { ...createWorldState(42, player), enemies: [enemy] };
+    const cmd = { rotate: 0 as const, fire: false, bomb: false, throttleDelta: 0 as const, eject: false, jump: false };
+    const a = tick(s1, cmd);
+    const b = tick(s2, cmd);
+    expect(a.enemies[0]).toEqual(b.enemies[0]);
+    expect(a.player).toEqual(b.player);
+  });
+
   it('flame trail deals damage to enemy plane behind tail', () => {
     const player = makePlayer();
     player.kinematic.heading = 0; // facing right, tail is to the left (-x)
