@@ -171,7 +171,8 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
       if (fx && aliveAndFlying) {
         if (p.hp < prevHp) {
           // Took damage! Emit bright spark burst at center of plane
-          fx.addSparks({ x: p.kinematic.position.x, y: p.kinematic.position.y }, 9);
+          fx.addSparks({ x: p.kinematic.position.x, y: p.kinematic.position.y }, 18);
+          fx.addImpactFlash({ x: p.kinematic.position.x, y: p.kinematic.position.y });
         }
       }
       prevHp = p.hp;

@@ -144,6 +144,23 @@ export class DamageFx {
     });
   }
 
+  addImpactFlash(position: { x: number; y: number }) {
+    const g = this.acquire(0xffffff, 14, 'spark'); // routes through glow container via type=spark
+    g.x = position.x;
+    g.y = position.y;
+    g.scale.set(1);
+    this.active.push({
+      g,
+      vx: 0,
+      vy: 0,
+      life: 0.08,
+      maxLife: 0.08,
+      baseAlpha: 1.0,
+      baseRadius: 14,
+      type: 'spark',
+    });
+  }
+
   addShockwave(position: { x: number; y: number }) {
     // Add an expanding shockwave ring
     const g = this.acquire(0xffffff, 100, 'shockwave');
