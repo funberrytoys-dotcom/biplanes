@@ -824,12 +824,20 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
   const planeCollisionEvents = planeCol.events;
   const planeCollisionCooldowns = planeCol.newCooldowns;
 
-  // Score: player rams enemy and that enemy dies → +1 score (whether or not player survived)
+  // Score from plane-vs-plane collisions:
+  //   - enemy dies in collision involving player  → +1 player (whether or not player survived)
+  //   - player dies in collision, enemy survives  → +1 enemy (the standard "player died this
+  //                                                  tick" credit at line ~796 ran BEFORE the
+  //                                                  collision resolver, so it misses this case)
   for (const ev of planeCollisionEvents) {
     const playerIsA = ev.aFaction === 'player';
     const playerIsB = ev.bFaction === 'player';
+    const playerInvolved = playerIsA || playerIsB;
+    if (!playerInvolved) continue;
     const enemyDied = (playerIsA && ev.bDied) || (playerIsB && ev.aDied);
+    const playerDied = (playerIsA && ev.aDied) || (playerIsB && ev.bDied);
     if (enemyDied) playerScore++;
+    else if (playerDied) enemyScore++;
   }
 
   // Pilot lifecycle resolution
