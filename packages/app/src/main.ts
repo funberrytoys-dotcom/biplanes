@@ -38,6 +38,7 @@ import {
   BulletTracers,
   createScreenEffects,
   FloatingNumbers,
+  createLightning,
   type SkyThemeId,
   type SkyBackgroundHandle,
 } from '@biplanes/render';
@@ -73,6 +74,13 @@ export async function startGame(container: HTMLElement) {
   const worldLayer = new Container();
   app.stage.addChild(worldLayer);
 
+  // Screen effects must be created before lightning (lightning triggers screenFx.flash).
+  // Layout: uiLayer/screenFx is added later — we just need the handle to pass into lightning.
+  const screenFx = createScreenEffects(app.screen.width, app.screen.height);
+
+  // Lightning bolts — gated by setSkyTheme. Sits above sky (index 0), below action layers.
+  const lightning = createLightning(WORLD_WIDTH, WORLD_HEIGHT, screenFx);
+
   let sky: SkyBackgroundHandle;
   function setSkyTheme(themeId: SkyThemeId) {
     if (sky) {
@@ -81,6 +89,7 @@ export async function startGame(container: HTMLElement) {
     }
     sky = createSkyBackground(WORLD_WIDTH, WORLD_HEIGHT, themeId);
     worldLayer.addChildAt(sky.container, 0); // Keep sky behind all active elements
+    lightning.setActive(themeId === 'twilight' || themeId === 'night');
   }
 
   const themes: SkyThemeId[] = ['noon', 'sunset', 'twilight', 'night'];
@@ -91,6 +100,9 @@ export async function startGame(container: HTMLElement) {
 
   // Set initial random sky theme for start screen
   rollSkyTheme();
+
+  // Lightning bolts render above the sky but below all action layers.
+  worldLayer.addChild(lightning.container);
 
   // Blimp sits between the sky and the action — visible but subtle (alpha set inside).
   const blimpSprite = createBlimpSprite();
@@ -122,8 +134,8 @@ export async function startGame(container: HTMLElement) {
 
   const uiLayer = new Container();
   app.stage.addChild(uiLayer);
-  const screenFx = createScreenEffects(app.screen.width, app.screen.height);
   uiLayer.addChild(screenFx.container);
+
   const hud = createHud(app.screen.width, app.screen.height);
   uiLayer.addChild(hud.container);
 
@@ -194,6 +206,7 @@ export async function startGame(container: HTMLElement) {
       const py = state.player ? state.player.kinematic.position.y : RUNWAY_Y;
       sky.update(dt, renderTimeSec, px, py);
     }
+    lightning.update(dt);
 
     // 2. Update UI overlays (Level Up Card entries & Death Telegram Typewriter)
     levelUpScreen.update(dt);
