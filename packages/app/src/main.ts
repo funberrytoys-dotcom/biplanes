@@ -32,6 +32,7 @@ import {
   DamageFx,
   MuzzleFlashes,
   BulletTracers,
+  createScreenEffects,
   type SkyThemeId,
   type SkyBackgroundHandle,
 } from '@biplanes/render';
@@ -113,6 +114,8 @@ export async function startGame(container: HTMLElement) {
 
   const uiLayer = new Container();
   app.stage.addChild(uiLayer);
+  const screenFx = createScreenEffects(app.screen.width, app.screen.height);
+  uiLayer.addChild(screenFx.container);
   const hud = createHud(app.screen.width, app.screen.height);
   uiLayer.addChild(hud.container);
 
@@ -268,6 +271,7 @@ export async function startGame(container: HTMLElement) {
     tracers.update(dt);
     damageFx.update(dt);
     muzzleFlashes.update(dt);
+    screenFx.update(dt, renderTimeSec, worldLayer);
     blimpSprite.update(state);
     hud.update(state);
     camera.tickShake();
@@ -306,6 +310,7 @@ export async function startGame(container: HTMLElement) {
     layoutWorld();
     camera.setScreen(w, h);
     hud.resize(w, h);
+    screenFx.resize(w, h);
     touch.updateZones(w, h);
     startScreen.resize(w, h);
     levelUpScreen.resize(w, h);
