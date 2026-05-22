@@ -306,7 +306,7 @@ export async function startGame(container: HTMLElement) {
     screenFx.update(dt, renderTimeSec, worldLayer);
     blimpSprite.update(state);
     hud.update(state);
-    camera.tickShake();
+    camera.tickShake(dt);
   });
 
   function resetToMenu() {

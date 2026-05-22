@@ -33,11 +33,11 @@ export function createCamera(worldRoot: Container, screenW: number, screenH: num
       baseScale = worldRoot.scale.x;
     },
     /** Apply per-frame shake jitter, punch decay, and zoom-punch ease-out. */
-    tickShake() {
+    tickShake(dt: number) {
       if (shakeAmount > 0.05) {
         worldRoot.x = baseX + (Math.random() - 0.5) * shakeAmount + punchVX;
         worldRoot.y = baseY + (Math.random() - 0.5) * shakeAmount + punchVY;
-        shakeAmount *= Math.pow(0.55, 1 / 60);
+        shakeAmount *= Math.pow(0.55, dt);
         punchVX *= 0.7;
         punchVY *= 0.7;
       } else {
@@ -51,7 +51,7 @@ export function createCamera(worldRoot: Container, screenW: number, screenH: num
         }
       }
       if (zoomTime > 0) {
-        zoomTime -= 1 / 60;
+        zoomTime -= dt;
         const t = Math.max(0, zoomTime / zoomDur);
         const ease = 1 - (1 - t) * (1 - t);
         const z = zoomFrom + (zoomTo - zoomFrom) * ease;
