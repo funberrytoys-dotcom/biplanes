@@ -30,6 +30,7 @@ import {
   createRenderClock,
   createGlowLayer,
   DamageFx,
+  MuzzleFlashes,
   type SkyThemeId,
   type SkyBackgroundHandle,
 } from '@biplanes/render';
@@ -96,6 +97,8 @@ export async function startGame(container: HTMLElement) {
 
   const bullets = new BulletPool(bulletLayer);
   const damageFx = new DamageFx(fxLayer, glowLayer.container);
+  const muzzleFlashes = new MuzzleFlashes(glowLayer.container);
+  let prevBulletIds = new Set<number>();
   const playerSprite = createPlaneSprite('player');
   planeLayer.addChild(playerSprite.container);
 
@@ -209,6 +212,16 @@ export async function startGame(container: HTMLElement) {
       deathScreen.show(state);
     }
 
+    const seenBulletIds = new Set<number>();
+    for (const b of state.bullets) {
+      seenBulletIds.add(b.id);
+      if (!prevBulletIds.has(b.id)) {
+        const heading = Math.atan2(b.velocity.y, b.velocity.x);
+        muzzleFlashes.spawn(b.position.x, b.position.y, heading);
+      }
+    }
+    prevBulletIds = seenBulletIds;
+
     playerSprite.update(state.player, dt, damageFx);
 
     const seenEnemy = new Set<number>();
@@ -250,6 +263,7 @@ export async function startGame(container: HTMLElement) {
 
     bullets.sync(state.bullets);
     damageFx.update(dt);
+    muzzleFlashes.update(dt);
     blimpSprite.update(state);
     hud.update(state);
     camera.tickShake();
@@ -268,6 +282,7 @@ export async function startGame(container: HTMLElement) {
     }
     pilotSprites.clear();
     bullets.sync([]);
+    prevBulletIds = new Set();
     state = createWorldState(Math.floor(Math.random() * 1e9), makePlayer());
     levelUpScreen.hide();
     deathScreen.hide();
