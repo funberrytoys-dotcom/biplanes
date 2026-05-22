@@ -6,6 +6,7 @@ import {
   WORLD_HEIGHT,
   RUNWAY_X,
   RUNWAY_Y,
+  LOW_HP_VIGNETTE_THRESHOLD,
   type PlayerCommand,
 } from '@biplanes/shared';
 import {
@@ -172,6 +173,9 @@ export async function startGame(container: HTMLElement) {
 
   let acc = 0;
   let renderTimeSec = 0;
+  let prevPlayerScore = state.playerScore;
+  let prevLevel = state.level;
+  let prevPlayerAlive = state.player.alive;
   app.ticker.add((ticker) => {
     const realDt = ticker.deltaMS / 1000;
     const dt = clock.tick(realDt);
@@ -216,6 +220,25 @@ export async function startGame(container: HTMLElement) {
     if (state.gameOver && !deathScreen.container.visible) {
       deathScreen.show(state);
     }
+
+    if (state.playerScore > prevPlayerScore) {
+      screenFx.flash(0xffffff, 0.25, 0.12);
+    }
+    if (state.level > prevLevel) {
+      screenFx.flash(0xffc24a, 0.4, 0.22);
+    }
+    if (prevPlayerAlive && !state.player.alive) {
+      screenFx.flash(0xff5544, 0.5, 0.4);
+    }
+    prevPlayerScore = state.playerScore;
+    prevLevel = state.level;
+    prevPlayerAlive = state.player.alive;
+
+    const hpFrac = state.player.hp / state.player.maxHp;
+    const vignette = hpFrac <= LOW_HP_VIGNETTE_THRESHOLD
+      ? 1 - (hpFrac / LOW_HP_VIGNETTE_THRESHOLD)
+      : 0;
+    screenFx.setVignette(vignette * 0.6);
 
     const seenBulletIds = new Set<number>();
     for (const b of state.bullets) {
@@ -292,6 +315,10 @@ export async function startGame(container: HTMLElement) {
     bullets.sync([]);
     prevBulletIds = new Set();
     state = createWorldState(Math.floor(Math.random() * 1e9), makePlayer());
+    prevPlayerScore = state.playerScore;
+    prevLevel = state.level;
+    prevPlayerAlive = state.player.alive;
+    screenFx.setVignette(0);
     levelUpScreen.hide();
     deathScreen.hide();
     startScreen.show();
