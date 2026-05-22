@@ -7,10 +7,11 @@ export type PlaneFaction = 'player' | 'enemy';
  * Lifecycle state of a plane.
  * - 'taxi'     — on the runway, ground roll, automatic throttle until liftoff.
  * - 'flying'   — normal dogfight physics.
+ * - 'dying'    — lethal hit absorbed; plane spins down trailing fire for DYING_DURATION_SEC, then transitions to 'crashed'.
  * - 'crashed'  — invisible, can't fire, ticking down respawnTimer.
  * - 'spawning' — transient one-tick state used to reset to runway.
  */
-export type PlaneState = 'taxi' | 'flying' | 'crashed' | 'spawning';
+export type PlaneState = 'taxi' | 'flying' | 'crashed' | 'spawning' | 'dying';
 
 export interface Plane {
   id: EntityId;
@@ -24,5 +25,6 @@ export interface Plane {
 
   state: PlaneState;
   respawnTimer: number;   // seconds until respawn (only meaningful when state === 'crashed')
+  dyingTimer?: number;    // seconds remaining in death-spin (only meaningful when state === 'dying')
 
 }
