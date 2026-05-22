@@ -5,7 +5,6 @@ import {
   FIRE_THRESHOLD,
   HIT_PAUSE_FRAMES_HIT,
   HIT_PAUSE_FRAMES_KILL,
-  G_MAX_LEVEL,
   G_STALL,
 } from '@biplanes/shared';
 import type { DamageFx } from '../damage-fx.js';
@@ -48,7 +47,6 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
 
   const controls = createPlaneControls(faction);
   const head = createPilotHead(faction);
-  // Stubs in Phase 2.1; will render once 2.3 / 2.4 land.
   fuselageContainer.addChild(controls.container);
   fuselageContainer.addChild(head.container);
 
@@ -92,11 +90,16 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
 
       const aliveAndFlying = p.alive && p.state === 'flying';
 
-      // Visible bank squeeze on hard turns (Task 2.2)
+      // Compute turn rate once — reused by bank squeeze (Task 2.2) and body shake (Task 2.5)
+      let turnRate: number;
       {
         let headingDiff = Math.abs(p.kinematic.heading - prevHeading);
         if (headingDiff > Math.PI) headingDiff = Math.PI * 2 - headingDiff;
-        const turnRate = headingDiff / Math.max(0.001, dt);
+        turnRate = headingDiff / Math.max(0.001, dt);
+      }
+
+      // Visible bank squeeze on hard turns (Task 2.2)
+      {
         const target = Math.min(1, turnRate / 2.5);
         const speed = 6 * dt;
         bankT += (target - bankT) * speed;
@@ -124,15 +127,18 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
 
       // Body shake under high-g / stall (Task 2.5)
       {
-        const gv = p.kinematic.g;
         let shakeX = 0;
         let shakeY = 0;
-        if (gv > G_MAX_LEVEL * 0.9 && aliveAndFlying) {
-          shakeX = (Math.random() - 0.5) * 2;
-          shakeY = (Math.random() - 0.5) * 2;
-        } else if (gv < G_STALL && aliveAndFlying) {
-          shakeX = (Math.random() - 0.5) * 4;
-          shakeY = (Math.random() - 0.5) * 4;
+        if (aliveAndFlying) {
+          if (p.kinematic.g < G_STALL) {
+            // Stall: rough rivet-shake
+            shakeX = (Math.random() - 0.5) * 4;
+            shakeY = (Math.random() - 0.5) * 4;
+          } else if (turnRate > 1.5) {
+            // Hard maneuver — subtle buffet
+            shakeX = (Math.random() - 0.5) * 2;
+            shakeY = (Math.random() - 0.5) * 2;
+          }
         }
         fuselageContainer.x = shakeX;
         fuselageContainer.y = shakeY;
@@ -232,13 +238,7 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
       // 3. Aerodynamic Vortex Wingtip Trails
       if (fx && aliveAndFlying) {
         // Calculate hard-G turns or stall conditions
-        const isStalling = p.kinematic.g < 620; // stalled flight
-
-        let headingDiff = Math.abs(p.kinematic.heading - prevHeading);
-        if (headingDiff > Math.PI) {
-          headingDiff = Math.PI * 2 - headingDiff;
-        }
-        const turnRate = headingDiff / Math.max(0.001, dt);
+        const isStalling = p.kinematic.g < G_STALL; // stalled flight
         const isHighG = turnRate > 1.35; // turning extremely sharply
 
         if (isStalling || isHighG) {
