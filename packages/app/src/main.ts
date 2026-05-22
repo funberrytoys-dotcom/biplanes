@@ -158,7 +158,7 @@ export async function startGame(container: HTMLElement) {
   const floatingNumbers = new FloatingNumbers(numbersLayer);
   let prevBulletIds = new Set<number>();
   const playerSprite = createPlaneSprite('player');
-  planeLayer.addChild(playerSprite.container);
+  planeLayer.addChild(playerSprite.container, playerSprite.hpBar);
 
   const enemySprites = new Map<number, ReturnType<typeof createPlaneSprite>>();
 
@@ -354,7 +354,7 @@ export async function startGame(container: HTMLElement) {
       let s = enemySprites.get(e.id);
       if (!s) {
         s = createPlaneSprite('enemy');
-        planeLayer.addChild(s.container);
+        planeLayer.addChild(s.container, s.hpBar);
         enemySprites.set(e.id, s);
       }
       s.update(e, dt, damageFx, clock, camera, floatingNumbers, groundFx, { screenFx });
@@ -362,6 +362,7 @@ export async function startGame(container: HTMLElement) {
     for (const [id, s] of enemySprites) {
       if (!seenEnemy.has(id)) {
         planeLayer.removeChild(s.container);
+        planeLayer.removeChild(s.hpBar);
         enemySprites.delete(id);
       }
     }
@@ -423,6 +424,7 @@ export async function startGame(container: HTMLElement) {
     acc = 0; // Reset physics time accumulator to avoid hyper-speed catch-up spikes
     for (const [, s] of enemySprites) {
       planeLayer.removeChild(s.container);
+      planeLayer.removeChild(s.hpBar);
     }
     enemySprites.clear();
     for (const [, s] of pilotSprites) {

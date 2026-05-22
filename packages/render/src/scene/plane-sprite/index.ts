@@ -9,6 +9,7 @@ import {
   G_STALL,
   G_MAX_LEVEL,
   GROUND_Y,
+  PLANE_INITIAL_HP,
 } from '@biplanes/shared';
 import type { DamageFx } from '../damage-fx.js';
 import type { RenderClock } from '../../render-clock.js';
@@ -31,6 +32,8 @@ export interface PlaneSpriteUpdateOpts {
 
 export interface PlaneSpriteHandle {
   container: Container;
+  /** Screen-aligned HP bar that floats above the plane (does not rotate with the body). */
+  hpBar: Container;
   update: (
     p: Plane,
     dt: number,
@@ -84,8 +87,21 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
   // Wind streak accumulator (Task 3.2 — player only at high g)
   let windAcc = 0;
 
+  // Screen-aligned HP bar. Lives in its own container so it doesn't rotate
+  // with the plane body. Width auto-scales with maxHp so the +50% HP upgrade
+  // ("Reinforced armor") visibly extends the bar.
+  const hpBar = new Container();
+  const hpBarBg = new Graphics();
+  const hpBarFill = new Graphics();
+  hpBar.addChild(hpBarBg, hpBarFill);
+  let lastDrawnMaxHp = -1;
+  const HP_BAR_HEIGHT = 3;
+  const HP_BAR_BASE_W = 30; // px per PLANE_INITIAL_HP
+  const HP_BAR_Y_OFFSET = -28;
+
   return {
     container: c,
+    hpBar,
     update(
       p: Plane,
       dt: number,
@@ -246,7 +262,7 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
       if (aliveAndFlying && p.hp < prevHp) {
         const wasKill = p.hp <= 0 && prevHp > 0;
         if (fx) {
-          fx.addSparks({ x: p.kinematic.position.x, y: p.kinematic.position.y }, 18);
+          fx.addSparks({ x: p.kinematic.position.x, y: p.kinematic.position.y }, 10);
           fx.addImpactFlash({ x: p.kinematic.position.x, y: p.kinematic.position.y });
         }
         if (clock) {
@@ -375,6 +391,34 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
           if (groundFx && p.kinematic.position.y > GROUND_Y - 10) {
             groundFx.spawnCrater(p.kinematic.position.x, GROUND_Y);
           }
+        }
+      }
+
+      // HP bar: screen-aligned, follows the plane in world space, hidden when
+      // crashed. Width scales with maxHp so the +50% upgrade visibly widens it.
+      {
+        const visible = p.state === 'flying' || p.state === 'dying' || p.state === 'taxi';
+        hpBar.visible = visible;
+        if (visible) {
+          if (p.maxHp !== lastDrawnMaxHp) {
+            const w = HP_BAR_BASE_W * (p.maxHp / PLANE_INITIAL_HP);
+            hpBarBg.clear()
+              .rect(-w / 2, 0, w, HP_BAR_HEIGHT)
+              .fill({ color: 0x000000, alpha: 0.6 })
+              .stroke({ color: 0x000000, width: 1, alpha: 0.9 });
+            lastDrawnMaxHp = p.maxHp;
+          }
+          const w = HP_BAR_BASE_W * (p.maxHp / PLANE_INITIAL_HP);
+          const hpFrac = Math.max(0, Math.min(1, p.hp / p.maxHp));
+          // Color shifts green → yellow → red as HP drops.
+          let fillColor = 0x4ade80;
+          if (hpFrac <= 0.25) fillColor = 0xef4444;
+          else if (hpFrac <= 0.5) fillColor = 0xfacc15;
+          hpBarFill.clear()
+            .rect(-w / 2, 0, w * hpFrac, HP_BAR_HEIGHT)
+            .fill(fillColor);
+          hpBar.x = p.kinematic.position.x;
+          hpBar.y = p.kinematic.position.y + HP_BAR_Y_OFFSET;
         }
       }
 

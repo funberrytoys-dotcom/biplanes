@@ -180,7 +180,7 @@ export class DamageFx {
   }
 
   addImpactFlash(position: { x: number; y: number }) {
-    const g = this.acquire(0xffffff, 14, 'spark'); // routes through glow container via type=spark
+    const g = this.acquire(0xffffff, 8, 'spark'); // routes through glow container via type=spark
     g.x = position.x;
     g.y = position.y;
     g.scale.set(1);
@@ -188,10 +188,10 @@ export class DamageFx {
       g,
       vx: 0,
       vy: 0,
-      life: 0.08,
-      maxLife: 0.08,
+      life: 0.06,
+      maxLife: 0.06,
       baseAlpha: 1.0,
-      baseRadius: 14,
+      baseRadius: 8,
       type: 'spark',
     });
   }

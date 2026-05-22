@@ -28,7 +28,16 @@ export class FloatingNumbers {
   private active: Num[] = [];
   private pool: BitmapText[] = [];
 
-  constructor(private container: Container) {}
+  constructor(private container: Container) {
+    // Pre-warm the BitmapText atlas with every glyph we'll ever use. The first
+    // spawn would otherwise rasterize the glyph atlas synchronously — that's
+    // the visible hitch the user reported when "numbers appear".
+    const warmup = new BitmapText({ text: '-0123456789', style: STYLE });
+    warmup.alpha = 0;
+    container.addChild(warmup);
+    container.removeChild(warmup);
+    warmup.destroy();
+  }
 
   spawn(x: number, y: number, value: number, isPlayerDealing: boolean) {
     if (this.active.length >= MAX_ACTIVE) {
