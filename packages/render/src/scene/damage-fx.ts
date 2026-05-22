@@ -181,7 +181,29 @@ export class DamageFx {
   }
 
   addExplosion(position: { x: number; y: number }) {
-    // Standard explosion bursts
+    // 1. White core flash
+    {
+      const g = this.acquire(0xffffff, 28, 'spark');
+      g.x = position.x;
+      g.y = position.y;
+      g.scale.set(1);
+      this.active.push({
+        g,
+        vx: 0,
+        vy: 0,
+        life: 0.08,
+        maxLife: 0.08,
+        baseAlpha: 1,
+        baseRadius: 28,
+        type: 'spark',
+      });
+    }
+
+    // 2. Double shockwave: now + 80ms later
+    this.addShockwave(position);
+    setTimeout(() => this.addShockwave(position), 80);
+
+    // 3. Fire bursts
     for (let i = 0; i < 22; i++) {
       const radius = 6 + Math.random() * 10;
       const palette = [0xff4400, 0xff8800, 0xffcc00, 0xffffff];
@@ -203,7 +225,8 @@ export class DamageFx {
         type: 'fire',
       });
     }
-    
+
+    // 4. Smoke
     for (let i = 0; i < 14; i++) {
       const radius = 8 + Math.random() * 12;
       const color = 0x333333;
@@ -225,8 +248,25 @@ export class DamageFx {
       });
     }
 
-    // Add visual radial shockwave
-    this.addShockwave(position);
+    // 5. Small chunks
+    for (let i = 0; i < 7; i++) {
+      const g = this.acquire(0x8a6a3a, 0, 'chunk');
+      g.x = position.x;
+      g.y = position.y;
+      const ang = Math.random() * Math.PI * 2;
+      const sp = 140 + Math.random() * 200;
+      g.rotation = Math.random() * Math.PI * 2;
+      this.active.push({
+        g,
+        vx: Math.cos(ang) * sp,
+        vy: Math.sin(ang) * sp - 80,
+        life: 0.8,
+        maxLife: 0.8,
+        baseAlpha: 1,
+        baseRadius: 2,
+        type: 'chunk',
+      });
+    }
   }
 
   update(dt: number) {
@@ -239,11 +279,16 @@ export class DamageFx {
         continue;
       }
       
+      if (p.type === 'chunk') {
+        p.vy += 600 * dt;
+        p.g.rotation += 6 * dt;
+      }
+
       p.g.x += p.vx * dt;
       p.g.y += p.vy * dt;
-      
+
       // Drag decelerates sparks and explosions
-      if (p.type !== 'shockwave') {
+      if (p.type !== 'shockwave' && p.type !== 'chunk') {
         p.vx *= 1 - 0.5 * dt;
         p.vy *= 1 - 0.5 * dt;
       }
@@ -258,6 +303,9 @@ export class DamageFx {
       } else if (p.type === 'spark') {
         // Sparks fade out and shrink slightly
         p.g.scale.set(0.4 + t * 0.6);
+      } else if (p.type === 'chunk') {
+        // Chunks keep their size, just tumble + fall
+        p.g.scale.set(1);
       } else {
         // Standard fire/smoke grows slightly as it fades
         p.g.scale.set(0.6 + (1 - t) * 0.8);
