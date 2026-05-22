@@ -39,7 +39,6 @@ import {
   MuzzleFlashes,
   BulletTracers,
   createScreenEffects,
-  FloatingNumbers,
   createLightning,
   createLensFlare,
   createDistantSilhouettes,
@@ -153,9 +152,6 @@ export async function startGame(container: HTMLElement) {
   const foregroundClouds = createForegroundClouds(WORLD_WIDTH, WORLD_HEIGHT);
   worldLayer.addChild(foregroundClouds.container);
 
-  const numbersLayer = new Container();
-  worldLayer.addChild(numbersLayer);
-  const floatingNumbers = new FloatingNumbers(numbersLayer);
   let prevBulletIds = new Set<number>();
   const playerSprite = createPlaneSprite('player');
   planeLayer.addChild(playerSprite.container, playerSprite.hpBar);
@@ -346,7 +342,7 @@ export async function startGame(container: HTMLElement) {
     }
     prevBulletIds = seenBulletIds;
 
-    playerSprite.update(state.player, dt, damageFx, clock, camera, floatingNumbers, groundFx, { screenFx });
+    playerSprite.update(state.player, dt, damageFx, clock, camera, undefined, groundFx, { screenFx });
 
     const seenEnemy = new Set<number>();
     for (const e of state.enemies) {
@@ -357,7 +353,7 @@ export async function startGame(container: HTMLElement) {
         planeLayer.addChild(s.container, s.hpBar);
         enemySprites.set(e.id, s);
       }
-      s.update(e, dt, damageFx, clock, camera, floatingNumbers, groundFx, { screenFx });
+      s.update(e, dt, damageFx, clock, camera, undefined, groundFx, { screenFx });
     }
     for (const [id, s] of enemySprites) {
       if (!seenEnemy.has(id)) {
@@ -411,7 +407,6 @@ export async function startGame(container: HTMLElement) {
     damageFx.update(dt);
     groundFx.update(dt, (x, y) => damageFx.addSmokeTrail({ x, y }, 1));
     muzzleFlashes.update(dt);
-    floatingNumbers.update(dt);
     screenFx.update(dt, renderTimeSec, worldLayer);
     blimpSprite.update(state);
     hud.update(state);
