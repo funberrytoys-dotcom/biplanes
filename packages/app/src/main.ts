@@ -10,6 +10,8 @@ import {
   SLOW_MO_SCALE,
   SLOW_MO_DURATION_SEC,
   SLOW_MO_RECOVERY_SEC,
+  HIT_PAUSE_FRAMES_RAM,
+  HIT_PAUSE_FRAMES_RAM_KILL,
   type PlayerCommand,
 } from '@biplanes/shared';
 import {
@@ -261,6 +263,23 @@ export async function startGame(container: HTMLElement) {
       acc -= TICK_DT;
       safety--;
       if (state.pendingLevelUp || state.gameOver) break;
+    }
+
+    // Plane-vs-plane collision VFX (Phase 5).
+    for (const ev of state.planeCollisionEvents) {
+      damageFx.addSparks({ x: ev.posX, y: ev.posY }, 36);
+      damageFx.addImpactFlash({ x: ev.posX, y: ev.posY });
+      const anyDied = ev.aDied || ev.bDied;
+      camera.shake(anyDied ? 14 : 8);
+      clock.hitPause(anyDied ? HIT_PAUSE_FRAMES_RAM_KILL : HIT_PAUSE_FRAMES_RAM);
+
+      const playerIsA = ev.aFaction === 'player';
+      const playerIsB = ev.bFaction === 'player';
+      const enemyDied = (playerIsA && ev.bDied) || (playerIsB && ev.aDied);
+      const playerSurvived = !(playerIsA && ev.aDied) && !(playerIsB && ev.bDied);
+      if ((playerIsA || playerIsB) && enemyDied && playerSurvived) {
+        hud.showRamNotice();
+      }
     }
 
     if (state.pendingLevelUp && !choicesShowing) {

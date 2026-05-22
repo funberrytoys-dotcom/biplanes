@@ -147,6 +147,30 @@ export function createHud(width: number, height: number) {
 
   c.addChild(overlay, arrow, dirArrow);
 
+  // "RAM!" notification — upper-center on player ram-kill survival (Phase 5).
+  const ramStyle = new TextStyle({
+    fontFamily: 'monospace',
+    fontSize: 32,
+    fill: 0xffc24a,
+    fontWeight: 'bold',
+    stroke: { color: 0x000000, width: 4 },
+  });
+  const ramNotice = new Text({ text: 'RAM!', style: ramStyle });
+  ramNotice.visible = false;
+  ramNotice.x = (width - ramNotice.width) / 2;
+  ramNotice.y = height * 0.12;
+  c.addChild(ramNotice);
+
+  let ramLife = 0;
+
+  function showRamNotice() {
+    ramLife = 1.2;
+    ramNotice.visible = true;
+    ramNotice.alpha = 1;
+    ramNotice.x = (width - ramNotice.width) / 2;
+    ramNotice.y = height * 0.12;
+  }
+
   let pulseT = 0;
 
   function showDirArrow(targetScreenX: number, targetScreenY: number) {
@@ -369,9 +393,20 @@ export function createHud(width: number, height: number) {
         arrow.visible = false;
         overlay.style.fontSize = 42;
       }
+
+      // RAM! notice fade — HUD update has no dt, approximate at 60Hz.
+      if (ramLife > 0) {
+        ramLife -= 1 / 60;
+        if (ramLife <= 0) {
+          ramNotice.visible = false;
+        } else {
+          ramNotice.alpha = Math.min(1, ramLife * 1.5);
+        }
+      }
     },
     resize(w: number, h: number) { width = w; height = h; centerOverlay(w, h); },
     showDirArrow,
     hideDirArrow,
+    showRamNotice,
   };
 }
