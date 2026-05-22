@@ -16,6 +16,7 @@ export class DamageFx {
   private glowContainer: Container;
   private active: Particle[] = [];
   private pool: Graphics[] = [];
+  private pendingShockwaves: { remainingTime: number; pos: { x: number; y: number } }[] = [];
 
   constructor(opaqueContainer: Container, glowContainer: Container) {
     this.opaqueContainer = opaqueContainer;
@@ -199,9 +200,9 @@ export class DamageFx {
       });
     }
 
-    // 2. Double shockwave: now + 80ms later
+    // 2. Double shockwave: now + 80ms later (delay driven via update(dt) for determinism)
     this.addShockwave(position);
-    setTimeout(() => this.addShockwave(position), 80);
+    this.pendingShockwaves.push({ remainingTime: 0.08, pos: { x: position.x, y: position.y } });
 
     // 3. Fire bursts
     for (let i = 0; i < 22; i++) {
@@ -270,6 +271,15 @@ export class DamageFx {
   }
 
   update(dt: number) {
+    for (let i = this.pendingShockwaves.length - 1; i >= 0; i--) {
+      const ps = this.pendingShockwaves[i]!;
+      ps.remainingTime -= dt;
+      if (ps.remainingTime <= 0) {
+        this.addShockwave(ps.pos);
+        this.pendingShockwaves.splice(i, 1);
+      }
+    }
+
     for (let i = this.active.length - 1; i >= 0; i--) {
       const p = this.active[i]!;
       p.life -= dt;
