@@ -228,6 +228,7 @@ export async function startGame(container: HTMLElement) {
   let prevPlayerScore = state.playerScore;
   let prevLevel = state.level;
   let prevPlayerAlive = state.player.alive;
+  let prevPlayerState = state.player.state;
   app.ticker.add((ticker) => {
     const realDt = ticker.deltaMS / 1000;
     const dt = clock.tick(realDt);
@@ -285,11 +286,22 @@ export async function startGame(container: HTMLElement) {
     }
     if (prevPlayerAlive && !state.player.alive) {
       screenFx.flash(0xff5544, 0.5, 0.4);
+      screenFx.enableDeathTint();
       clock.slowMo(SLOW_MO_SCALE, SLOW_MO_DURATION_SEC, SLOW_MO_RECOVERY_SEC);
+    }
+    if (!prevPlayerAlive && state.player.alive) {
+      // Respawned — back to color.
+      screenFx.disableDeathTint();
+    }
+    // When the player plane finishes the death-spin (dying → crashed), snap back
+    // to color so the big final explosion lands in full saturation.
+    if (state.player.state === 'crashed' && prevPlayerState !== 'crashed') {
+      screenFx.disableDeathTint();
     }
     prevPlayerScore = state.playerScore;
     prevLevel = state.level;
     prevPlayerAlive = state.player.alive;
+    prevPlayerState = state.player.state;
 
     const hpFrac = state.player.hp / state.player.maxHp;
     const vignette = hpFrac <= LOW_HP_VIGNETTE_THRESHOLD
@@ -398,7 +410,9 @@ export async function startGame(container: HTMLElement) {
     prevPlayerScore = state.playerScore;
     prevLevel = state.level;
     prevPlayerAlive = state.player.alive;
+    prevPlayerState = state.player.state;
     screenFx.setVignette(0);
+    screenFx.disableDeathTint();
     levelUpScreen.hide();
     deathScreen.hide();
     startScreen.show();
