@@ -90,6 +90,17 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
         c.scale.y = 1 - bankT * 0.12;
       }
 
+      // Aileron / elevator / rudder deflection (Task 2.3)
+      {
+        const rawDelta = p.kinematic.heading - prevHeading;
+        // Wrap to [-π, π] so a heading wrap doesn't slam the controls.
+        let headingDelta = rawDelta;
+        if (headingDelta > Math.PI) headingDelta -= Math.PI * 2;
+        else if (headingDelta < -Math.PI) headingDelta += Math.PI * 2;
+        const rotateInput = Math.sign(headingDelta);
+        controls.update(rotateInput, headingDelta, dt);
+      }
+
       // 1. Interactive Propeller Spinning Animation
       if (p.alive && p.state !== 'crashed') {
         const isEngineActive = p.state === 'flying' || p.kinematic.throttleOn;
