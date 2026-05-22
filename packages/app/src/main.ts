@@ -254,6 +254,7 @@ export async function startGame(container: HTMLElement) {
       if (!prevBulletIds.has(b.id)) {
         const heading = Math.atan2(b.velocity.y, b.velocity.x);
         muzzleFlashes.spawn(b.position.x, b.position.y, heading);
+        damageFx.addCasing({ x: b.position.x, y: b.position.y }, heading);
       }
     }
     prevBulletIds = seenBulletIds;

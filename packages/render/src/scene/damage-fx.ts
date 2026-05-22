@@ -8,7 +8,7 @@ interface Particle {
   maxLife: number;
   baseAlpha: number;
   baseRadius: number;
-  type: 'smoke' | 'fire' | 'spark' | 'shockwave' | 'chunk';
+  type: 'smoke' | 'fire' | 'spark' | 'shockwave' | 'chunk' | 'casing';
 }
 
 export class DamageFx {
@@ -40,6 +40,8 @@ export class DamageFx {
        .fill(color);
     } else if (type === 'chunk') {
       g.rect(-2, -1, 4, 2).fill(color);
+    } else if (type === 'casing') {
+      g.rect(-2, -0.75, 4, 1.5).fill(color);
     } else {
       // Standard smoke/fire circle
       g.circle(0, 0, radius)
@@ -179,6 +181,25 @@ export class DamageFx {
     });
   }
 
+  addCasing(position: { x: number; y: number }, heading: number) {
+    const g = this.acquire(0xc89c4a, 0, 'casing');
+    g.x = position.x;
+    g.y = position.y;
+    const back = heading + Math.PI;
+    const downA = back + Math.PI * 0.3;
+    const sp = 80 + Math.random() * 40;
+    this.active.push({
+      g,
+      vx: Math.cos(downA) * sp,
+      vy: Math.sin(downA) * sp,
+      life: 0.6,
+      maxLife: 0.6,
+      baseAlpha: 1,
+      baseRadius: 2,
+      type: 'casing',
+    });
+  }
+
   addShockwave(position: { x: number; y: number }) {
     // Add an expanding shockwave ring
     const g = this.acquire(0xffffff, 100, 'shockwave');
@@ -310,12 +331,16 @@ export class DamageFx {
         p.vy += 600 * dt;
         p.g.rotation += 6 * dt;
       }
+      if (p.type === 'casing') {
+        p.vy += 600 * dt;
+        p.g.rotation += 8 * dt;
+      }
 
       p.g.x += p.vx * dt;
       p.g.y += p.vy * dt;
 
       // Drag decelerates sparks and explosions
-      if (p.type !== 'shockwave' && p.type !== 'chunk') {
+      if (p.type !== 'shockwave' && p.type !== 'chunk' && p.type !== 'casing') {
         p.vx *= 1 - 0.5 * dt;
         p.vy *= 1 - 0.5 * dt;
       }
@@ -332,6 +357,9 @@ export class DamageFx {
         p.g.scale.set(0.4 + t * 0.6);
       } else if (p.type === 'chunk') {
         // Chunks keep their size, just tumble + fall
+        p.g.scale.set(1);
+      } else if (p.type === 'casing') {
+        // Casings keep their size, tumble + fall, fade out at end
         p.g.scale.set(1);
       } else {
         // Standard fire/smoke grows slightly as it fades
