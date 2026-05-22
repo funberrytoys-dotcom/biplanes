@@ -31,6 +31,7 @@ import {
   createGlowLayer,
   DamageFx,
   MuzzleFlashes,
+  BulletTracers,
   type SkyThemeId,
   type SkyBackgroundHandle,
 } from '@biplanes/render';
@@ -98,6 +99,7 @@ export async function startGame(container: HTMLElement) {
   const bullets = new BulletPool(bulletLayer);
   const damageFx = new DamageFx(fxLayer, glowLayer.container);
   const muzzleFlashes = new MuzzleFlashes(glowLayer.container);
+  const tracers = new BulletTracers(glowLayer.container);
   let prevBulletIds = new Set<number>();
   const playerSprite = createPlaneSprite('player');
   planeLayer.addChild(playerSprite.container);
@@ -262,6 +264,8 @@ export async function startGame(container: HTMLElement) {
     }
 
     bullets.sync(state.bullets);
+    for (const b of state.bullets) tracers.emit(b);
+    tracers.update(dt);
     damageFx.update(dt);
     muzzleFlashes.update(dt);
     blimpSprite.update(state);

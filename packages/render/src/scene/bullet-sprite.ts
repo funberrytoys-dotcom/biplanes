@@ -12,7 +12,8 @@ export class BulletPool {
       seen.add(b.id);
       let g = this.active.get(b.id);
       if (!g) {
-        g = this.pool.pop() ?? new Graphics().circle(0, 0, 3).fill(0xfff5a0);
+        g = this.pool.pop() ?? new Graphics().circle(0, 0, 3.5).fill({ color: 0xffffff });
+        g.blendMode = 'add';
         this.container.addChild(g);
         this.active.set(b.id, g);
       }
