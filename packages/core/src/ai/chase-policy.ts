@@ -333,7 +333,15 @@ export function chasePolicy(self: Plane, target: Plane): PlayerCommand {
 
 /**
  * AI command when the target is an ejected pilot rather than a plane.
- * Wraps the pilot into a virtual zero-velocity plane and re-uses aiCommand.
+ *
+ * Strafing attack: the pilot sits on the ground (y ≈ GROUND_Y), so the default
+ * `preferredAltitudeOffset` of -50 would make the AI try to fly LOWER than its
+ * own `groundClearance` pull-up threshold — it would constantly trigger ground
+ * avoidance and never get into firing position. We force the AI to orbit well
+ * ABOVE its ground-clearance line and aim down from there.
+ *
+ * We also widen the fire cone and disable energy management (the AI shouldn't
+ * dive away because "target is below" — it's a strafing run on a ground target).
  */
 export function aiCommandPilotTarget(
   self: Plane,
@@ -365,5 +373,16 @@ export function aiCommandPilotTarget(
     state: 'flying',
     respawnTimer: 0,
   };
-  return aiCommand(self, virtual, params, aiState, prevSelfHp, dt, currentTime, wasFlying);
+
+  // Strafing-attack overrides: orbit above own pull-up line, widen cone, fire eagerly.
+  const strafingParams: AiParams = {
+    ...params,
+    positioningEnabled: true,
+    preferredAltitudeOffset: -(params.groundClearance + 80),
+    energyManagement: false,
+    fireConeRad: Math.max(params.fireConeRad, Math.PI / 4), // at least ±45° for steep-angle shots
+    fireRange: Math.max(params.fireRange, 700),
+  };
+
+  return aiCommand(self, virtual, strafingParams, aiState, prevSelfHp, dt, currentTime, wasFlying);
 }
