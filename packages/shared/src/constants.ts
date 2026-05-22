@@ -82,4 +82,31 @@ export const HEAVY_CANNON_DAMAGE = 40;
 export const HEAVY_CANNON_COOLDOWN = 0.6;
 export const HEAVY_CANNON_PIERCE = 2;
 
+// === Visual feel / VFX (Phase 0 of graphics+VFX spec) ===
+// Hit-pause: number of render frames to freeze when bullet hits / kill / explode.
+export const HIT_PAUSE_FRAMES_HIT = 4;
+export const HIT_PAUSE_FRAMES_KILL = 8;
+export const HIT_PAUSE_FRAMES_EXPLODE = 12;
+export const HIT_PAUSE_FRAMES_RAM = 8;
+export const HIT_PAUSE_FRAMES_RAM_KILL = 14;
+
+// Slow-mo applied on player death (render-only).
+export const SLOW_MO_SCALE = 0.35;
+export const SLOW_MO_DURATION_SEC = 0.5;
+export const SLOW_MO_RECOVERY_SEC = 0.2;
+
+// Low-HP vignette threshold (fraction of maxHp).
+export const LOW_HP_VIGNETTE_THRESHOLD = 0.25;
+
+// Death-spin (Phase 4).
+export const DYING_DURATION_SEC = 1.8;
+export const DYING_SPIN_RATE = 5.0;            // rad/sec heading rotation
+export const DYING_GRAVITY_MULTIPLIER = 1.8;
+
+// Plane-vs-plane collision (Phase 5).
+export const PLANE_COLLISION_RADIUS = 24;
+export const COLLISION_DAMAGE_K = 0.055;       // tuned so head-on at ~1800 px/s ≈ maxHp damage
+export const COLLISION_COOLDOWN_TICKS = 30;    // 0.5s at 60 Hz
+export const COLLISION_BOUNCE_VELOCITY_RETAIN = 0.6;
+export const COLLISION_BOUNCE_HEADING_JITTER = 0.4;   // rad
 
