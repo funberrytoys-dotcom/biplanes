@@ -5,6 +5,8 @@ import {
   FIRE_THRESHOLD,
   HIT_PAUSE_FRAMES_HIT,
   HIT_PAUSE_FRAMES_KILL,
+  G_MAX_LEVEL,
+  G_STALL,
 } from '@biplanes/shared';
 import type { DamageFx } from '../damage-fx.js';
 import type { RenderClock } from '../../render-clock.js';
@@ -110,6 +112,22 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
         const throttleChange = cur - prevThrottle;
         head.update(throttleChange, dt);
         prevThrottle = cur;
+      }
+
+      // Body shake under high-g / stall (Task 2.5)
+      {
+        const gv = p.kinematic.g;
+        let shakeX = 0;
+        let shakeY = 0;
+        if (gv > G_MAX_LEVEL * 0.9 && aliveAndFlying) {
+          shakeX = (Math.random() - 0.5) * 2;
+          shakeY = (Math.random() - 0.5) * 2;
+        } else if (gv < G_STALL && aliveAndFlying) {
+          shakeX = (Math.random() - 0.5) * 4;
+          shakeY = (Math.random() - 0.5) * 4;
+        }
+        fuselageContainer.x = shakeX;
+        fuselageContainer.y = shakeY;
       }
 
       // 1. Interactive Propeller Spinning Animation
