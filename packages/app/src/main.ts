@@ -231,6 +231,7 @@ export async function startGame(container: HTMLElement) {
   let prevLevel = state.level;
   let prevPlayerAlive = state.player.alive;
   let prevPlayerState = state.player.state;
+  let prevTickCount = state.tickCount;
   app.ticker.add((ticker) => {
     const realDt = ticker.deltaMS / 1000;
     const dt = clock.tick(realDt);
@@ -266,20 +267,26 @@ export async function startGame(container: HTMLElement) {
     }
 
     // Plane-vs-plane collision VFX (Phase 5).
-    for (const ev of state.planeCollisionEvents) {
-      damageFx.addSparks({ x: ev.posX, y: ev.posY }, 36);
-      damageFx.addImpactFlash({ x: ev.posX, y: ev.posY });
-      const anyDied = ev.aDied || ev.bDied;
-      camera.shake(anyDied ? 14 : 8);
-      clock.hitPause(anyDied ? HIT_PAUSE_FRAMES_RAM_KILL : HIT_PAUSE_FRAMES_RAM);
+    // Only react when a NEW game tick has produced new events. Without this guard,
+    // render frames during slow-mo / hit-pause re-read the same events buffer and
+    // re-trigger shake + hit-pause every frame — the screen "shakes forever".
+    if (state.tickCount !== prevTickCount) {
+      for (const ev of state.planeCollisionEvents) {
+        damageFx.addSparks({ x: ev.posX, y: ev.posY }, 36);
+        damageFx.addImpactFlash({ x: ev.posX, y: ev.posY });
+        const anyDied = ev.aDied || ev.bDied;
+        camera.shake(anyDied ? 14 : 8);
+        clock.hitPause(anyDied ? HIT_PAUSE_FRAMES_RAM_KILL : HIT_PAUSE_FRAMES_RAM);
 
-      const playerIsA = ev.aFaction === 'player';
-      const playerIsB = ev.bFaction === 'player';
-      const enemyDied = (playerIsA && ev.bDied) || (playerIsB && ev.aDied);
-      const playerSurvived = !(playerIsA && ev.aDied) && !(playerIsB && ev.bDied);
-      if ((playerIsA || playerIsB) && enemyDied && playerSurvived) {
-        hud.showRamNotice();
+        const playerIsA = ev.aFaction === 'player';
+        const playerIsB = ev.bFaction === 'player';
+        const enemyDied = (playerIsA && ev.bDied) || (playerIsB && ev.aDied);
+        const playerSurvived = !(playerIsA && ev.aDied) && !(playerIsB && ev.bDied);
+        if ((playerIsA || playerIsB) && enemyDied && playerSurvived) {
+          hud.showRamNotice();
+        }
       }
+      prevTickCount = state.tickCount;
     }
 
     if (state.pendingLevelUp && !choicesShowing) {
