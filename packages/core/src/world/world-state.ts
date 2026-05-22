@@ -3,6 +3,8 @@ import { XP_PICKUP_MAGNET_RANGE, WORLD_WIDTH } from '@biplanes/shared';
 import type { Plane } from '../entities/plane.js';
 import type { Bullet } from '../entities/bullet.js';
 import type { Pilot } from '../entities/pilot.js';
+import type { Bomb } from '../entities/bomb.js';
+import type { Rocket } from '../entities/rocket.js';
 import type { Difficulty } from '../ai/difficulty.js';
 import type { AiState } from '../ai/chase-policy.js';
 
@@ -22,6 +24,8 @@ export interface WorldState {
   player: Plane;
   enemies: Plane[];
   bullets: Bullet[];
+  bombs: Bomb[];
+  rockets: Rocket[];
 
   // Ejected pilots — one per faction at most. Empty when no one ejected.
   pilots: Pilot[];
@@ -46,8 +50,17 @@ export interface WorldState {
   hpMultiplier: number;             // 1.0 base, multiplies max HP on apply
   xpMagnetRange: number;            // base XP_PICKUP_MAGNET_RANGE
   hasDrone: boolean;                // future flag for drone companion
+  hasHomingRockets: boolean;
+  hasFlameTrail: boolean;
+  hasHeavyCannon: boolean;
+  homingRocketTimer: number;
+  droneTimer: number;
+
+  explosionEvents: Vec2[];
 
   gameOver: boolean;
+
+
 
   // === AI difficulty ===
   difficulty: Difficulty;
@@ -70,6 +83,8 @@ export function createWorldState(seed: number, player: Plane): WorldState {
     player,
     enemies: [],
     bullets: [],
+    bombs: [],
+    rockets: [],
     pilots: [],
     pilotEjectTimeSec: 0,
     playerScore: 0,
@@ -87,7 +102,15 @@ export function createWorldState(seed: number, player: Plane): WorldState {
     hpMultiplier: 1,
     xpMagnetRange: XP_PICKUP_MAGNET_RANGE,
     hasDrone: false,
+    hasHomingRockets: false,
+    hasFlameTrail: false,
+    hasHeavyCannon: false,
+    homingRocketTimer: 0,
+    droneTimer: 0,
+    explosionEvents: [],
     gameOver: false,
+
+
     difficulty: 'medium',
     enemyAiStates: new Map(),
     prevEnemyHp: new Map(),

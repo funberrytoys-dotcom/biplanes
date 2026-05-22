@@ -19,7 +19,10 @@ export interface Plane {
   hp: number;
   maxHp: number;
   weaponCooldown: number; // seconds until next shot allowed
+  bombCooldown?: number;  // seconds until next bomb allowed
   alive: boolean;
+
   state: PlaneState;
   respawnTimer: number;   // seconds until respawn (only meaningful when state === 'crashed')
+
 }

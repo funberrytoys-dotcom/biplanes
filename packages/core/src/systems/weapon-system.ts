@@ -4,12 +4,20 @@ import {
   BULLET_LIFETIME,
   MACHINE_GUN_COOLDOWN,
   MACHINE_GUN_DAMAGE,
+  HEAVY_CANNON_COOLDOWN,
+  HEAVY_CANNON_DAMAGE,
+  HEAVY_CANNON_PIERCE,
   type EntityId,
 } from '@biplanes/shared';
 import type { Plane } from '../entities/plane.js';
 import type { Bullet } from '../entities/bullet.js';
 
-export function makeBulletFromPlane(plane: Plane, id: EntityId): Bullet {
+export function makeBulletFromPlane(
+  plane: Plane,
+  id: EntityId,
+  isHeavy: boolean = false,
+  pierceCount: number = 0
+): Bullet {
   const cos = Math.cos(plane.kinematic.heading);
   const sin = Math.sin(plane.kinematic.heading);
   // Spawn slightly in front of plane nose
@@ -27,8 +35,10 @@ export function makeBulletFromPlane(plane: Plane, id: EntityId): Bullet {
       y: sin * BULLET_SPEED + plane.kinematic.velocity.y * 0.3,
     },
     lifetime: BULLET_LIFETIME,
-    damage: MACHINE_GUN_DAMAGE,
+    damage: isHeavy ? HEAVY_CANNON_DAMAGE : MACHINE_GUN_DAMAGE,
     alive: true,
+    isHeavy,
+    pierceCount,
   };
 }
 
@@ -42,16 +52,25 @@ export function firePlayerWeapon(
   fireInput: boolean,
   bulletId: EntityId,
   damageMultiplier: number = 1,
-  fireRateMultiplier: number = 1
+  fireRateMultiplier: number = 1,
+  hasHeavyCannon: boolean = false,
+  hasPiercing: boolean = false
 ): FireResult {
   if (!fireInput || plane.weaponCooldown > 0 || !plane.alive) {
     return { newCooldown: plane.weaponCooldown };
   }
-  const bullet = makeBulletFromPlane(plane, bulletId);
+
+  const isHeavy = hasHeavyCannon;
+  const pierceCount = isHeavy ? HEAVY_CANNON_PIERCE : (hasPiercing ? 1 : 0);
+
+  const bullet = makeBulletFromPlane(plane, bulletId, isHeavy, pierceCount);
   bullet.damage = bullet.damage * damageMultiplier;
+
+  const baseCooldown = isHeavy ? HEAVY_CANNON_COOLDOWN : MACHINE_GUN_COOLDOWN;
+
   return {
     bullet,
-    newCooldown: MACHINE_GUN_COOLDOWN / fireRateMultiplier,
+    newCooldown: baseCooldown / fireRateMultiplier,
   };
 }
 

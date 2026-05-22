@@ -60,3 +60,26 @@ export const PLAYER_HANGAR_X = RUNWAY_X;            // 200
 export const ENEMY_HANGAR_X = WORLD_WIDTH - RUNWAY_X; // 1720
 export const HANGAR_ARRIVAL_DIST = PILOT_HANGAR_ARRIVAL_DIST;
 
+// === Bombs and Rockets ===
+export const BOMB_GRAVITY = 500;              // px/sec² downward acceleration
+export const BOMB_EXPLOSION_RADIUS = 120;     // px radius of AoE damage
+export const BOMB_DAMAGE = 80;                // max damage at center of explosion
+export const BOMB_COOLDOWN = 1.5;             // sec between bomb drops
+export const BOMB_LIFETIME = 5.0;             // backup lifetime in seconds
+
+export const ROCKET_SPEED = 500;              // px/sec speed
+export const ROCKET_TURN_RATE = 2.0;          // radians/sec steering speed toward target
+export const ROCKET_EXPLOSION_RADIUS = 80;    // px radius of homing rocket explosion
+export const ROCKET_DAMAGE = 50;              // max damage at center
+export const ROCKET_COOLDOWN = 3.0;           // auto-fire interval in seconds
+export const ROCKET_LIFETIME = 4.0;           // rocket lifetime
+
+export const DRONE_COOLDOWN = 0.5;            // interval between drone shots
+export const DRONE_DAMAGE = 5;                // damage per drone bullet
+export const DRONE_RANGE = 400;               // range of drone shooting
+
+export const HEAVY_CANNON_DAMAGE = 40;
+export const HEAVY_CANNON_COOLDOWN = 0.6;
+export const HEAVY_CANNON_PIERCE = 2;
+
+

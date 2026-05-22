@@ -10,4 +10,7 @@ export interface Bullet {
   lifetime: number;       // seconds remaining
   damage: number;
   alive: boolean;
+  isHeavy?: boolean;
+  pierceCount?: number;
 }
+

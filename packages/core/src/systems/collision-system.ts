@@ -1,7 +1,17 @@
-import { PILOT_DEATH_DURATION } from '@biplanes/shared';
+import {
+  PILOT_DEATH_DURATION,
+  GROUND_Y,
+  BOMB_EXPLOSION_RADIUS,
+  BOMB_DAMAGE,
+  ROCKET_EXPLOSION_RADIUS,
+  ROCKET_DAMAGE,
+  type Vec2,
+} from '@biplanes/shared';
 import type { Plane } from '../entities/plane.js';
 import type { Bullet } from '../entities/bullet.js';
 import type { Pilot } from '../entities/pilot.js';
+import type { Bomb } from '../entities/bomb.js';
+import type { Rocket } from '../entities/rocket.js';
 
 const PLANE_HIT_RADIUS = 22;
 const PILOT_HIT_RADIUS = 14;
@@ -12,9 +22,9 @@ export interface CollisionResult {
   enemies: Plane[];
   pilots: Pilot[];
   kills: number;
-  // Score events from this resolution pass — caller adds these to running totals.
-  playerScoreDelta: number;  // enemy pilots killed by player bullets this pass
-  enemyScoreDelta: number;   // player pilots killed by enemy bullets this pass
+  // Score events from this resolution pass
+  playerScoreDelta: number;  // enemy pilots killed by player bullets/explosions
+  enemyScoreDelta: number;   // player pilots killed by enemy bullets/explosions
 }
 
 export function resolveBulletPlaneHits(
@@ -33,6 +43,7 @@ export function resolveBulletPlaneHits(
 
   for (const b of bullets) {
     let consumed = false;
+    let bulletPierceLeft = b.pierceCount ?? 0;
 
     // Check player plane (if bullet not from player)
     if (b.ownerId !== player.id && player.alive) {
@@ -41,7 +52,12 @@ export function resolveBulletPlaneHits(
       if (dx * dx + dy * dy < PLANE_HIT_RADIUS * PLANE_HIT_RADIUS) {
         newPlayer = { ...newPlayer, hp: Math.max(0, newPlayer.hp - b.damage) };
         if (newPlayer.hp === 0) newPlayer.alive = false;
-        consumed = true;
+
+        if (bulletPierceLeft > 0) {
+          bulletPierceLeft--;
+        } else {
+          consumed = true;
+        }
       }
     }
 
@@ -56,14 +72,18 @@ export function resolveBulletPlaneHits(
             e.alive = false;
             kills++;
           }
-          consumed = true;
-          break;
+
+          if (bulletPierceLeft > 0) {
+            bulletPierceLeft--;
+          } else {
+            consumed = true;
+            break;
+          }
         }
       }
     }
 
     // Pilot collision — bullets only hurt pilots of the OPPOSITE faction.
-    // (No friendly fire on pilots; bullet continues past same-faction pilots.)
     if (!consumed) {
       for (const pilot of newPilots) {
         if (pilot.state !== 'parachute' && pilot.state !== 'walking') continue;
@@ -83,7 +103,12 @@ export function resolveBulletPlaneHits(
       }
     }
 
-    if (!consumed) remainingBullets.push(b);
+    if (!consumed) {
+      remainingBullets.push({
+        ...b,
+        pierceCount: bulletPierceLeft,
+      });
+    }
   }
 
   return {
@@ -94,5 +119,84 @@ export function resolveBulletPlaneHits(
     kills,
     playerScoreDelta,
     enemyScoreDelta,
+  };
+}
+
+export interface ExplodeResult {
+  player: Plane;
+  enemies: Plane[];
+  pilots: Pilot[];
+  playerScoreDelta: number;
+  enemyScoreDelta: number;
+  kills: number;
+}
+
+export function applyExplosionDamage(
+  pos: Vec2,
+  radius: number,
+  maxDamage: number,
+  ownerFaction: 'player' | 'enemy',
+  player: Plane,
+  enemies: readonly Plane[],
+  pilots: readonly Pilot[]
+): ExplodeResult {
+  let newPlayer = { ...player };
+  const newEnemies = enemies.map(e => ({ ...e }));
+  const newPilots = pilots.map(p => ({ ...p }));
+  let playerScoreDelta = 0;
+  let enemyScoreDelta = 0;
+  let kills = 0;
+
+  // Damage player plane
+  if (player.alive) {
+    const dx = player.kinematic.position.x - pos.x;
+    const dy = player.kinematic.position.y - pos.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < radius) {
+      const damage = maxDamage * (1 - dist / radius);
+      newPlayer.hp = Math.max(0, newPlayer.hp - damage);
+      if (newPlayer.hp === 0) newPlayer.alive = false;
+    }
+  }
+
+  // Damage enemy planes
+  for (const e of newEnemies) {
+    if (!e.alive) continue;
+    const dx = e.kinematic.position.x - pos.x;
+    const dy = e.kinematic.position.y - pos.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < radius) {
+      const damage = maxDamage * (1 - dist / radius);
+      e.hp = Math.max(0, e.hp - damage);
+      if (e.hp === 0 && e.alive) {
+        e.alive = false;
+        kills++;
+      }
+    }
+  }
+
+  // Kill pilots
+  for (const pilot of newPilots) {
+    if (pilot.state !== 'parachute' && pilot.state !== 'walking') continue;
+    const dx = pilot.position.x - pos.x;
+    const dy = pilot.position.y - pos.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < radius) {
+      pilot.hp = 0;
+      pilot.state = 'dead';
+      pilot.deathTimer = PILOT_DEATH_DURATION;
+      pilot.velocity = { x: 0, y: 0 };
+      if (ownerFaction === 'player') playerScoreDelta++;
+      else enemyScoreDelta++;
+    }
+  }
+
+  return {
+    player: newPlayer,
+    enemies: newEnemies,
+    pilots: newPilots,
+    playerScoreDelta,
+    enemyScoreDelta,
+    kills,
   };
 }

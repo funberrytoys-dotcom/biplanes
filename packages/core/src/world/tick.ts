@@ -12,20 +12,63 @@ import {
   FIRE_BURN_RATE,
   PLANE_RESPAWN_AFTER_PILOT_DEATH,
   ENEMY_HANGAR_X,
+  XP_PER_KILL_LIGHT,
+  LEVEL_UP_THRESHOLDS,
+  BOMB_GRAVITY,
+  BOMB_COOLDOWN,
+  BOMB_LIFETIME,
+  BOMB_EXPLOSION_RADIUS,
+  BOMB_DAMAGE,
+  ROCKET_SPEED,
+  ROCKET_TURN_RATE,
+  ROCKET_COOLDOWN,
+  ROCKET_LIFETIME,
+  ROCKET_EXPLOSION_RADIUS,
+  ROCKET_DAMAGE,
+  DRONE_COOLDOWN,
+  DRONE_DAMAGE,
+  DRONE_RANGE,
+  BULLET_SPEED,
+  BULLET_LIFETIME,
+  type Vec2,
   type PlayerCommand,
 } from '@biplanes/shared';
 import { stepPlane, stepPlaneTaxi } from '../physics/plane-physics.js';
 import { stepPilotParachute, stepPilotWalking, stepPilotDead } from '../physics/pilot-physics.js';
 import { firePlayerWeapon, stepBullets } from '../systems/weapon-system.js';
-import { resolveBulletPlaneHits } from '../systems/collision-system.js';
+import { resolveBulletPlaneHits, applyExplosionDamage } from '../systems/collision-system.js';
 import { aiCommand, aiCommandPilotTarget, createAiState } from '../ai/chase-policy.js';
 import { DIFFICULTIES } from '../ai/difficulty.js';
 import type { Plane } from '../entities/plane.js';
 import type { Pilot, Faction } from '../entities/pilot.js';
 import { findPilot } from '../entities/pilot.js';
+import type { Bomb } from '../entities/bomb.js';
+import type { Rocket } from '../entities/rocket.js';
+import type { Bullet } from '../entities/bullet.js';
+import { distance, sub, scale, add, normalize, angleOf } from '../math/vec2.js';
+
 import type { WorldState } from './world-state.js';
 
 const ENEMY_RESPAWN_DELAY_SEC = 3.0;
+const ENEMY_SCORE_GAME_OVER = 5;
+
+function nextRandom(rngState: number): { value: number; rngState: number } {
+  const nextState = (rngState + 0x6d2b79f5) >>> 0;
+  let t = nextState;
+  t = Math.imul(t ^ (t >>> 15), t | 1);
+  t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+  return {
+    value: ((t ^ (t >>> 14)) >>> 0) / 4294967296,
+    rngState: nextState,
+  };
+}
+
+function targetEnemyCount(difficulty: WorldState['difficulty'], timeSec: number, playerScore: number): number {
+  const difficultyCap = difficulty === 'easy' ? 1 : difficulty === 'medium' ? 2 : 3;
+  const pressureFromTime = 1 + Math.floor(timeSec / 45);
+  const pressureFromKills = 1 + Math.floor(playerScore / 5);
+  return Math.min(difficultyCap, Math.max(pressureFromTime, pressureFromKills));
+}
 
 /** Reset a plane's kinematic state back to its faction's runway, taxiing. */
 function resetToRunway(p: Plane): Plane {
@@ -149,9 +192,10 @@ function spawnPilot(id: number, x: number, y: number, faction: Faction): Pilot {
 }
 
 export function tick(state: WorldState, playerCommand: PlayerCommand): WorldState {
-  if (state.gameOver) return state;
+  if (state.gameOver || state.pendingLevelUp) return state;
 
   let nextEntityId = state.nextEntityId;
+  let rngState = state.rngState;
   let pilots: Pilot[] = state.pilots.map(p => ({ ...p }));
   let pilotEjectTimeSec = state.pilotEjectTimeSec;
   let playerScore = state.playerScore;
@@ -254,7 +298,9 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
       playerCommand.fire,
       nextEntityId,
       state.damageMultiplier,
-      state.fireRateMultiplier
+      state.fireRateMultiplier,
+      state.hasHeavyCannon,
+      state.appliedUpgradeIds.includes('piercing_bullets')
     );
     if (fireResult.bullet) {
       newBulletList.push(fireResult.bullet);
@@ -342,20 +388,23 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
       && stepped.state === 'flying'
       && stepped.hp / stepped.maxHp <= FIRE_THRESHOLD
       && !enemyPilotAlreadyOut
-      && Math.random() < params.ejectChancePerSec * TICK_DT
     ) {
-      const ejectX = stepped.kinematic.position.x;
-      const ejectY = stepped.kinematic.position.y;
-      const newPilot = spawnPilot(nextEntityId, ejectX, ejectY, 'enemy');
-      nextEntityId++;
-      ejectedThisTick.push(newPilot);
-      stepped = {
-        ...stepped,
-        state: 'crashed',
-        alive: false,
-        hp: 0,
-        respawnTimer: Math.max(ENEMY_RESPAWN_DELAY_SEC, 1.0),
-      };
+      const roll = nextRandom(rngState);
+      rngState = roll.rngState;
+      if (roll.value < params.ejectChancePerSec * TICK_DT) {
+        const ejectX = stepped.kinematic.position.x;
+        const ejectY = stepped.kinematic.position.y;
+        const newPilot = spawnPilot(nextEntityId, ejectX, ejectY, 'enemy');
+        nextEntityId++;
+        ejectedThisTick.push(newPilot);
+        stepped = {
+          ...stepped,
+          state: 'crashed',
+          alive: false,
+          hp: 0,
+          respawnTimer: Math.max(ENEMY_RESPAWN_DELAY_SEC, 1.0),
+        };
+      }
     }
 
     return { ...stepped, weaponCooldown: newCooldown };
@@ -364,6 +413,324 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
   // Add any newly-ejected enemy pilots to the list.
   pilots = [...pilots, ...ejectedThisTick];
 
+  // === Player Bomb Dropping ===
+  let bombCooldown = player.bombCooldown ?? 0;
+  const currentBombs = [...state.bombs];
+  if (!playerPilotActive && player.state === 'flying' && player.alive && state.appliedUpgradeIds.includes('heavy_bomb')) {
+    bombCooldown = Math.max(0, bombCooldown - TICK_DT);
+    if (playerCommand.bomb && bombCooldown <= 0) {
+      const newBomb: Bomb = {
+        id: nextEntityId,
+        ownerId: player.id,
+        ownerFaction: 'player',
+        position: { ...player.kinematic.position },
+        velocity: { ...player.kinematic.velocity },
+        lifetime: BOMB_LIFETIME,
+        alive: true,
+      };
+      currentBombs.push(newBomb);
+      nextEntityId++;
+      bombCooldown = BOMB_COOLDOWN;
+    }
+  } else {
+    bombCooldown = Math.max(0, bombCooldown - TICK_DT);
+  }
+  player = { ...player, bombCooldown };
+
+  // === Player Companion Drone Firing ===
+  let droneTimer = state.droneTimer;
+  if (state.hasDrone && player.alive && player.state === 'flying') {
+    droneTimer = Math.max(0, droneTimer - TICK_DT);
+    if (droneTimer <= 0) {
+      const dronePos = {
+        x: player.kinematic.position.x + Math.cos(state.timeSec * 3) * 45,
+        y: player.kinematic.position.y + Math.sin(state.timeSec * 3) * 45,
+      };
+
+      let closestDist = Infinity;
+      let target: Plane | null = null;
+      for (const e of enemies) {
+        if (e.alive && e.state === 'flying') {
+          const dist = distance(dronePos, e.kinematic.position);
+          if (dist < closestDist) {
+            closestDist = dist;
+            target = e;
+          }
+        }
+      }
+
+      if (target && closestDist <= DRONE_RANGE) {
+        const toTarget = sub(target.kinematic.position, dronePos);
+        const angle = angleOf(toTarget);
+        const bulletVel = {
+          x: Math.cos(angle) * BULLET_SPEED,
+          y: Math.sin(angle) * BULLET_SPEED,
+        };
+        const droneBullet: Bullet = {
+          id: nextEntityId,
+          ownerId: player.id,
+          ownerFaction: 'player',
+          position: dronePos,
+          velocity: bulletVel,
+          lifetime: BULLET_LIFETIME,
+          damage: DRONE_DAMAGE * state.damageMultiplier,
+          alive: true,
+        };
+        newBulletList.push(droneBullet);
+        nextEntityId++;
+        droneTimer = DRONE_COOLDOWN;
+      }
+    }
+  } else {
+    droneTimer = Math.max(0, droneTimer - TICK_DT);
+  }
+
+  // === Player Flame Trail damage ===
+  const PLANE_HIT_RADIUS = 22;
+
+  if (state.hasFlameTrail && player.alive && player.state === 'flying') {
+    const headingCos = Math.cos(player.kinematic.heading);
+    const headingSin = Math.sin(player.kinematic.heading);
+    const tailStart = {
+      x: player.kinematic.position.x - headingCos * 20,
+      y: player.kinematic.position.y - headingSin * 20,
+    };
+    const tailEnd = {
+      x: player.kinematic.position.x - headingCos * 120,
+      y: player.kinematic.position.y - headingSin * 120,
+    };
+
+    const distToSegment = (pt: Vec2, s0: Vec2, s1: Vec2): number => {
+      const l2 = (s0.x - s1.x) * (s0.x - s1.x) + (s0.y - s1.y) * (s0.y - s1.y);
+      if (l2 === 0) return distance(pt, s0);
+      let t = ((pt.x - s0.x) * (s1.x - s0.x) + (pt.y - s0.y) * (s1.y - s0.y)) / l2;
+      t = Math.max(0, Math.min(1, t));
+      const proj = {
+        x: s0.x + t * (s1.x - s0.x),
+        y: s0.y + t * (s1.y - s0.y),
+      };
+      return distance(pt, proj);
+    };
+
+    const FLAME_DAMAGE_PER_SEC = 50;
+    enemies = enemies.map(e => {
+      if (e.alive && e.state === 'flying') {
+        const dist = distToSegment(e.kinematic.position, tailStart, tailEnd);
+        if (dist < PLANE_HIT_RADIUS) {
+          const newHp = Math.max(0, e.hp - FLAME_DAMAGE_PER_SEC * TICK_DT);
+          const alive = newHp > 0;
+          return { ...e, hp: newHp, alive };
+        }
+      }
+      return e;
+    });
+  }
+
+  // === Bomb and Rocket stepping + explosions ===
+  const nextExplosionEvents = [...state.explosionEvents];
+
+  // 1. Step bombs
+  const activeBombs: Bomb[] = [];
+  for (const b of currentBombs) {
+    let nextLifetime = b.lifetime - TICK_DT;
+    let nextPos = {
+      x: b.position.x + b.velocity.x * TICK_DT,
+      y: b.position.y + b.velocity.y * TICK_DT,
+    };
+    let nextVel = {
+      x: b.velocity.x,
+      y: b.velocity.y + BOMB_GRAVITY * TICK_DT,
+    };
+
+    let exploded = false;
+    if (nextPos.y >= GROUND_Y) {
+      nextPos.y = GROUND_Y;
+      exploded = true;
+    }
+    if (!exploded) {
+      if (player.alive && b.ownerFaction !== 'player') {
+        if (distance(nextPos, player.kinematic.position) < PLANE_HIT_RADIUS) {
+          exploded = true;
+        }
+      }
+      for (const e of enemies) {
+        if (e.alive && b.ownerFaction !== 'enemy') {
+          if (distance(nextPos, e.kinematic.position) < PLANE_HIT_RADIUS) {
+            exploded = true;
+            break;
+          }
+        }
+      }
+    }
+    if (nextLifetime <= 0) {
+      exploded = true;
+    }
+
+    if (exploded) {
+      const explodeRes = applyExplosionDamage(
+        nextPos,
+        BOMB_EXPLOSION_RADIUS,
+        BOMB_DAMAGE,
+        b.ownerFaction,
+        player,
+        enemies,
+        pilots
+      );
+      player = explodeRes.player;
+      enemies = explodeRes.enemies;
+      pilots = explodeRes.pilots;
+      playerScore += explodeRes.playerScoreDelta;
+      enemyScore += explodeRes.enemyScoreDelta;
+      nextExplosionEvents.push(nextPos);
+    } else {
+      activeBombs.push({
+        ...b,
+        position: nextPos,
+        velocity: nextVel,
+        lifetime: nextLifetime,
+      });
+    }
+  }
+
+  // 2. Step homing rockets
+  let activeRockets: Rocket[] = [];
+  for (const r of state.rockets) {
+    let nextLifetime = r.lifetime - TICK_DT;
+    let nextPos = {
+      x: r.position.x + r.velocity.x * TICK_DT,
+      y: r.position.y + r.velocity.y * TICK_DT,
+    };
+
+    let heading = r.heading;
+    let targetPlane: Plane | null = null;
+    if (r.ownerFaction === 'player') {
+      let closestDist = Infinity;
+      for (const e of enemies) {
+        if (e.alive && e.state === 'flying') {
+          const dist = distance(nextPos, e.kinematic.position);
+          if (dist < closestDist) {
+            closestDist = dist;
+            targetPlane = e;
+          }
+        }
+      }
+    } else {
+      if (player.alive && player.state === 'flying') {
+        targetPlane = player;
+      }
+    }
+
+    if (targetPlane) {
+      const toTarget = sub(targetPlane.kinematic.position, nextPos);
+      const desiredAngle = angleOf(toTarget);
+      let angleDiff = desiredAngle - heading;
+      while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+      while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+
+      const maxTurn = ROCKET_TURN_RATE * TICK_DT;
+      const actualTurn = Math.max(-maxTurn, Math.min(maxTurn, angleDiff));
+      heading += actualTurn;
+    }
+
+    let nextVel = {
+      x: Math.cos(heading) * ROCKET_SPEED,
+      y: Math.sin(heading) * ROCKET_SPEED,
+    };
+
+    let exploded = false;
+    if (nextPos.y >= GROUND_Y) {
+      nextPos.y = GROUND_Y;
+      exploded = true;
+    }
+    if (!exploded) {
+      if (player.alive && r.ownerFaction !== 'player') {
+        if (distance(nextPos, player.kinematic.position) < PLANE_HIT_RADIUS) {
+          exploded = true;
+        }
+      }
+      for (const e of enemies) {
+        if (e.alive && r.ownerFaction !== 'enemy') {
+          if (distance(nextPos, e.kinematic.position) < PLANE_HIT_RADIUS) {
+            exploded = true;
+            break;
+          }
+        }
+      }
+    }
+    if (nextLifetime <= 0) {
+      exploded = true;
+    }
+
+    if (exploded) {
+      const explodeRes = applyExplosionDamage(
+        nextPos,
+        ROCKET_EXPLOSION_RADIUS,
+        ROCKET_DAMAGE,
+        r.ownerFaction,
+        player,
+        enemies,
+        pilots
+      );
+      player = explodeRes.player;
+      enemies = explodeRes.enemies;
+      pilots = explodeRes.pilots;
+      playerScore += explodeRes.playerScoreDelta;
+      enemyScore += explodeRes.enemyScoreDelta;
+      nextExplosionEvents.push(nextPos);
+    } else {
+      activeRockets.push({
+        ...r,
+        position: nextPos,
+        velocity: nextVel,
+        heading,
+        lifetime: nextLifetime,
+      });
+    }
+  }
+
+  // 3. Player homing rocket auto-firing
+  let homingRocketTimer = state.homingRocketTimer;
+  if (state.hasHomingRockets && player.alive && player.state === 'flying') {
+    homingRocketTimer = Math.max(0, homingRocketTimer - TICK_DT);
+    if (homingRocketTimer <= 0) {
+      let closestDist = Infinity;
+      let target: Plane | null = null;
+      for (const e of enemies) {
+        if (e.alive && e.state === 'flying') {
+          const dist = distance(player.kinematic.position, e.kinematic.position);
+          if (dist < closestDist) {
+            closestDist = dist;
+            target = e;
+          }
+        }
+      }
+
+      if (target) {
+        const heading = player.kinematic.heading;
+        const rocketVel = {
+          x: Math.cos(heading) * ROCKET_SPEED,
+          y: Math.sin(heading) * ROCKET_SPEED,
+        };
+        const newRocket: Rocket = {
+          id: nextEntityId,
+          ownerId: player.id,
+          ownerFaction: 'player',
+          position: { ...player.kinematic.position },
+          velocity: rocketVel,
+          heading,
+          lifetime: ROCKET_LIFETIME,
+          alive: true,
+          damage: ROCKET_DAMAGE,
+        };
+        activeRockets.push(newRocket);
+        nextEntityId++;
+        homingRocketTimer = ROCKET_COOLDOWN;
+      }
+    }
+  } else {
+    homingRocketTimer = Math.max(0, homingRocketTimer - TICK_DT);
+  }
+
   // Collisions
   const flyingEnemies = enemies.filter(e => e.alive && e.state !== 'crashed');
   const crashedOrDeadEnemies = enemies.filter(e => !(e.alive && e.state !== 'crashed'));
@@ -371,7 +738,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
 
   // ---- Score plane kills as well as pilot kills ----
   // Count enemies that transitioned alive→dead this tick (regardless of cause: bullets,
-  // ground crash, ceiling, fire-burn). Subtract any that ejected — they got away, not killed.
+  // ground crash, ceiling, fire-burn, bomb, rocket, flame). Subtract any that ejected — they got away.
   const wasPlayerAliveBefore = state.player.alive;
   const enemyAliveCountBefore = state.enemies.filter(e => e.alive).length;
   const enemyAliveCountAfter = collision.enemies.filter(e => e.alive).length;
@@ -388,14 +755,13 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     enemyScore += 1;
   }
 
-  const collidedEnemies = collision.enemies.map(e => {
+  // Recombine enemies and map all dead ones to the 'crashed' state
+  enemies = [...collision.enemies, ...crashedOrDeadEnemies].map(e => {
     if (!e.alive && e.state !== 'crashed') {
       return { ...e, state: 'crashed' as const, respawnTimer: ENEMY_RESPAWN_DELAY_SEC };
     }
     return e;
   });
-
-  enemies = [...collidedEnemies, ...crashedOrDeadEnemies];
 
   if (!player.alive && player.state !== 'crashed') {
     player = { ...player, state: 'crashed', respawnTimer: RESPAWN_DELAY_SEC };
@@ -446,10 +812,10 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
   }
   enemies = enemies.filter(e => !(e.state === 'crashed' && e.respawnTimer <= 0));
 
-  const livingEnemyCount = enemies.length;
   const newTime = state.timeSec + TICK_DT;
   const enemyPilotInPlay = findPilot(pilots, 'enemy') !== undefined;
-  if (livingEnemyCount === 0 && newTime > 1.0 && !enemyPilotInPlay) {
+  const targetEnemies = targetEnemyCount(state.difficulty, newTime, playerScore);
+  while (enemies.length < targetEnemies && newTime > 1.0 && !enemyPilotInPlay) {
     enemies.push(spawnEnemy(nextEntityId, params.hpMultiplier));
     nextEntityId++;
   }
@@ -463,21 +829,38 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     position: { x: blimpX, y: state.blimp.position.y },
   };
 
+  const earnedXp = (enemiesKilledThisTick + collision.playerScoreDelta) * XP_PER_KILL_LIGHT;
+  let xpCollected = state.xpCollected + earnedXp;
+  let level = state.level;
+  let pendingLevelUp = false;
+  const nextThreshold = LEVEL_UP_THRESHOLDS[level - 1];
+  if (nextThreshold !== undefined && xpCollected >= nextThreshold) {
+    level += 1;
+    pendingLevelUp = true;
+  }
+
   return {
     ...state,
     timeSec: newTime,
     tickCount: state.tickCount + 1,
     nextEntityId,
+    rngState,
     player,
     enemies,
     bullets: collision.bullets,
+    bombs: activeBombs,
+    rockets: activeRockets,
+    homingRocketTimer,
+    droneTimer,
+    explosionEvents: nextExplosionEvents,
     pilots,
     pilotEjectTimeSec,
     playerScore,
     enemyScore,
     blimp,
-    xpCollected: 0,
-    pendingLevelUp: false,
-    gameOver: false,
+    xpCollected,
+    level,
+    pendingLevelUp,
+    gameOver: enemyScore >= ENEMY_SCORE_GAME_OVER,
   };
 }

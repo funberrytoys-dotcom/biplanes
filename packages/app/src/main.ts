@@ -10,9 +10,13 @@ import {
 } from '@biplanes/shared';
 import {
   createWorldState, tick,
+  applyUpgrade,
+  createRng,
+  rollUpgradeChoices,
   type WorldState,
   type Plane,
   type Difficulty,
+  type UpgradeId,
 } from '@biplanes/core';
 import {
   createPixiApp,
@@ -24,12 +28,16 @@ import {
   createCamera,
   createHud,
   DamageFx,
+  type SkyThemeId,
+  type SkyBackgroundHandle,
 } from '@biplanes/render';
 import {
   createKeyboardController,
   createTouchController,
 } from '@biplanes/input';
 import { createStartScreen } from './screens/start-screen.js';
+import { createLevelUpScreen } from './screens/level-up-screen.js';
+import { createDeathScreen } from './screens/death-screen.js';
 
 function makePlayer(): Plane {
   return {
@@ -54,8 +62,24 @@ export async function startGame(container: HTMLElement) {
   const worldLayer = new Container();
   app.stage.addChild(worldLayer);
 
-  const sky = createSkyBackground(WORLD_WIDTH, WORLD_HEIGHT);
-  worldLayer.addChild(sky);
+  let sky: SkyBackgroundHandle;
+  function setSkyTheme(themeId: SkyThemeId) {
+    if (sky) {
+      worldLayer.removeChild(sky.container);
+      sky.container.destroy({ children: true });
+    }
+    sky = createSkyBackground(WORLD_WIDTH, WORLD_HEIGHT, themeId);
+    worldLayer.addChildAt(sky.container, 0); // Keep sky behind all active elements
+  }
+
+  const themes: SkyThemeId[] = ['noon', 'sunset', 'twilight', 'night'];
+  const rollSkyTheme = () => {
+    const randomTheme = themes[Math.floor(Math.random() * themes.length)] ?? 'noon';
+    setSkyTheme(randomTheme);
+  };
+
+  // Set initial random sky theme for start screen
+  rollSkyTheme();
 
   // Blimp sits between the sky and the action — visible but subtle (alpha set inside).
   const blimpSprite = createBlimpSprite();
@@ -85,6 +109,7 @@ export async function startGame(container: HTMLElement) {
 
   let state: WorldState = createWorldState(Math.floor(Math.random() * 1e9), makePlayer());
   let gameRunning = false;
+  let choicesShowing = false;
 
   const startScreen = createStartScreen(app.screen.width, app.screen.height, (d: Difficulty) => {
     state = { ...state, difficulty: d };
@@ -92,6 +117,18 @@ export async function startGame(container: HTMLElement) {
     gameRunning = true;
   });
   uiLayer.addChild(startScreen.container);
+
+  const levelUpScreen = createLevelUpScreen(app.screen.width, app.screen.height, (id: string) => {
+    state = applyUpgrade(state, id as UpgradeId);
+    levelUpScreen.hide();
+    choicesShowing = false;
+  });
+  uiLayer.addChild(levelUpScreen.container);
+
+  const deathScreen = createDeathScreen(app.screen.width, app.screen.height, () => {
+    resetToMenu();
+  });
+  uiLayer.addChild(deathScreen.container);
 
   const kb = createKeyboardController();
   const touch = createTouchController(app.canvas);
@@ -122,17 +159,50 @@ export async function startGame(container: HTMLElement) {
   layoutWorld();
 
   let acc = 0;
+  let renderTimeSec = 0;
   app.ticker.add((ticker) => {
-    if (!gameRunning) return;
     const deltaMS = ticker.deltaMS;
     const dt = deltaMS / 1000;
+    renderTimeSec += dt;
+
+    // 1. Update Sky Background animations (clouds, beacons, searchlights)
+    if (sky) {
+      const px = state.player ? state.player.kinematic.position.x : RUNWAY_X;
+      const py = state.player ? state.player.kinematic.position.y : RUNWAY_Y;
+      sky.update(dt, renderTimeSec, px, py);
+    }
+
+    // 2. Update UI overlays (Level Up Card entries & Death Telegram Typewriter)
+    levelUpScreen.update(dt);
+    deathScreen.update(dt);
+
+    if (!gameRunning) return;
     acc += dt;
+    if (acc > 0.2) {
+      acc = 0.2; // Spiral of death prevention / clamp physics accumulator catch-up
+    }
     const cmd = currentCommand();
     let safety = 8;
     while (acc >= TICK_DT && safety > 0) {
       state = tick(state, cmd);
       acc -= TICK_DT;
       safety--;
+      if (state.pendingLevelUp || state.gameOver) break;
+    }
+
+    if (state.pendingLevelUp && !choicesShowing) {
+      const rng = createRng((state.rngState ^ (state.level * 0x9e3779b9) ^ state.tickCount) >>> 0);
+      const choices = rollUpgradeChoices(state.appliedUpgradeIds, rng);
+      if (choices.length > 0) {
+        choicesShowing = true;
+        levelUpScreen.show(choices);
+      } else {
+        state = { ...state, pendingLevelUp: false };
+      }
+    }
+
+    if (state.gameOver && !deathScreen.container.visible) {
+      deathScreen.show(state);
     }
 
     playerSprite.update(state.player, dt, damageFx);
@@ -183,6 +253,8 @@ export async function startGame(container: HTMLElement) {
 
   function resetToMenu() {
     gameRunning = false;
+    choicesShowing = false;
+    acc = 0; // Reset physics time accumulator to avoid hyper-speed catch-up spikes
     for (const [, s] of enemySprites) {
       planeLayer.removeChild(s.container);
     }
@@ -193,7 +265,10 @@ export async function startGame(container: HTMLElement) {
     pilotSprites.clear();
     bullets.sync([]);
     state = createWorldState(Math.floor(Math.random() * 1e9), makePlayer());
+    levelUpScreen.hide();
+    deathScreen.hide();
     startScreen.show();
+    rollSkyTheme(); // Roll a new gorgeous environment style for the next run
   }
 
   window.addEventListener('keydown', (e) => {
@@ -210,6 +285,8 @@ export async function startGame(container: HTMLElement) {
     hud.resize(w, h);
     touch.updateZones(w, h);
     startScreen.resize(w, h);
+    levelUpScreen.resize(w, h);
+    deathScreen.resize(w, h);
   };
   window.addEventListener('resize', onResize);
 }

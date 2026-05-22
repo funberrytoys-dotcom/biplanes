@@ -7,8 +7,12 @@ export type UpgradeId =
   | 'hp_plus_50'
   | 'magnet_range_plus'
   | 'drone_wingman'
-  | 'piercing_bullets'   // placeholder for proto
-  | 'gatling_evolution'; // evolution of damage + fire rate stacks
+  | 'piercing_bullets'
+  | 'heavy_bomb'
+  | 'heavy_cannon'
+  | 'homing_rocket'
+  | 'flame_trail'
+  | 'gatling_evolution';
 
 export interface UpgradeDef {
   id: UpgradeId;
@@ -29,8 +33,14 @@ export const UPGRADE_DEFS: UpgradeDef[] = [
   { id: 'magnet_range_plus', title: 'XP Magnet', description: 'Wider XP pickup range.', category: 'passive', isEvolution: false },
   { id: 'drone_wingman', title: 'Drone Wingman', description: 'A small drone fires alongside you.', category: 'companion', isEvolution: false },
   { id: 'piercing_bullets', title: 'Piercing Bullets', description: 'Bullets pass through one enemy.', category: 'weapon', isEvolution: false },
+  { id: 'heavy_bomb', title: 'Heavy Bomb', description: 'Drop bombs using Shift / B.', category: 'weapon', isEvolution: false },
+  { id: 'heavy_cannon', title: 'Heavy Cannon', description: 'Slow, high-damage piercing shots.', category: 'weapon', isEvolution: false },
+  { id: 'homing_rocket', title: 'Homing Rocket', description: 'Auto-fires seeking missiles at targets.', category: 'weapon', isEvolution: false },
+  { id: 'flame_trail', title: 'Flame Trail', description: 'Leaves a burning tail that harms enemies.', category: 'passive', isEvolution: false },
   { id: 'gatling_evolution', title: '⚡ Gatling Gun', description: 'EVOLUTION: continuous stream of fire.', category: 'weapon', isEvolution: true, evolutionRequires: ['damage_plus_50', 'fire_rate_plus_50'] },
+
 ];
+
 
 export function rollUpgradeChoices(
   applied: readonly string[],

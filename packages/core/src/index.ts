@@ -3,6 +3,9 @@ export * from './world/tick.js';
 export * from './entities/plane.js';
 export * from './entities/bullet.js';
 export * from './entities/pilot.js';
+export * from './entities/bomb.js';
+export * from './entities/rocket.js';
+
 export * from './physics/plane-physics.js';
 export * from './physics/pilot-physics.js';
 export * from './upgrades/upgrade-pool.js';

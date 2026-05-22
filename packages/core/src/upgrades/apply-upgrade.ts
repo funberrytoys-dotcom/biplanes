@@ -5,6 +5,9 @@ export function applyUpgrade(state: WorldState, id: UpgradeId): WorldState {
   let damageMultiplier = state.damageMultiplier;
   let fireRateMultiplier = state.fireRateMultiplier;
   let hasDrone = state.hasDrone;
+  let hasHomingRockets = state.hasHomingRockets;
+  let hasFlameTrail = state.hasFlameTrail;
+  let hasHeavyCannon = state.hasHeavyCannon;
   let player = state.player;
   let xpMagnetRange = state.xpMagnetRange;
 
@@ -25,7 +28,17 @@ export function applyUpgrade(state: WorldState, id: UpgradeId): WorldState {
     }
     case 'magnet_range_plus': xpMagnetRange = xpMagnetRange * 1.5; break;
     case 'drone_wingman': hasDrone = true; break;
-    case 'piercing_bullets': /* prototype: no-op effect for now */ break;
+    case 'piercing_bullets': /* handled dynamically in collision-system */ break;
+    case 'heavy_bomb': /* handled in tick drop logic */ break;
+    case 'heavy_cannon':
+      hasHeavyCannon = true;
+      break;
+    case 'homing_rocket':
+      hasHomingRockets = true;
+      break;
+    case 'flame_trail':
+      hasFlameTrail = true;
+      break;
     case 'gatling_evolution':
       damageMultiplier *= 1.5;
       fireRateMultiplier *= 2.0;
@@ -38,8 +51,12 @@ export function applyUpgrade(state: WorldState, id: UpgradeId): WorldState {
     damageMultiplier,
     fireRateMultiplier,
     hasDrone,
+    hasHomingRockets,
+    hasFlameTrail,
+    hasHeavyCannon,
     xpMagnetRange,
     appliedUpgradeIds: [...state.appliedUpgradeIds, id],
     pendingLevelUp: false,
   };
 }
+

@@ -64,7 +64,8 @@ export function createTouchController(canvas: HTMLElement): TouchController {
       let rotate: -1 | 0 | 1 = 0;
       if (state.rotateCcw && !state.rotateCw) rotate = -1;
       else if (state.rotateCw && !state.rotateCcw) rotate = 1;
-      return { rotate, fire: state.fire, bomb: state.bomb, throttleDelta: 0, eject: false, jump: false };
+      const touching = state.rotateCcw || state.rotateCw || state.fire || state.bomb;
+      return { rotate, fire: state.fire, bomb: state.bomb, throttleDelta: touching ? 1 : 0, eject: false, jump: false };
     },
     destroy() {
       canvas.removeEventListener('touchstart', onTouch);

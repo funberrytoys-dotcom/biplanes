@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { tick } from './tick.js';
 import { createWorldState } from './world-state.js';
-import { TICK_DT, PLANE_INITIAL_HP } from '@biplanes/shared';
+import { TICK_DT, PLANE_INITIAL_HP, XP_PER_KILL_LIGHT } from '@biplanes/shared';
 
 function makePlayer() {
   return {
@@ -49,5 +49,155 @@ describe('world tick', () => {
     const before = JSON.stringify(s);
     tick(s, { rotate: 1, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
     expect(JSON.stringify(s)).toBe(before);
+  });
+
+  it('awards XP from enemy kills', () => {
+    const enemy = {
+      ...makePlayer(),
+      id: 2,
+      faction: 'enemy' as const,
+      hp: 1,
+      alive: true,
+      state: 'flying' as const,
+      respawnTimer: 0,
+    };
+    const s = {
+      ...createWorldState(42, makePlayer()),
+      enemies: [enemy],
+      bullets: [{
+        id: 3,
+        ownerId: 1,
+        ownerFaction: 'player' as const,
+        position: { ...enemy.kinematic.position },
+        velocity: { x: 0, y: 0 },
+        lifetime: 1,
+        damage: 10,
+        alive: true,
+      }],
+    };
+    const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+
+    expect(after.xpCollected).toBe(XP_PER_KILL_LIGHT);
+    expect(after.level).toBe(1);
+    expect(after.pendingLevelUp).toBe(false);
+  });
+
+  it('bombs fall with gravity and explode on plane impact', () => {
+    const player = makePlayer();
+    const enemy = {
+      ...makePlayer(),
+      id: 2,
+      faction: 'enemy' as const,
+      kinematic: {
+        ...makePlayer().kinematic,
+        position: { x: 500, y: 515 },
+        velocity: { x: 0, y: 0 },
+      },
+      hp: 100,
+    };
+    const s = {
+      ...createWorldState(42, player),
+      enemies: [enemy],
+      bombs: [{
+        id: 10,
+        ownerId: player.id,
+        ownerFaction: 'player' as const,
+        position: { x: 500, y: 510 },
+        velocity: { x: 0, y: 0 },
+        lifetime: 5.0,
+        alive: true,
+      }],
+    };
+
+    const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+    // Bomb should fall, hit enemy, and explode dealing damage.
+    expect(after.bombs).toHaveLength(0); // exploded
+    expect(after.enemies[0]!.hp).toBeLessThan(100);
+    expect(after.explosionEvents).toHaveLength(1);
+  });
+
+  it('rockets steer toward closest enemy and explode', () => {
+    const player = makePlayer();
+    const enemy = {
+      ...makePlayer(),
+      id: 2,
+      faction: 'enemy' as const,
+      kinematic: {
+        ...makePlayer().kinematic,
+        position: { x: 600, y: 500 },
+      },
+      hp: 100,
+    };
+    const s = {
+      ...createWorldState(42, player),
+      enemies: [enemy],
+      rockets: [{
+        id: 10,
+        ownerId: player.id,
+        ownerFaction: 'player' as const,
+        position: { x: 500, y: 490 },
+        velocity: { x: 500, y: 0 },
+        heading: 0,
+        lifetime: 4.0,
+        alive: true,
+        damage: 50,
+      }],
+    };
+
+    const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+    // Rocket should move towards enemy, checking heading steering.
+    expect(after.rockets[0]!.heading).toBeGreaterThan(0); // since it is pointing straight at enemy already
+    expect(after.rockets[0]!.position.x).toBeGreaterThan(500);
+  });
+
+  it('drone auto-fires at closest enemy within range', () => {
+    const player = makePlayer();
+    const enemy = {
+      ...makePlayer(),
+      id: 2,
+      faction: 'enemy' as const,
+      kinematic: {
+        ...makePlayer().kinematic,
+        position: { x: 700, y: 500 },
+      },
+      hp: 30,
+    };
+    const s = {
+      ...createWorldState(42, player),
+      hasDrone: true,
+      droneTimer: 0,
+      enemies: [enemy],
+    };
+
+    const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+    // Drone should fire a bullet, spawning it in newBulletList
+    expect(after.bullets).toHaveLength(1);
+    expect(after.bullets[0]!.ownerFaction).toBe('player');
+    expect(after.bullets[0]!.damage).toBe(5); // base drone damage
+  });
+
+  it('flame trail deals damage to enemy plane behind tail', () => {
+    const player = makePlayer();
+    player.kinematic.heading = 0; // facing right, tail is to the left (-x)
+    player.kinematic.position = { x: 500, y: 500 };
+    const enemy = {
+      ...makePlayer(),
+      id: 2,
+      faction: 'enemy' as const,
+      kinematic: {
+        ...makePlayer().kinematic,
+        position: { x: 450, y: 500 }, // directly behind player
+      },
+      hp: 30,
+    };
+    const s = {
+      ...createWorldState(42, player),
+      hasFlameTrail: true,
+      enemies: [enemy],
+    };
+
+    const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+    // Enemy should take damage from flame trail
+    expect(after.enemies[0]!.hp).toBeLessThan(30);
   });
 });
