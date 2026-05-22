@@ -39,6 +39,7 @@ import {
   createScreenEffects,
   FloatingNumbers,
   createLightning,
+  createLensFlare,
   GroundFx,
   type SkyThemeId,
   type SkyBackgroundHandle,
@@ -82,6 +83,9 @@ export async function startGame(container: HTMLElement) {
   // Lightning bolts — gated by setSkyTheme. Sits above sky (index 0), below action layers.
   const lightning = createLightning(WORLD_WIDTH, WORLD_HEIGHT, screenFx);
 
+  // Lens flare — gated by setSkyTheme to noon/sunset themes.
+  const lensFlare = createLensFlare(WORLD_WIDTH, WORLD_HEIGHT, false);
+
   let sky: SkyBackgroundHandle;
   function setSkyTheme(themeId: SkyThemeId) {
     if (sky) {
@@ -91,6 +95,7 @@ export async function startGame(container: HTMLElement) {
     sky = createSkyBackground(WORLD_WIDTH, WORLD_HEIGHT, themeId);
     worldLayer.addChildAt(sky.container, 0); // Keep sky behind all active elements
     lightning.setActive(themeId === 'twilight' || themeId === 'night');
+    lensFlare.setActive(themeId === 'noon' || themeId === 'sunset');
   }
 
   const themes: SkyThemeId[] = ['noon', 'sunset', 'twilight', 'night'];
@@ -104,6 +109,9 @@ export async function startGame(container: HTMLElement) {
 
   // Lightning bolts render above the sky but below all action layers.
   worldLayer.addChild(lightning.container);
+
+  // Lens flare sits above sky atmosphere, before action layers.
+  worldLayer.addChild(lensFlare.container);
 
   // Blimp sits between the sky and the action — visible but subtle (alpha set inside).
   const blimpSprite = createBlimpSprite();
@@ -210,6 +218,7 @@ export async function startGame(container: HTMLElement) {
       sky.update(dt, renderTimeSec, px, py);
     }
     lightning.update(dt);
+    lensFlare.update(dt, renderTimeSec, state.player ? state.player.kinematic.position.x : RUNWAY_X);
 
     // 2. Update UI overlays (Level Up Card entries & Death Telegram Typewriter)
     levelUpScreen.update(dt);
