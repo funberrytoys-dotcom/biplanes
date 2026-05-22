@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { tick } from './tick.js';
 import { createWorldState } from './world-state.js';
-import { TICK_DT, PLANE_INITIAL_HP, XP_PER_KILL_LIGHT } from '@biplanes/shared';
+import { TICK_DT, PLANE_INITIAL_HP, XP_PER_KILL_LIGHT, DYING_DURATION_SEC } from '@biplanes/shared';
 
 function makePlayer() {
   return {
@@ -174,6 +174,80 @@ describe('world tick', () => {
     expect(after.bullets).toHaveLength(1);
     expect(after.bullets[0]!.ownerFaction).toBe('player');
     expect(after.bullets[0]!.damage).toBe(5); // base drone damage
+  });
+
+  it('enemy killed by bullet enters dying state, not crashed', () => {
+    const player = makePlayer();
+    const enemy = {
+      ...makePlayer(),
+      id: 2,
+      faction: 'enemy' as const,
+      hp: 1,
+      kinematic: { ...makePlayer().kinematic, position: { x: 600, y: 500 } },
+    };
+    let s = createWorldState(42, player);
+    s = {
+      ...s,
+      enemies: [enemy],
+      bullets: [{
+        id: 100,
+        ownerId: 1,
+        ownerFaction: 'player' as const,
+        position: { x: 600, y: 500 },
+        velocity: { x: 0, y: 0 },
+        lifetime: 1,
+        damage: 100,
+        alive: true,
+      }],
+    };
+    const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+    expect(after.enemies[0]!.state).toBe('dying');
+    // Bullet hit happens after the enemy step in tick(), so the timer is set to the
+    // full duration this tick and decremented starting next tick.
+    expect(after.enemies[0]!.dyingTimer).toBeCloseTo(DYING_DURATION_SEC, 4);
+  });
+
+  it('dying plane transitions to crashed after DYING_DURATION_SEC', () => {
+    const player = makePlayer();
+    const enemy = {
+      ...makePlayer(),
+      id: 2,
+      faction: 'enemy' as const,
+      hp: 1,
+      kinematic: { ...makePlayer().kinematic, position: { x: 600, y: 500 } },
+    };
+    let s = createWorldState(42, player);
+    s = {
+      ...s,
+      enemies: [enemy],
+      bullets: [{
+        id: 100,
+        ownerId: 1,
+        ownerFaction: 'player' as const,
+        position: { x: 600, y: 500 },
+        velocity: { x: 0, y: 0 },
+        lifetime: 1,
+        damage: 100,
+        alive: true,
+      }],
+    };
+    let s2 = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+    // Verify dying
+    expect(s2.enemies[0]!.state).toBe('dying');
+    // Advance until dying timer elapses
+    const ticksNeeded = Math.ceil(DYING_DURATION_SEC / TICK_DT) + 2;
+    for (let i = 0; i < ticksNeeded; i++) {
+      s2 = tick(s2, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+    }
+    // The original enemy entity may have been replaced by a respawned one — find any 'crashed' or new spawn behavior
+    // by searching the trajectory. Simpler: enemy id 2 should be either crashed or removed by now.
+    const e2 = s2.enemies.find(e => e.id === 2);
+    if (e2) {
+      expect(e2.state).toBe('crashed');
+    }
+    // Verify it left dying state
+    const stillDying = s2.enemies.some(e => e.state === 'dying' && e.id === 2);
+    expect(stillDying).toBe(false);
   });
 
   it('flame trail deals damage to enemy plane behind tail', () => {

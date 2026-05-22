@@ -30,6 +30,8 @@ import {
   DRONE_RANGE,
   BULLET_SPEED,
   BULLET_LIFETIME,
+  DYING_SPIN_RATE,
+  DYING_GRAVITY_MULTIPLIER,
   type Vec2,
   type PlayerCommand,
 } from '@biplanes/shared';
@@ -107,6 +109,40 @@ function stepPlaneByState(
       return resetToRunway(p);
     }
     return { ...p, respawnTimer: nextTimer };
+  }
+
+  if (p.state === 'dying') {
+    // Run death-spin physics: ignore input, rotate in place, gravity-accelerate downward.
+    // No physics from stepPlane (which expects controlled flight).
+    const t = (p.dyingTimer ?? 0) - dt;
+    if (t <= 0) {
+      // Transition to crashed; the caller decides respawnTimer based on faction.
+      return {
+        ...p,
+        state: 'crashed',
+        alive: false,
+        dyingTimer: 0,
+        respawnTimer: p.faction === 'player' ? RESPAWN_DELAY_SEC : ENEMY_RESPAWN_DELAY_SEC,
+      };
+    }
+    const k = p.kinematic;
+    return {
+      ...p,
+      dyingTimer: t,
+      kinematic: {
+        ...k,
+        heading: k.heading + DYING_SPIN_RATE * dt,
+        velocity: {
+          x: k.velocity.x * 0.99,
+          // gravity in px/sec² is 9.8 * multiplier * 60 (the 60 scales m/s² → px/s² for our world)
+          y: k.velocity.y + 9.8 * DYING_GRAVITY_MULTIPLIER * 60 * dt,
+        },
+        position: {
+          x: k.position.x + k.velocity.x * dt,
+          y: k.position.y + k.velocity.y * dt,
+        },
+      },
+    };
   }
 
   if (p.state === 'taxi') {
@@ -320,6 +356,11 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     if (e.state === 'crashed') {
       const nextTimer = e.respawnTimer - TICK_DT;
       return { ...e, respawnTimer: nextTimer, alive: false };
+    }
+
+    if (e.state === 'dying') {
+      // Skip AI/weapon path; just run death-spin via stepPlaneByState.
+      return stepPlaneByState(e, { rotate: 0 }, TICK_DT);
     }
 
     const taxiPitchUp: -1 | 0 | 1 = e.kinematic.facing === 1 ? -1 : 1;
@@ -731,9 +772,9 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     homingRocketTimer = Math.max(0, homingRocketTimer - TICK_DT);
   }
 
-  // Collisions
-  const flyingEnemies = enemies.filter(e => e.alive && e.state !== 'crashed');
-  const crashedOrDeadEnemies = enemies.filter(e => !(e.alive && e.state !== 'crashed'));
+  // Collisions — dying planes are no longer valid bullet targets (they're already dead, just animating out).
+  const flyingEnemies = enemies.filter(e => e.alive && e.state !== 'crashed' && e.state !== 'dying');
+  const crashedOrDeadEnemies = enemies.filter(e => !(e.alive && e.state !== 'crashed' && e.state !== 'dying'));
   const collision = resolveBulletPlaneHits(newBulletList, player, flyingEnemies, pilots);
 
   // ---- Score plane kills as well as pilot kills ----
@@ -755,15 +796,16 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     enemyScore += 1;
   }
 
-  // Recombine enemies and map all dead ones to the 'crashed' state
+  // Recombine enemies and map dead-but-uncrashed-and-not-dying ones to the 'crashed' state
+  // (e.g. ground crash or fire-burn deaths that bypass the bullet/explosion 'dying' path).
   enemies = [...collision.enemies, ...crashedOrDeadEnemies].map(e => {
-    if (!e.alive && e.state !== 'crashed') {
+    if (!e.alive && e.state !== 'crashed' && e.state !== 'dying') {
       return { ...e, state: 'crashed' as const, respawnTimer: ENEMY_RESPAWN_DELAY_SEC };
     }
     return e;
   });
 
-  if (!player.alive && player.state !== 'crashed') {
+  if (!player.alive && player.state !== 'crashed' && player.state !== 'dying') {
     player = { ...player, state: 'crashed', respawnTimer: RESPAWN_DELAY_SEC };
   }
 

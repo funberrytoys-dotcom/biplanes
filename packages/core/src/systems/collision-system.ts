@@ -5,6 +5,7 @@ import {
   BOMB_DAMAGE,
   ROCKET_EXPLOSION_RADIUS,
   ROCKET_DAMAGE,
+  DYING_DURATION_SEC,
   type Vec2,
 } from '@biplanes/shared';
 import type { Plane } from '../entities/plane.js';
@@ -51,7 +52,11 @@ export function resolveBulletPlaneHits(
       const dy = b.position.y - player.kinematic.position.y;
       if (dx * dx + dy * dy < PLANE_HIT_RADIUS * PLANE_HIT_RADIUS) {
         newPlayer = { ...newPlayer, hp: Math.max(0, newPlayer.hp - b.damage) };
-        if (newPlayer.hp === 0) newPlayer.alive = false;
+        if (newPlayer.hp === 0) {
+          newPlayer.alive = false;
+          newPlayer.state = 'dying';
+          newPlayer.dyingTimer = DYING_DURATION_SEC;
+        }
 
         if (bulletPierceLeft > 0) {
           bulletPierceLeft--;
@@ -70,6 +75,8 @@ export function resolveBulletPlaneHits(
           e.hp = Math.max(0, e.hp - b.damage);
           if (e.hp === 0 && e.alive) {
             e.alive = false;
+            e.state = 'dying';
+            e.dyingTimer = DYING_DURATION_SEC;
             kills++;
           }
 
@@ -155,7 +162,11 @@ export function applyExplosionDamage(
     if (dist < radius) {
       const damage = maxDamage * (1 - dist / radius);
       newPlayer.hp = Math.max(0, newPlayer.hp - damage);
-      if (newPlayer.hp === 0) newPlayer.alive = false;
+      if (newPlayer.hp === 0) {
+        newPlayer.alive = false;
+        newPlayer.state = 'dying';
+        newPlayer.dyingTimer = DYING_DURATION_SEC;
+      }
     }
   }
 
@@ -170,6 +181,8 @@ export function applyExplosionDamage(
       e.hp = Math.max(0, e.hp - damage);
       if (e.hp === 0 && e.alive) {
         e.alive = false;
+        e.state = 'dying';
+        e.dyingTimer = DYING_DURATION_SEC;
         kills++;
       }
     }
