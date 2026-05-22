@@ -7,6 +7,9 @@ import {
   RUNWAY_X,
   RUNWAY_Y,
   LOW_HP_VIGNETTE_THRESHOLD,
+  SLOW_MO_SCALE,
+  SLOW_MO_DURATION_SEC,
+  SLOW_MO_RECOVERY_SEC,
   type PlayerCommand,
 } from '@biplanes/shared';
 import {
@@ -233,6 +236,7 @@ export async function startGame(container: HTMLElement) {
     }
     if (prevPlayerAlive && !state.player.alive) {
       screenFx.flash(0xff5544, 0.5, 0.4);
+      clock.slowMo(SLOW_MO_SCALE, SLOW_MO_DURATION_SEC, SLOW_MO_RECOVERY_SEC);
     }
     prevPlayerScore = state.playerScore;
     prevLevel = state.level;
