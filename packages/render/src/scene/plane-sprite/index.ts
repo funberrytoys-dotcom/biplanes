@@ -58,6 +58,9 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
   // Banking visual squeeze (Task 2.2)
   let bankT = 0;
 
+  // Throttle bob tracking for pilot head (Task 2.4)
+  let prevThrottle = 0;
+
   return {
     container: c,
     update(
@@ -99,6 +102,14 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
         else if (headingDelta < -Math.PI) headingDelta += Math.PI * 2;
         const rotateInput = Math.sign(headingDelta);
         controls.update(rotateInput, headingDelta, dt);
+      }
+
+      // Pilot head bob on throttle change (Task 2.4)
+      {
+        const cur = p.kinematic.throttleLevel ?? 0;
+        const throttleChange = cur - prevThrottle;
+        head.update(throttleChange, dt);
+        prevThrottle = cur;
       }
 
       // 1. Interactive Propeller Spinning Animation
