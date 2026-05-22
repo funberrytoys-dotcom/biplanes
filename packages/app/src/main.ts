@@ -27,6 +27,7 @@ import {
   BulletPool,
   createCamera,
   createHud,
+  createRenderClock,
   DamageFx,
   type SkyThemeId,
   type SkyBackgroundHandle,
@@ -58,6 +59,7 @@ function makePlayer(): Plane {
 
 export async function startGame(container: HTMLElement) {
   const app = await createPixiApp(container);
+  const clock = createRenderClock();
 
   const worldLayer = new Container();
   app.stage.addChild(worldLayer);
@@ -161,8 +163,8 @@ export async function startGame(container: HTMLElement) {
   let acc = 0;
   let renderTimeSec = 0;
   app.ticker.add((ticker) => {
-    const deltaMS = ticker.deltaMS;
-    const dt = deltaMS / 1000;
+    const realDt = ticker.deltaMS / 1000;
+    const dt = clock.tick(realDt);
     renderTimeSec += dt;
 
     // 1. Update Sky Background animations (clouds, beacons, searchlights)
