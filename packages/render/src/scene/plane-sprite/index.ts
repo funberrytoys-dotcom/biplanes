@@ -55,6 +55,9 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
   let fireAcc = 0;
   let wingTrailAcc = 0;
 
+  // Banking visual squeeze (Task 2.2)
+  let bankT = 0;
+
   return {
     container: c,
     update(
@@ -75,6 +78,17 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
       c.alpha = p.state === 'crashed' ? 0 : 1;
 
       const aliveAndFlying = p.alive && p.state === 'flying';
+
+      // Visible bank squeeze on hard turns (Task 2.2)
+      {
+        let headingDiff = Math.abs(p.kinematic.heading - prevHeading);
+        if (headingDiff > Math.PI) headingDiff = Math.PI * 2 - headingDiff;
+        const turnRate = headingDiff / Math.max(0.001, dt);
+        const target = Math.min(1, turnRate / 2.5);
+        const speed = 6 * dt;
+        bankT += (target - bankT) * speed;
+        c.scale.y = 1 - bankT * 0.12;
+      }
 
       // 1. Interactive Propeller Spinning Animation
       if (p.alive && p.state !== 'crashed') {
