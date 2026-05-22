@@ -28,6 +28,7 @@ import {
   createCamera,
   createHud,
   createRenderClock,
+  createGlowLayer,
   DamageFx,
   type SkyThemeId,
   type SkyBackgroundHandle,
@@ -90,7 +91,8 @@ export async function startGame(container: HTMLElement) {
   const bulletLayer = new Container();
   const planeLayer = new Container();
   const fxLayer = new Container();
-  worldLayer.addChild(bulletLayer, fxLayer, planeLayer);
+  const glowLayer = createGlowLayer();
+  worldLayer.addChild(bulletLayer, fxLayer, glowLayer.container, planeLayer);
 
   const bullets = new BulletPool(bulletLayer);
   const damageFx = new DamageFx(fxLayer);
