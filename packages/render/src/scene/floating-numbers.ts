@@ -1,7 +1,7 @@
-import { Container, Text, TextStyle } from 'pixi.js';
+import { Container, BitmapText, TextStyle } from 'pixi.js';
 
 interface Num {
-  t: Text;
+  t: BitmapText;
   life: number;
   maxLife: number;
   vy: number;
@@ -9,9 +9,24 @@ interface Num {
 
 const MAX_ACTIVE = 30;
 
+// Single shared style — BitmapText auto-builds a glyph atlas once per unique
+// style. Coloring per-instance is done with `tint`, which is GPU-cheap and does
+// NOT re-rasterize the atlas.
+const STYLE = new TextStyle({
+  fontFamily: 'monospace',
+  fontSize: 14,
+  fontWeight: 'bold',
+  stroke: { color: 0x000000, width: 2 },
+  fill: 0xffffff,
+});
+
+/**
+ * Pooled floating damage numbers using `BitmapText` so that updating `.text`
+ * doesn't trigger a per-spawn canvas re-rasterization (the killer for `Text`).
+ */
 export class FloatingNumbers {
   private active: Num[] = [];
-  private pool: Text[] = [];
+  private pool: BitmapText[] = [];
 
   constructor(private container: Container) {}
 
@@ -23,19 +38,10 @@ export class FloatingNumbers {
     }
     let t = this.pool.pop();
     if (!t) {
-      t = new Text({
-        text: '',
-        style: new TextStyle({
-          fontFamily: 'monospace',
-          fontSize: 14,
-          fontWeight: 'bold',
-          stroke: { color: 0x000000, width: 2 },
-          fill: 0xffe066,
-        }),
-      });
+      t = new BitmapText({ text: '', style: STYLE });
     }
     t.text = `-${Math.round(value)}`;
-    (t.style as TextStyle).fill = isPlayerDealing ? 0xffe066 : 0xff5544;
+    t.tint = isPlayerDealing ? 0xffe066 : 0xff5544;
     t.x = x - t.width / 2;
     t.y = y - 8;
     t.alpha = 1;
