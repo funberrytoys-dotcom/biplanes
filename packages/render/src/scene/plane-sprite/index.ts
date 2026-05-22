@@ -6,6 +6,7 @@ import {
   HIT_PAUSE_FRAMES_HIT,
   HIT_PAUSE_FRAMES_KILL,
   G_STALL,
+  G_MAX_LEVEL,
 } from '@biplanes/shared';
 import type { DamageFx } from '../damage-fx.js';
 import type { RenderClock } from '../../render-clock.js';
@@ -68,6 +69,9 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
 
   // Heat shimmer accumulator (Task 2.6)
   let heatAcc = 0;
+
+  // Wind streak accumulator (Task 3.2 — player only at high g)
+  let windAcc = 0;
 
   return {
     container: c,
@@ -160,6 +164,19 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
         } else {
           heatAcc = 0;
         }
+      }
+
+      // Wind streaks at high g (Task 3.2 — player only)
+      if (fx && p.kinematic.g > G_MAX_LEVEL * 0.85 && aliveAndFlying && p.faction === 'player') {
+        windAcc += dt;
+        while (windAcc >= 1 / 30) {
+          const px = p.kinematic.position.x + (Math.random() - 0.5) * 40;
+          const py = p.kinematic.position.y + (Math.random() - 0.5) * 40;
+          fx.addWindStreak({ x: px, y: py }, p.kinematic.heading);
+          windAcc -= 1 / 30;
+        }
+      } else {
+        windAcc = 0;
       }
 
       // 1. Interactive Propeller Spinning Animation

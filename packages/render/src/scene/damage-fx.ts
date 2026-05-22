@@ -8,7 +8,7 @@ interface Particle {
   maxLife: number;
   baseAlpha: number;
   baseRadius: number;
-  type: 'smoke' | 'fire' | 'spark' | 'shockwave' | 'chunk' | 'casing';
+  type: 'smoke' | 'fire' | 'spark' | 'shockwave' | 'chunk' | 'casing' | 'windstreak';
 }
 
 export class DamageFx {
@@ -42,6 +42,8 @@ export class DamageFx {
       g.rect(-2, -1, 4, 2).fill(color);
     } else if (type === 'casing') {
       g.rect(-2, -0.75, 4, 1.5).fill(color);
+    } else if (type === 'windstreak') {
+      g.rect(0, -0.5, 50, 1).fill({ color: 0xffffff, alpha: 0.2 });
     } else {
       // Standard smoke/fire circle
       g.circle(0, 0, radius)
@@ -144,6 +146,17 @@ export class DamageFx {
       baseAlpha: 0.22,
       baseRadius: radius,
       type: 'spark',
+    });
+  }
+
+  addWindStreak(position: { x: number; y: number }, heading: number) {
+    const g = this.acquire(0xffffff, 0, 'windstreak');
+    g.x = position.x;
+    g.y = position.y;
+    g.rotation = heading + Math.PI;
+    this.active.push({
+      g, vx: -Math.cos(heading) * 200, vy: -Math.sin(heading) * 200,
+      life: 0.15, maxLife: 0.15, baseAlpha: 0.2, baseRadius: 0, type: 'windstreak',
     });
   }
 
@@ -360,6 +373,9 @@ export class DamageFx {
         p.g.scale.set(1);
       } else if (p.type === 'casing') {
         // Casings keep their size, tumble + fall, fade out at end
+        p.g.scale.set(1);
+      } else if (p.type === 'windstreak') {
+        // Wind streaks keep their length; alpha already fades via baseAlpha * t.
         p.g.scale.set(1);
       } else {
         // Standard fire/smoke grows slightly as it fades
