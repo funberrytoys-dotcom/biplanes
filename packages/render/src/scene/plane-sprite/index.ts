@@ -5,6 +5,7 @@ import {
   FIRE_THRESHOLD,
   HIT_PAUSE_FRAMES_HIT,
   HIT_PAUSE_FRAMES_KILL,
+  HIT_PAUSE_FRAMES_EXPLODE,
   G_STALL,
   G_MAX_LEVEL,
   GROUND_Y,
@@ -13,6 +14,7 @@ import type { DamageFx } from '../damage-fx.js';
 import type { RenderClock } from '../../render-clock.js';
 import type { FloatingNumbers } from '../floating-numbers.js';
 import type { GroundFx } from '../ground-fx.js';
+import type { ScreenEffectsHandle } from '../screen-effects.js';
 import { createPlaneBody } from './body.js';
 import { createPlaneControls } from './controls.js';
 import { createPilotHead } from './pilot-head.js';
@@ -21,6 +23,10 @@ interface CameraLike {
   punch(dx: number, dy: number, amount: number): void;
   shake(amount: number): void;
   zoomPunch(targetMultiplier: number, durSec: number): void;
+}
+
+export interface PlaneSpriteUpdateOpts {
+  screenFx?: ScreenEffectsHandle;
 }
 
 export interface PlaneSpriteHandle {
@@ -33,6 +39,7 @@ export interface PlaneSpriteHandle {
     camera?: CameraLike,
     numbers?: FloatingNumbers,
     groundFx?: GroundFx,
+    opts?: PlaneSpriteUpdateOpts,
   ) => void;
 }
 
@@ -87,6 +94,7 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
       camera?: CameraLike,
       numbers?: FloatingNumbers,
       groundFx?: GroundFx,
+      opts?: PlaneSpriteUpdateOpts,
     ) {
       if (prevHp === null) prevHp = p.hp;
       if (prevHeading === null) prevHeading = p.kinematic.heading;
@@ -343,10 +351,27 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
           }
         }
 
-        // Sudden death explosion burst
-        if (wasAlive && (!p.alive || p.state === 'crashed')) {
+        // Sudden death explosion burst — fires only for self-crashes (ground impact,
+        // taxi-off-edge, fire-burn). Lethal-hit deaths go through 'dying' and trigger
+        // the bigger cinematic explosion below at the dying → crashed transition.
+        if (wasAlive && p.state === 'crashed' && prevState !== 'dying') {
           fx.addExplosion({ x: p.kinematic.position.x, y: p.kinematic.position.y });
-          // Crash crater if impact happened at ground level (Task 3.3)
+          if (groundFx && p.kinematic.position.y > GROUND_Y - 10) {
+            groundFx.spawnCrater(p.kinematic.position.x, GROUND_Y);
+          }
+        }
+
+        // Final cinematic explosion at end of death-spin (dying → crashed).
+        const becameCrashed = prevState === 'dying' && p.state === 'crashed';
+        if (becameCrashed) {
+          fx.addExplosion({ x: p.kinematic.position.x, y: p.kinematic.position.y });
+          fx.addExplosion({ x: p.kinematic.position.x, y: p.kinematic.position.y }); // double-up
+          if (clock) clock.hitPause(HIT_PAUSE_FRAMES_EXPLODE);
+          if (camera) {
+            camera.shake(12);
+            camera.zoomPunch(1.02, 0.15);
+          }
+          if (opts?.screenFx) opts.screenFx.flash(0xffa040, 0.5, 0.3);
           if (groundFx && p.kinematic.position.y > GROUND_Y - 10) {
             groundFx.spawnCrater(p.kinematic.position.x, GROUND_Y);
           }
