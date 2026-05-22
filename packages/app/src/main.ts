@@ -40,6 +40,7 @@ import {
   FloatingNumbers,
   createLightning,
   createLensFlare,
+  createDistantSilhouettes,
   GroundFx,
   type SkyThemeId,
   type SkyBackgroundHandle,
@@ -86,6 +87,9 @@ export async function startGame(container: HTMLElement) {
   // Lens flare — gated by setSkyTheme to noon/sunset themes.
   const lensFlare = createLensFlare(WORLD_WIDTH, WORLD_HEIGHT, false);
 
+  // Distant silhouettes — re-created per theme so the silhouette tint matches the sky.
+  let silhouettes: ReturnType<typeof createDistantSilhouettes> | null = null;
+
   let sky: SkyBackgroundHandle;
   function setSkyTheme(themeId: SkyThemeId) {
     if (sky) {
@@ -96,6 +100,19 @@ export async function startGame(container: HTMLElement) {
     worldLayer.addChildAt(sky.container, 0); // Keep sky behind all active elements
     lightning.setActive(themeId === 'twilight' || themeId === 'night');
     lensFlare.setActive(themeId === 'noon' || themeId === 'sunset');
+
+    // Rebuild silhouettes with theme-tinted color and reinsert immediately above sky.
+    if (silhouettes) {
+      worldLayer.removeChild(silhouettes.container);
+      silhouettes.container.destroy({ children: true });
+    }
+    const silhouetteColor =
+      themeId === 'night' ? 0x06091c :
+      themeId === 'twilight' ? 0x170f30 :
+      themeId === 'sunset' ? 0x561841 :
+      0x224975; // noon
+    silhouettes = createDistantSilhouettes(WORLD_WIDTH, WORLD_HEIGHT, silhouetteColor);
+    worldLayer.addChildAt(silhouettes.container, 1);
   }
 
   const themes: SkyThemeId[] = ['noon', 'sunset', 'twilight', 'night'];
@@ -219,6 +236,7 @@ export async function startGame(container: HTMLElement) {
     }
     lightning.update(dt);
     lensFlare.update(dt, renderTimeSec, state.player ? state.player.kinematic.position.x : RUNWAY_X);
+    if (silhouettes) silhouettes.update(dt, renderTimeSec);
 
     // 2. Update UI overlays (Level Up Card entries & Death Telegram Typewriter)
     levelUpScreen.update(dt);
