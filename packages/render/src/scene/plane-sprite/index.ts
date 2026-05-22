@@ -290,12 +290,25 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
       prevHeading = p.kinematic.heading;
 
       // 4. Fire and smoke damage trails
+      const isDying = p.state === 'dying';
       if (fx) {
         const tailDist = 18;
         const tailX = p.kinematic.position.x - Math.cos(p.kinematic.heading) * tailDist;
         const tailY = p.kinematic.position.y - Math.sin(p.kinematic.heading) * tailDist;
 
-        if (aliveAndFlying) {
+        if (isDying) {
+          // Cranked emission while spinning down — heavy fire + heavy smoke.
+          fireAcc += dt * 2.5;
+          smokeAcc += dt * 2.5;
+          while (fireAcc >= 1 / 50) {
+            fx.addFireTrail({ x: tailX, y: tailY }, 1);
+            fireAcc -= 1 / 50;
+          }
+          while (smokeAcc >= 1 / 25) {
+            fx.addSmokeTrail({ x: tailX, y: tailY }, 1);
+            smokeAcc -= 1 / 25;
+          }
+        } else if (aliveAndFlying) {
           const hpFrac = p.hp / p.maxHp;
           if (hpFrac <= FIRE_THRESHOLD) {
             fireAcc += dt;
