@@ -8,16 +8,18 @@ interface Particle {
   maxLife: number;
   baseAlpha: number;
   baseRadius: number;
-  type: 'smoke' | 'fire' | 'spark' | 'shockwave';
+  type: 'smoke' | 'fire' | 'spark' | 'shockwave' | 'chunk';
 }
 
 export class DamageFx {
-  private container: Container;
+  private opaqueContainer: Container;
+  private glowContainer: Container;
   private active: Particle[] = [];
   private pool: Graphics[] = [];
 
-  constructor(container: Container) {
-    this.container = container;
+  constructor(opaqueContainer: Container, glowContainer: Container) {
+    this.opaqueContainer = opaqueContainer;
+    this.glowContainer = glowContainer;
   }
 
   private acquire(color: number, radius: number, type: Particle['type']): Graphics {
@@ -26,7 +28,7 @@ export class DamageFx {
       g = new Graphics();
     }
     g.clear();
-    
+
     if (type === 'shockwave') {
       // Draw hollow ring with glow border
       g.circle(0, 0, 100)
@@ -35,13 +37,18 @@ export class DamageFx {
       // Draw a tiny bright oval/circle for sparks
       g.circle(0, 0, radius)
        .fill(color);
+    } else if (type === 'chunk') {
+      g.rect(-2, -1, 4, 2).fill(color);
     } else {
       // Standard smoke/fire circle
       g.circle(0, 0, radius)
        .fill(color);
     }
-    
-    this.container.addChild(g);
+
+    const useGlow = type === 'fire' || type === 'spark' || type === 'shockwave';
+    g.blendMode = useGlow ? 'add' : 'normal';
+    const container = useGlow ? this.glowContainer : this.opaqueContainer;
+    container.addChild(g);
     return g;
   }
 

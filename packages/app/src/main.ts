@@ -95,7 +95,7 @@ export async function startGame(container: HTMLElement) {
   worldLayer.addChild(bulletLayer, fxLayer, glowLayer.container, planeLayer);
 
   const bullets = new BulletPool(bulletLayer);
-  const damageFx = new DamageFx(fxLayer);
+  const damageFx = new DamageFx(fxLayer, glowLayer.container);
   const playerSprite = createPlaneSprite('player');
   planeLayer.addChild(playerSprite.container);
 
