@@ -8,6 +8,7 @@ import {
 } from '@biplanes/shared';
 import type { DamageFx } from './damage-fx.js';
 import type { RenderClock } from '../render-clock.js';
+import type { FloatingNumbers } from './floating-numbers.js';
 
 interface CameraLike {
   punch(dx: number, dy: number, amount: number): void;
@@ -23,6 +24,7 @@ export interface PlaneSpriteHandle {
     fx?: DamageFx,
     clock?: RenderClock,
     camera?: CameraLike,
+    numbers?: FloatingNumbers,
   ) => void;
 }
 
@@ -153,7 +155,14 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
 
   return {
     container: c,
-    update(p: Plane, dt: number, fx?: DamageFx, clock?: RenderClock, camera?: CameraLike) {
+    update(
+      p: Plane,
+      dt: number,
+      fx?: DamageFx,
+      clock?: RenderClock,
+      camera?: CameraLike,
+      numbers?: FloatingNumbers,
+    ) {
       if (prevHp === null) prevHp = p.hp;
       if (prevHeading === null) prevHeading = p.kinematic.heading;
 
@@ -201,6 +210,18 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
           camera.punch(-dirX, -dirY, 3);
           camera.shake(wasKill ? 8 : 4);
           if (wasKill) camera.zoomPunch(1.04, 0.1);
+        }
+        if (numbers) {
+          const damageDealt = prevHp - p.hp;
+          if (damageDealt > 0) {
+            const isPlayerDealing = p.faction === 'enemy';
+            numbers.spawn(
+              p.kinematic.position.x,
+              p.kinematic.position.y,
+              damageDealt,
+              isPlayerDealing,
+            );
+          }
         }
       }
       prevHp = p.hp;

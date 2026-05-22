@@ -7,6 +7,7 @@ export * from './scene/damage-fx.js';
 export * from './scene/muzzle-flash.js';
 export * from './scene/bullet-tracer.js';
 export * from './scene/screen-effects.js';
+export * from './scene/floating-numbers.js';
 export * from './scene/pilot-sprite.js';
 export * from './scene/blimp-sprite.js';
 export * from './scene/glow-layer.js';

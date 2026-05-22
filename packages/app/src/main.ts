@@ -34,6 +34,7 @@ import {
   MuzzleFlashes,
   BulletTracers,
   createScreenEffects,
+  FloatingNumbers,
   type SkyThemeId,
   type SkyBackgroundHandle,
 } from '@biplanes/render';
@@ -102,6 +103,9 @@ export async function startGame(container: HTMLElement) {
   const damageFx = new DamageFx(fxLayer, glowLayer.container);
   const muzzleFlashes = new MuzzleFlashes(glowLayer.container);
   const tracers = new BulletTracers(glowLayer.container);
+  const numbersLayer = new Container();
+  worldLayer.addChild(numbersLayer);
+  const floatingNumbers = new FloatingNumbers(numbersLayer);
   let prevBulletIds = new Set<number>();
   const playerSprite = createPlaneSprite('player');
   planeLayer.addChild(playerSprite.container);
@@ -250,7 +254,7 @@ export async function startGame(container: HTMLElement) {
     }
     prevBulletIds = seenBulletIds;
 
-    playerSprite.update(state.player, dt, damageFx, clock, camera);
+    playerSprite.update(state.player, dt, damageFx, clock, camera, floatingNumbers);
 
     const seenEnemy = new Set<number>();
     for (const e of state.enemies) {
@@ -261,7 +265,7 @@ export async function startGame(container: HTMLElement) {
         planeLayer.addChild(s.container);
         enemySprites.set(e.id, s);
       }
-      s.update(e, dt, damageFx, clock, camera);
+      s.update(e, dt, damageFx, clock, camera, floatingNumbers);
     }
     for (const [id, s] of enemySprites) {
       if (!seenEnemy.has(id)) {
@@ -294,6 +298,7 @@ export async function startGame(container: HTMLElement) {
     tracers.update(dt);
     damageFx.update(dt);
     muzzleFlashes.update(dt);
+    floatingNumbers.update(dt);
     screenFx.update(dt, renderTimeSec, worldLayer);
     blimpSprite.update(state);
     hud.update(state);
