@@ -1,11 +1,29 @@
 import { Container, Graphics } from 'pixi.js';
 import type { Plane } from '@biplanes/core';
-import { SMOKE_THRESHOLD, FIRE_THRESHOLD } from '@biplanes/shared';
+import {
+  SMOKE_THRESHOLD,
+  FIRE_THRESHOLD,
+  HIT_PAUSE_FRAMES_HIT,
+  HIT_PAUSE_FRAMES_KILL,
+} from '@biplanes/shared';
 import type { DamageFx } from './damage-fx.js';
+import type { RenderClock } from '../render-clock.js';
+
+interface CameraLike {
+  punch(dx: number, dy: number, amount: number): void;
+  shake(amount: number): void;
+  zoomPunch(targetMultiplier: number, durSec: number): void;
+}
 
 export interface PlaneSpriteHandle {
   container: Container;
-  update: (p: Plane, dt: number, fx?: DamageFx) => void;
+  update: (
+    p: Plane,
+    dt: number,
+    fx?: DamageFx,
+    clock?: RenderClock,
+    camera?: CameraLike,
+  ) => void;
 }
 
 export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandle {
@@ -135,7 +153,7 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
 
   return {
     container: c,
-    update(p: Plane, dt: number, fx?: DamageFx) {
+    update(p: Plane, dt: number, fx?: DamageFx, clock?: RenderClock, camera?: CameraLike) {
       if (prevHp === null) prevHp = p.hp;
       if (prevHeading === null) prevHeading = p.kinematic.heading;
 
@@ -168,11 +186,21 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
       }
 
       // 2. Damage impact sparks trigger
-      if (fx && aliveAndFlying) {
-        if (p.hp < prevHp) {
-          // Took damage! Emit bright spark burst at center of plane
+      if (aliveAndFlying && p.hp < prevHp) {
+        const wasKill = p.hp <= 0 && prevHp > 0;
+        if (fx) {
           fx.addSparks({ x: p.kinematic.position.x, y: p.kinematic.position.y }, 18);
           fx.addImpactFlash({ x: p.kinematic.position.x, y: p.kinematic.position.y });
+        }
+        if (clock) {
+          clock.hitPause(wasKill ? HIT_PAUSE_FRAMES_KILL : HIT_PAUSE_FRAMES_HIT);
+        }
+        if (camera) {
+          const dirX = p.kinematic.velocity.x;
+          const dirY = p.kinematic.velocity.y;
+          camera.punch(-dirX, -dirY, 3);
+          camera.shake(wasKill ? 8 : 4);
+          if (wasKill) camera.zoomPunch(1.04, 0.1);
         }
       }
       prevHp = p.hp;

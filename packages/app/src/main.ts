@@ -224,7 +224,7 @@ export async function startGame(container: HTMLElement) {
     }
     prevBulletIds = seenBulletIds;
 
-    playerSprite.update(state.player, dt, damageFx);
+    playerSprite.update(state.player, dt, damageFx, clock, camera);
 
     const seenEnemy = new Set<number>();
     for (const e of state.enemies) {
@@ -235,7 +235,7 @@ export async function startGame(container: HTMLElement) {
         planeLayer.addChild(s.container);
         enemySprites.set(e.id, s);
       }
-      s.update(e, dt, damageFx);
+      s.update(e, dt, damageFx, clock, camera);
     }
     for (const [id, s] of enemySprites) {
       if (!seenEnemy.has(id)) {
