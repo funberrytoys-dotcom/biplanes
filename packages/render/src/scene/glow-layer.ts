@@ -11,7 +11,9 @@ export interface GlowLayerHandle {
  */
 export function createGlowLayer(): GlowLayerHandle {
   const c = new Container();
-  const blur = new BlurFilter({ strength: 6, quality: 4 });
+  // strength: how soft the halo is. quality: number of blur passes.
+  // quality=2 is the sweet spot — quality=4 doubles GPU cost for marginal softness gain.
+  const blur = new BlurFilter({ strength: 5, quality: 2 });
   c.filters = [blur];
   return { container: c };
 }
