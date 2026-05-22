@@ -8,7 +8,7 @@ interface Particle {
   maxLife: number;
   baseAlpha: number;
   baseRadius: number;
-  type: 'smoke' | 'fire' | 'spark' | 'shockwave' | 'chunk' | 'casing' | 'windstreak';
+  type: 'smoke' | 'fire' | 'spark' | 'shockwave' | 'chunk' | 'casing' | 'windstreak' | 'debris';
 }
 
 export class DamageFx {
@@ -44,6 +44,8 @@ export class DamageFx {
       g.rect(-2, -0.75, 4, 1.5).fill(color);
     } else if (type === 'windstreak') {
       g.rect(0, -0.5, 50, 1).fill({ color: 0xffffff, alpha: 0.2 });
+    } else if (type === 'debris') {
+      g.rect(-6, -2, 12, 4).fill(color);
     } else {
       // Standard smoke/fire circle
       g.circle(0, 0, radius)
@@ -213,6 +215,27 @@ export class DamageFx {
     });
   }
 
+  addDebris(position: { x: number; y: number }, color: number) {
+    for (let i = 0; i < 2; i++) {
+      const g = this.acquire(color, 0, 'debris');
+      g.x = position.x;
+      g.y = position.y;
+      g.rotation = Math.random() * Math.PI * 2;
+      const ang = Math.random() * Math.PI * 2;
+      const sp = 100 + Math.random() * 200;
+      this.active.push({
+        g,
+        vx: Math.cos(ang) * sp,
+        vy: Math.sin(ang) * sp - 100,
+        life: 1.5,
+        maxLife: 1.5,
+        baseAlpha: 1,
+        baseRadius: 0,
+        type: 'debris',
+      });
+    }
+  }
+
   addShockwave(position: { x: number; y: number }) {
     // Add an expanding shockwave ring
     const g = this.acquire(0xffffff, 100, 'shockwave');
@@ -348,12 +371,16 @@ export class DamageFx {
         p.vy += 600 * dt;
         p.g.rotation += 8 * dt;
       }
+      if (p.type === 'debris') {
+        p.vy += 400 * dt;
+        p.g.rotation += 4 * dt;
+      }
 
       p.g.x += p.vx * dt;
       p.g.y += p.vy * dt;
 
       // Drag decelerates sparks and explosions
-      if (p.type !== 'shockwave' && p.type !== 'chunk' && p.type !== 'casing') {
+      if (p.type !== 'shockwave' && p.type !== 'chunk' && p.type !== 'casing' && p.type !== 'debris') {
         p.vx *= 1 - 0.5 * dt;
         p.vy *= 1 - 0.5 * dt;
       }
@@ -373,6 +400,9 @@ export class DamageFx {
         p.g.scale.set(1);
       } else if (p.type === 'casing') {
         // Casings keep their size, tumble + fall, fade out at end
+        p.g.scale.set(1);
+      } else if (p.type === 'debris') {
+        // Debris chunks keep their size — alpha already fades via baseAlpha * t.
         p.g.scale.set(1);
       } else if (p.type === 'windstreak') {
         // Wind streaks keep their length; alpha already fades via baseAlpha * t.

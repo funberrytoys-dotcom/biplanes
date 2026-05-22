@@ -1,5 +1,5 @@
 import { Container, Graphics } from 'pixi.js';
-import type { Plane } from '@biplanes/core';
+import type { Plane, PlaneState } from '@biplanes/core';
 import {
   SMOKE_THRESHOLD,
   FIRE_THRESHOLD,
@@ -58,6 +58,7 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
   let wasAlive = true;
   let prevHp: number | null = null;
   let prevHeading: number | null = null;
+  let prevState: PlaneState | null = null;
 
   // Particle emission timers
   let smokeAcc = 0;
@@ -89,6 +90,15 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
     ) {
       if (prevHp === null) prevHp = p.hp;
       if (prevHeading === null) prevHeading = p.kinematic.heading;
+      if (prevState === null) prevState = p.state;
+
+      // Detect flying → dying transition: emit two chunky fuselage-colored pieces
+      // at the lethal moment.
+      const transitionedToDying = prevState === 'flying' && p.state === 'dying';
+      if (transitionedToDying && fx) {
+        const bodyColor = faction === 'player' ? 0xf4d35e : 0xc0392b;
+        fx.addDebris(p.kinematic.position, bodyColor);
+      }
 
       c.x = p.kinematic.position.x;
       c.y = p.kinematic.position.y;
@@ -344,6 +354,7 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
       }
 
       wasAlive = p.alive && p.state !== 'crashed';
+      prevState = p.state;
     },
   };
 }
