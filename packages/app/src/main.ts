@@ -41,6 +41,7 @@ import {
   createLightning,
   createLensFlare,
   createDistantSilhouettes,
+  createForegroundClouds,
   GroundFx,
   type SkyThemeId,
   type SkyBackgroundHandle,
@@ -146,6 +147,10 @@ export async function startGame(container: HTMLElement) {
   const damageFx = new DamageFx(fxLayer, glowLayer.container);
   const muzzleFlashes = new MuzzleFlashes(glowLayer.container);
   const tracers = new BulletTracers(glowLayer.container);
+  // Foreground clouds drift in front of planes (above plane layer, below floating numbers).
+  const foregroundClouds = createForegroundClouds(WORLD_WIDTH, WORLD_HEIGHT);
+  worldLayer.addChild(foregroundClouds.container);
+
   const numbersLayer = new Container();
   worldLayer.addChild(numbersLayer);
   const floatingNumbers = new FloatingNumbers(numbersLayer);
@@ -237,6 +242,7 @@ export async function startGame(container: HTMLElement) {
     lightning.update(dt);
     lensFlare.update(dt, renderTimeSec, state.player ? state.player.kinematic.position.x : RUNWAY_X);
     if (silhouettes) silhouettes.update(dt, renderTimeSec);
+    foregroundClouds.update(dt);
 
     // 2. Update UI overlays (Level Up Card entries & Death Telegram Typewriter)
     levelUpScreen.update(dt);

@@ -15,5 +15,6 @@ export * from './scene/lightning.js';
 export * from './scene/ground-fx.js';
 export * from './scene/lens-flare.js';
 export * from './scene/distant-silhouettes.js';
+export * from './scene/foreground-clouds.js';
 export * from './camera.js';
 export * from './render-clock.js';
