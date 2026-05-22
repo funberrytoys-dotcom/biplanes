@@ -7,10 +7,12 @@ import {
   HIT_PAUSE_FRAMES_KILL,
   G_STALL,
   G_MAX_LEVEL,
+  GROUND_Y,
 } from '@biplanes/shared';
 import type { DamageFx } from '../damage-fx.js';
 import type { RenderClock } from '../../render-clock.js';
 import type { FloatingNumbers } from '../floating-numbers.js';
+import type { GroundFx } from '../ground-fx.js';
 import { createPlaneBody } from './body.js';
 import { createPlaneControls } from './controls.js';
 import { createPilotHead } from './pilot-head.js';
@@ -30,6 +32,7 @@ export interface PlaneSpriteHandle {
     clock?: RenderClock,
     camera?: CameraLike,
     numbers?: FloatingNumbers,
+    groundFx?: GroundFx,
   ) => void;
 }
 
@@ -82,6 +85,7 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
       clock?: RenderClock,
       camera?: CameraLike,
       numbers?: FloatingNumbers,
+      groundFx?: GroundFx,
     ) {
       if (prevHp === null) prevHp = p.hp;
       if (prevHeading === null) prevHeading = p.kinematic.heading;
@@ -319,6 +323,10 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
         // Sudden death explosion burst
         if (wasAlive && (!p.alive || p.state === 'crashed')) {
           fx.addExplosion({ x: p.kinematic.position.x, y: p.kinematic.position.y });
+          // Crash crater if impact happened at ground level (Task 3.3)
+          if (groundFx && p.kinematic.position.y > GROUND_Y - 10) {
+            groundFx.spawnCrater(p.kinematic.position.x, GROUND_Y);
+          }
         }
       }
 

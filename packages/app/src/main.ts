@@ -39,6 +39,7 @@ import {
   createScreenEffects,
   FloatingNumbers,
   createLightning,
+  GroundFx,
   type SkyThemeId,
   type SkyBackgroundHandle,
 } from '@biplanes/render';
@@ -112,7 +113,9 @@ export async function startGame(container: HTMLElement) {
   const planeLayer = new Container();
   const fxLayer = new Container();
   const glowLayer = createGlowLayer();
-  worldLayer.addChild(bulletLayer, fxLayer, glowLayer.container, planeLayer);
+  const groundFxLayer = new Container();
+  worldLayer.addChild(bulletLayer, fxLayer, glowLayer.container, groundFxLayer, planeLayer);
+  const groundFx = new GroundFx(groundFxLayer);
 
   const bullets = new BulletPool(bulletLayer);
   const damageFx = new DamageFx(fxLayer, glowLayer.container);
@@ -272,7 +275,7 @@ export async function startGame(container: HTMLElement) {
     }
     prevBulletIds = seenBulletIds;
 
-    playerSprite.update(state.player, dt, damageFx, clock, camera, floatingNumbers);
+    playerSprite.update(state.player, dt, damageFx, clock, camera, floatingNumbers, groundFx);
 
     const seenEnemy = new Set<number>();
     for (const e of state.enemies) {
@@ -283,7 +286,7 @@ export async function startGame(container: HTMLElement) {
         planeLayer.addChild(s.container);
         enemySprites.set(e.id, s);
       }
-      s.update(e, dt, damageFx, clock, camera, floatingNumbers);
+      s.update(e, dt, damageFx, clock, camera, floatingNumbers, groundFx);
     }
     for (const [id, s] of enemySprites) {
       if (!seenEnemy.has(id)) {
@@ -315,6 +318,7 @@ export async function startGame(container: HTMLElement) {
     for (const b of state.bullets) tracers.emit(b);
     tracers.update(dt);
     damageFx.update(dt);
+    groundFx.update(dt, (x, y) => damageFx.addSmokeTrail({ x, y }, 1));
     muzzleFlashes.update(dt);
     floatingNumbers.update(dt);
     screenFx.update(dt, renderTimeSec, worldLayer);
@@ -337,6 +341,7 @@ export async function startGame(container: HTMLElement) {
     pilotSprites.clear();
     bullets.sync([]);
     prevBulletIds = new Set();
+    groundFx.clear();
     state = createWorldState(Math.floor(Math.random() * 1e9), makePlayer());
     prevPlayerScore = state.playerScore;
     prevLevel = state.level;
