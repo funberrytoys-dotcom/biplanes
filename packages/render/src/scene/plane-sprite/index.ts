@@ -1,4 +1,4 @@
-import { Container } from 'pixi.js';
+import { Container, Graphics } from 'pixi.js';
 import type { Plane } from '@biplanes/core';
 import {
   SMOKE_THRESHOLD,
@@ -40,6 +40,11 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
   const { fuselageContainer, wingContainer, propellerContainer, blades, blurDisk } = body;
 
   c.addChild(wingContainer, fuselageContainer, propellerContainer);
+
+  // Propeller motion blur spokes (Task 2.8). Added BEFORE the blades so
+  // they render under the spinner/blade overlay.
+  const spokes = new Graphics();
+  propellerContainer.addChildAt(spokes, propellerContainer.children.indexOf(blades));
 
   const controls = createPlaneControls(faction);
   const head = createPilotHead(faction);
@@ -169,6 +174,27 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
         }
       } else {
         blurDisk.visible = false;
+      }
+
+      // 1b. Propeller motion-blur radial spokes + strobing (Task 2.8)
+      spokes.clear();
+      {
+        const throttle = p.kinematic.throttleLevel ?? 0;
+        if (throttle > 0.3 && aliveAndFlying) {
+          for (let i = 0; i < 3; i++) {
+            const a = (i / 3) * Math.PI * 2 + blades.rotation;
+            spokes
+              .moveTo(20 + Math.cos(a) * 4, Math.sin(a) * 4)
+              .lineTo(20 + Math.cos(a) * 18, Math.sin(a) * 18)
+              .stroke({ color: 0xeeeeee, width: 1, alpha: 0.3 });
+          }
+          if (throttle > 0.4 && throttle < 0.7) {
+            const strobe = (Math.sin(blades.rotation * 4) + 1) * 0.5;
+            blurDisk.alpha = 0.06 + strobe * 0.12;
+          } else {
+            blurDisk.alpha = 0.16;
+          }
+        }
       }
 
       // 2. Damage impact sparks trigger
