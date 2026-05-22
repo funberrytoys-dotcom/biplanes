@@ -141,9 +141,47 @@ export function createHud(width: number, height: number) {
   const arrow = new Graphics();
   arrow.visible = false;
 
-  c.addChild(overlay, arrow);
+  // Edge arrow that points to an off-screen dying enemy.
+  const dirArrow = new Graphics();
+  dirArrow.visible = false;
+
+  c.addChild(overlay, arrow, dirArrow);
 
   let pulseT = 0;
+
+  function showDirArrow(targetScreenX: number, targetScreenY: number) {
+    const cx = width / 2;
+    const cy = height / 2;
+    const dx = targetScreenX - cx;
+    const dy = targetScreenY - cy;
+    if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) {
+      dirArrow.visible = false;
+      return;
+    }
+    // Find the edge intersection from screen center toward the target.
+    const sx = Math.abs(dx) / Math.max(1, width / 2 - 40);
+    const sy = Math.abs(dy) / Math.max(1, height / 2 - 40);
+    const sc = Math.max(sx, sy, 1);
+    const ex = cx + dx / sc;
+    const ey = cy + dy / sc;
+    const ang = Math.atan2(dy, dx);
+    dirArrow.clear()
+      .moveTo(0, 0)
+      .lineTo(-14, -7)
+      .lineTo(-10, 0)
+      .lineTo(-14, 7)
+      .closePath()
+      .fill({ color: 0xffaa44, alpha: 0.9 })
+      .stroke({ color: 0x000000, width: 2 });
+    dirArrow.x = ex;
+    dirArrow.y = ey;
+    dirArrow.rotation = ang;
+    dirArrow.visible = true;
+  }
+
+  function hideDirArrow() {
+    dirArrow.visible = false;
+  }
 
   function centerOverlay(w: number, h: number) {
     overlay.x = (w - overlay.width) / 2;
@@ -333,5 +371,7 @@ export function createHud(width: number, height: number) {
       }
     },
     resize(w: number, h: number) { width = w; height = h; centerOverlay(w, h); },
+    showDirArrow,
+    hideDirArrow,
   };
 }

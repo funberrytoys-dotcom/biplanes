@@ -347,6 +347,25 @@ export async function startGame(container: HTMLElement) {
       }
     }
 
+    // Off-screen arrow for any dying enemy (Task 4.6).
+    {
+      const dyingEnemy = state.enemies.find(e => e.state === 'dying');
+      if (dyingEnemy) {
+        const wx = dyingEnemy.kinematic.position.x;
+        const wy = dyingEnemy.kinematic.position.y;
+        const onScreen = wx >= 0 && wx <= WORLD_WIDTH && wy >= 0 && wy <= WORLD_HEIGHT;
+        if (!onScreen) {
+          const sx = worldLayer.x + wx * worldLayer.scale.x;
+          const sy = worldLayer.y + wy * worldLayer.scale.y;
+          hud.showDirArrow(sx, sy);
+        } else {
+          hud.hideDirArrow();
+        }
+      } else {
+        hud.hideDirArrow();
+      }
+    }
+
     bullets.sync(state.bullets);
     for (const b of state.bullets) tracers.emit(b);
     tracers.update(dt);
