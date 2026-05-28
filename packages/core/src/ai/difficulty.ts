@@ -150,7 +150,7 @@ export const DIFFICULTIES: Record<Difficulty, AiParams> = {
     cruiseThrottle: 1.0,
     diveThrottle: 0.8,
     climbThrottle: 1.0,
-    rookieMistakeChancePerSec: 0.05,
+    rookieMistakeChancePerSec: 0,    // competent — sloppy mistakes (incl. diving at the dirt) are an EASY-tier flavor only
     ejectChancePerSec: 1.5,
     hpMultiplier: 1.5,                 // moderately tougher than player baseline
     damageMultiplier: 1.1,             // bullets bite a touch harder
