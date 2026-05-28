@@ -16,6 +16,13 @@ The fantasy (owner's words): cut throttle at the wrong moment, fail to keep airs
 and the plane departs into a spin. With altitude you can recover; spin all the way to
 the bottom and you lose.
 
+**Observed today (pre-implementation):** with the bounce-off-bottom in place and no spin
+yet, a plane can hang nose-up at zero throttle — neither flying away, nor falling, nor
+dying (see owner screenshot). This "floating" state is exactly what the feature removes.
+A thrustless plane at low speed must **stall and fall**, never hover. Losing energy at the
+apex of a maneuver (low point of thrust, low speed) begins the fall down the screen, and
+reaching the bottom while stalled is death.
+
 ## Scope
 
 - **In scope:** A new `spinning` plane state in the headless core, its entry/exit rules,
@@ -46,7 +53,9 @@ spin. Just before entry the plane gives a **stall warning** (see Feedback).
 
 ### The spin
 
-- The plane drops its nose and autorotates, losing altitude quickly.
+- The plane drops its nose and autorotates, **losing altitude — it always falls, never
+  hovers.** A stalled, thrustless plane cannot hang in the air; gravity wins and it sinks
+  down the screen.
 - **Control is vague:** rotate input is heavily damped (small corrective authority only);
   the player cannot simply "steer" out of the rotation.
 - Speed builds from the nose-down attitude (the dive feeds airspeed).
