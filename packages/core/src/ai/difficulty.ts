@@ -42,6 +42,26 @@ export interface AiParams {
   reactionDelaySec: number;
   errorWobbleRad: number;
   evasionChanceWhenHit: number;
+  /** how hard the AI jinks when it decides to evade (radians of heading bias) */
+  evasionStrengthRad: number;
+  /** duration of one evasion jink, seconds */
+  evasionDurationSec: number;
+
+  // === BURST FIRE DISCIPLINE ===
+  /** when true, the AI fires in disciplined on/off bursts instead of a continuous stream */
+  burstFire: boolean;
+  /** length of a firing burst, seconds */
+  burstOnSec: number;
+  /** pause between bursts, seconds */
+  burstOffSec: number;
+
+  // === TAIL-CHASE / PURSUIT TUNING ===
+  /** how far behind the target the AI sets up its attack run (px). Smaller = closer, more pressure */
+  tailStandoffPx: number;
+  /** real distance (px) below which the AI eases throttle to avoid overshooting the target */
+  overshootDistancePx: number;
+  /** throttle held while pressing a clean tail shot (target aligned & in range) */
+  pressAttackThrottle: number;
 
   // === THROTTLE MANAGEMENT ===
   /** when false, the AI never touches throttleDelta (effectively always full) */
@@ -85,6 +105,14 @@ export const DIFFICULTIES: Record<Difficulty, AiParams> = {
     reactionDelaySec: 0.5,
     errorWobbleRad: 0.08,
     evasionChanceWhenHit: 0.3,
+    evasionStrengthRad: 0.4,          // sloppy, half-hearted jink
+    evasionDurationSec: 0.6,
+    burstFire: false,                 // sprays continuously like a rookie
+    burstOnSec: 0,
+    burstOffSec: 0,
+    tailStandoffPx: 280,              // sits way back, never presses
+    overshootDistancePx: 150,
+    pressAttackThrottle: 1.0,
     manageThrottle: false,            // always full → climbs into stalls
     cruiseThrottle: 1.0,
     diveThrottle: 1.0,
@@ -107,9 +135,17 @@ export const DIFFICULTIES: Record<Difficulty, AiParams> = {
     fireRange: 550,
     leadFactor: 0.5,
     turnDeadzoneRad: 0.1,
-    reactionDelaySec: 0.18,
+    reactionDelaySec: 0.12,            // quicker than before — keeps the nose on you
     errorWobbleRad: 0.025,
     evasionChanceWhenHit: 1.0,
+    evasionStrengthRad: 0.6,
+    evasionDurationSec: 0.5,
+    burstFire: true,                   // disciplined bursts — dangerous but readable
+    burstOnSec: 0.5,
+    burstOffSec: 0.4,
+    tailStandoffPx: 200,               // presses closer than before
+    overshootDistancePx: 170,
+    pressAttackThrottle: 0.85,
     manageThrottle: true,
     cruiseThrottle: 1.0,
     diveThrottle: 0.8,
@@ -117,8 +153,8 @@ export const DIFFICULTIES: Record<Difficulty, AiParams> = {
     rookieMistakeChancePerSec: 0.05,
     ejectChancePerSec: 1.5,
     hpMultiplier: 1.5,                 // moderately tougher than player baseline
-    damageMultiplier: 1.0,
-    fireRateMultiplier: 1.2,           // shoots a bit faster
+    damageMultiplier: 1.1,             // bullets bite a touch harder
+    fireRateMultiplier: 1.3,           // shoots a bit faster
   },
   hard: {
     // Ace. Manages energy, predicts player, rarely crashes, bails when burning.
@@ -136,14 +172,24 @@ export const DIFFICULTIES: Record<Difficulty, AiParams> = {
     reactionDelaySec: 0.04,           // basically instant
     errorWobbleRad: 0.005,
     evasionChanceWhenHit: 2.0,        // pre-evades when in danger
+    evasionStrengthRad: 0.9,          // hard, committed jink — hard to track
+    evasionDurationSec: 0.45,         // short so it snaps back onto your tail
+    burstFire: true,                  // ace-style controlled bursts
+    burstOnSec: 0.45,
+    burstOffSec: 0.3,
+    tailStandoffPx: 150,              // gets right into the kill zone
+    overshootDistancePx: 200,
+    pressAttackThrottle: 0.8,
     manageThrottle: true,
     cruiseThrottle: 1.0,
     diveThrottle: 0.6,                // controlled dives
     climbThrottle: 1.0,
     rookieMistakeChancePerSec: 0,
     ejectChancePerSec: 3.0,           // always bails when burning
-    hpMultiplier: 2.5,                 // really tough — takes 75 dmg to down (vs player 100)
+    // Per spec §8: the smart positioning + lead is now the threat, so the raw
+    // stat bonuses are eased back from before (HP 2.5→2.0, fireRate 1.8→1.5).
+    hpMultiplier: 2.0,                 // tough but no longer a flying brick
     damageMultiplier: 1.8,             // bullets bite hard
-    fireRateMultiplier: 1.8,           // rapid-fire (~6 shots/sec vs player ~3)
+    fireRateMultiplier: 1.5,           // brisk, but bursts (not raw rate) do the work
   },
 };

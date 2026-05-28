@@ -208,4 +208,102 @@ describe('ai difficulty params', () => {
     expect(cmd.throttleDelta).toBe(-1);
     expect(cmd.fire).toBe(true);
   });
+
+  // ============================================================
+  // New tests: burst fire, pursuit pressure, evasion strength
+  // ============================================================
+
+  it('hard AI fires in disciplined bursts (on-phase fires, off-phase holds)', () => {
+    // Target dead ahead, in cone and range. Walk the burst clock forward a full
+    // on+off cycle and confirm the AI both fires AND pauses (not a constant stream).
+    const dt = 1 / 60;
+    let ai = settled(31);
+    const enemy = makePlane(500, 500, 0, { g: 660 });
+    const target = makePlane(900, 500, 0, { g: 600 }); // 400 ahead, inside hard 800
+    let sawFire = false;
+    let sawHold = false;
+    let t = 1.0;
+    for (let i = 0; i < 90; i++) {
+      const res = aiCommand(enemy, target, DIFFICULTIES.hard, ai, 30, dt, t, true);
+      ai = res.aiState;
+      if (res.cmd.fire) sawFire = true;
+      else sawHold = true;
+      t += dt;
+    }
+    expect(sawFire).toBe(true);  // it does shoot when aligned
+    expect(sawHold).toBe(true);  // and it deliberately pauses between bursts
+  });
+
+  it('easy AI does NOT burst — fires continuously when aligned (rookie spray)', () => {
+    const dt = 1 / 60;
+    let ai = settled(31);
+    const enemy = makePlane(500, 500, 0, { g: 660 });
+    const target = makePlane(700, 500, 0, { g: 600 }); // 200 ahead, inside easy 300
+    let fireTicks = 0;
+    let t = 1.0;
+    for (let i = 0; i < 30; i++) {
+      const res = aiCommand(enemy, target, DIFFICULTIES.easy, ai, 30, dt, t, true);
+      ai = res.aiState;
+      if (res.cmd.fire) fireTicks++;
+      t += dt;
+    }
+    // burstFire=false → no enforced off-phase; fires (almost) every aligned tick.
+    expect(fireTicks).toBeGreaterThan(25);
+  });
+
+  it('hard keeps firing while being shot if the nose still tracks the target', () => {
+    // Regression: previously any hit suppressed fire for the whole evasion window,
+    // so pressuring a hard enemy made it go passive. Now it keeps shooting as long
+    // as the player stays in its cone. Target dead ahead; AI took damage this tick.
+    const ai = settled(5);
+    const enemy = makePlane(500, 500, 0, { g: 660 });
+    const target = makePlane(800, 500, 0, { g: 600 });
+    // prevSelfHp (35) > current hp (30) → wasHit=true, evasion may trigger.
+    const { cmd } = aiCommand(enemy, target, DIFFICULTIES.hard, ai, 35, 1 / 60, 1.0, true);
+    // Even though it was hit, the nose is still on the target → it fires.
+    expect(cmd.fire).toBe(true);
+  });
+
+  it('hard presses the attack (higher throttle) when aligned at firing range in the tail', () => {
+    // Enemy in tail sector, aligned, target at ~250px (>= overshoot 200, < range)
+    // and the enemy is currently slow → it should throttle UP to close & keep guns on.
+    const ai = settled(88);
+    const enemy = makePlane(500, 450, 0, { g: 500, throttleLevel: 0.4, facing: 1 });
+    const target = makePlane(750, 450, 0, { g: 600, throttleLevel: 0.7, facing: 1 });
+    const { cmd } = aiCommand(enemy, target, DIFFICULTIES.hard, ai, 30, 1 / 60, 3.0, true);
+    // pressAttackThrottle (0.8) > current 0.4 → throttle up.
+    expect(cmd.throttleDelta).toBe(1);
+  });
+
+  it('hard uses a tighter tail standoff than the legacy 230px default', () => {
+    // Pure parameter guard so the owner-tunable knobs do not silently regress.
+    expect(DIFFICULTIES.hard.tailStandoffPx).toBeLessThan(230);
+    expect(DIFFICULTIES.medium.tailStandoffPx).toBeLessThan(230);
+    expect(DIFFICULTIES.hard.evasionStrengthRad).toBeGreaterThan(
+      DIFFICULTIES.easy.evasionStrengthRad,
+    );
+    expect(DIFFICULTIES.hard.burstFire).toBe(true);
+    expect(DIFFICULTIES.easy.burstFire).toBe(false);
+    // Spec §8: hard's raw stat crutches were eased back vs the old brick.
+    expect(DIFFICULTIES.hard.hpMultiplier).toBeLessThanOrEqual(2.0);
+  });
+
+  it('same seed → identical burst/evasion behaviour (determinism)', () => {
+    const dt = 1 / 60;
+    function run(seed: number): string {
+      let ai = settled(seed);
+      const enemy = makePlane(500, 500, 0, { g: 660 });
+      const target = makePlane(820, 510, 0, { g: 600 });
+      const log: string[] = [];
+      let t = 1.0;
+      for (let i = 0; i < 60; i++) {
+        const res = aiCommand(enemy, target, DIFFICULTIES.hard, ai, 31, dt, t, true);
+        ai = res.aiState;
+        log.push(`${res.cmd.rotate}${res.cmd.fire ? 1 : 0}${res.cmd.throttleDelta}`);
+        t += dt;
+      }
+      return log.join(',');
+    }
+    expect(run(404)).toBe(run(404));
+  });
 });

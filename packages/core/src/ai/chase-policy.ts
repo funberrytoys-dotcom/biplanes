@@ -22,6 +22,9 @@ export interface AiState {
   /** seconds remaining on the current rookie mistake (if any) */
   rookieMistakeTimer: number;
   rookieMistakeAction: 'climb' | 'dive' | 'throttle-off' | 'wrong-turn' | 'none';
+  /** burst-fire cadence: time left in the current on/off phase, and which phase */
+  burstTimer: number;
+  burstFiring: boolean;
 }
 
 export function createAiState(seed: number): AiState {
@@ -33,6 +36,8 @@ export function createAiState(seed: number): AiState {
     timeFlyingSec: 0,
     rookieMistakeTimer: 0,
     rookieMistakeAction: 'none',
+    burstTimer: 0,
+    burstFiring: true,
   };
 }
 
@@ -205,8 +210,8 @@ export function aiCommand(
     } else if (params.positioningEnabled) {
       if (params.energyManagement) {
         const targetForward = forwardVector(target.kinematic.heading);
-        aimX = bufferedPos.x - targetForward.x * 230;
-        aimY = bufferedPos.y - targetForward.y * 230 + params.preferredAltitudeOffset * 0.5;
+        aimX = bufferedPos.x - targetForward.x * params.tailStandoffPx;
+        aimY = bufferedPos.y - targetForward.y * params.tailStandoffPx + params.preferredAltitudeOffset * 0.5;
       } else {
         // Position above (or below) target by preferredAltitudeOffset.
         aimX = bufferedPos.x;
@@ -231,7 +236,21 @@ export function aiCommand(
         target.kinematic.position.y - self.kinematic.position.y,
       );
       const speedRatioToTarget = target.kinematic.g > 1 ? g / target.kinematic.g : 1;
-      throttleIntent = realDist < 190 || speedRatioToTarget > 1.08 ? 0.55 : 0.7;
+      // Aligned + in firing range → press the attack at higher throttle to close
+      // the gap and keep the gun on target, instead of idling at standoff.
+      const realAng = Math.atan2(
+        target.kinematic.position.y - self.kinematic.position.y,
+        target.kinematic.position.x - self.kinematic.position.x,
+      );
+      const aligned = Math.abs(normalizeAngle(realAng - self.kinematic.heading)) < params.fireConeRad;
+      if (realDist < params.overshootDistancePx || speedRatioToTarget > 1.08) {
+        // Too close / closing too fast → ease off to avoid overshooting the tail.
+        throttleIntent = 0.5;
+      } else if (aligned && realDist < params.fireRange) {
+        throttleIntent = params.pressAttackThrottle;
+      } else {
+        throttleIntent = 0.75;
+      }
     } else if (params.energyManagement && targetIsAbove && ourSpeedRatio < 0.9) {
       // Dive to convert altitude (we have none) into speed; actually trade by
       // pointing slightly down to feed speed, then climb. We do this by
@@ -274,14 +293,14 @@ export function aiCommand(
     && det01(newState.wobbleSeed, currentTime, 1) < params.evasionChanceWhenHit * dt
     && newState.evasionTimer <= 0
   ) {
-    newState.evasionTimer = 0.6;
+    newState.evasionTimer = params.evasionDurationSec;
     newState.evasionDir = det01(newState.wobbleSeed, currentTime, 2) < 0.5 ? -1 : 1;
   }
   if (newState.evasionTimer > 0) {
     newState.evasionTimer -= dt;
     if (!inSurvival) {
       // bias heading perpendicular to current motion
-      targetHeading += newState.evasionDir * 0.6;
+      targetHeading += newState.evasionDir * params.evasionStrengthRad;
     }
   }
 
@@ -341,11 +360,38 @@ export function aiCommand(
     else if (currentThrottle > effectiveTargetThrottle + 0.05) throttleDelta = -1;
   }
 
-  // Fire: only if NOT in survival override AND target is in cone+range.
+  // ============================================================
+  // BURST-FIRE CADENCE
+  // ============================================================
+  // Advance the on/off burst phase clock so smart AIs fire in disciplined bursts
+  // (dangerous but readable) rather than a continuous stream. The timer only
+  // matters when burstFire is on; rookies (burstFire=false) fire whenever aligned.
+  let burstAllowsFire = true;
+  if (params.burstFire) {
+    if (aiState.burstTimer <= 0 && aiState.burstFiring) {
+      // Fresh clock (default state): begin in the firing phase, don't flip.
+      newState.burstFiring = true;
+      newState.burstTimer = params.burstOnSec;
+    } else {
+      newState.burstTimer = aiState.burstTimer - dt;
+      if (newState.burstTimer <= 0) {
+        // flip phase
+        newState.burstFiring = !aiState.burstFiring;
+        newState.burstTimer = newState.burstFiring ? params.burstOnSec : params.burstOffSec;
+      }
+    }
+    burstAllowsFire = newState.burstFiring;
+  }
+
+  // Fire: only if NOT in survival override AND target is in cone+range AND the
+  // burst phase currently allows it. We deliberately DO NOT suppress firing for
+  // the whole evasion window any more — the cone check below already drops shots
+  // when a jink pulls the nose off target, but if the nose still tracks the
+  // player the AI keeps shooting, so pressing it no longer makes it go passive.
   // Use real (unbuffered, unled) target geometry for the fire decision so the
   // AI doesn't fire wildly into space when the lead+wobble compose poorly.
   let fire = false;
-  if (!inSurvival && newState.evasionTimer <= 0) {
+  if (!inSurvival && burstAllowsFire) {
     const realDx = target.kinematic.position.x - self.kinematic.position.x;
     const realDy = target.kinematic.position.y - self.kinematic.position.y;
     const realDist = Math.hypot(realDx, realDy);
