@@ -28,6 +28,49 @@ function keyChecker({ r, g, b, a = 255 }) {
   return isLightNeutral ? 0 : a;
 }
 
+// Hot-magenta chroma key with edge feather + magenta despill, mirroring the
+// green-screen approach in prepare-cloud-assets.mjs. Magentaness = how far the
+// red+blue average sits above green. Solid key (>SOLID) → transparent; edge band
+// (EDGE..SOLID) → feather alpha toward 0. Despill clamps red/blue down to green
+// for pixels that lean magenta in BOTH channels (true spill, not a blue hull),
+// so the antialiased outline keeps no pink halo. In-place on a raw RGBA buffer.
+function keyMagentaInPlace(data) {
+  const SOLID = 110;
+  const EDGE = 16;
+  const DESPILL = 8;
+  for (let i = 0; i < data.length; i += 4) {
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const magentaness = (r + b) / 2 - g;
+    if (magentaness > SOLID) {
+      data[i + 3] = 0; // solid magenta background → transparent
+      continue;
+    }
+    if (magentaness > EDGE) {
+      const t = (magentaness - EDGE) / (SOLID - EDGE);
+      data[i + 3] = Math.round(data[i + 3] * (1 - t));
+    }
+    // Only true magenta spill has red AND blue above green; pure-blue hull
+    // pixels (red below green) are left untouched.
+    if (magentaness > DESPILL && r > g && b > g) {
+      data[i] = g;
+      data[i + 2] = g;
+    }
+  }
+}
+
+async function keyedFeatherPng(input, output, keyInPlace, { resizeWidth = null, extract = null, trimThreshold = 6 } = {}) {
+  let image = sharp(input).ensureAlpha();
+  if (extract) image = image.extract(extract);
+  const { data, info } = await image.raw().toBuffer({ resolveWithObject: true });
+  keyInPlace(data);
+  let out = sharp(data, { raw: { width: info.width, height: info.height, channels: 4 } });
+  out = out.trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: trimThreshold });
+  if (resizeWidth) out = out.resize({ width: resizeWidth, withoutEnlargement: true });
+  await out.png().toFile(output);
+}
+
 async function keyedPng(input, output, keyFn, { trim = true, resizeWidth = null, extract = null } = {}) {
   let image = sharp(input).ensureAlpha();
   if (extract) image = image.extract(extract);
@@ -96,10 +139,13 @@ async function main() {
     { resizeWidth: 780 },
   );
 
-  await keyedPng(
+  // The airship_extra_* sources ship on a solid hot-magenta backdrop, so they
+  // need the magenta chroma key with edge feather (plain trim / light-neutral
+  // key left the magenta box intact in-game).
+  await keyedFeatherPng(
     path.join(srcDir, 'airship_extra_3_source.png'),
     path.join(outDir, 'airship_sov_large.png'),
-    keyChecker,
+    keyMagentaInPlace,
     { resizeWidth: 780 },
   );
 
@@ -107,12 +153,12 @@ async function main() {
     ['airship_extra_1_source.png', 'airship_sov_variant_1.png'],
     ['airship_extra_2_source.png', 'airship_sov_variant_2.png'],
   ]) {
-    await sharp(path.join(srcDir, source))
-      .ensureAlpha()
-      .trim({ background: { r: 0, g: 0, b: 0, alpha: 0 }, threshold: 4 })
-      .resize({ width: 760, withoutEnlargement: true })
-      .png()
-      .toFile(path.join(outDir, target));
+    await keyedFeatherPng(
+      path.join(srcDir, source),
+      path.join(outDir, target),
+      keyMagentaInPlace,
+      { resizeWidth: 760 },
+    );
   }
 
   await copyIslandFrames();
