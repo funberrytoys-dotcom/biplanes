@@ -850,10 +850,20 @@ export function createSkyBackground(
       skyImage.x = playerX - width / 2;
       if (storySkySoftener) storySkySoftener.x = skyImage.x;
       
-      // Adapt tile scale dynamically once the texture dimensions are loaded
-      if (skyImage.texture.height > 1 && Math.abs(skyImage.tileScale.y - (height / skyImage.texture.height)) > 0.001) {
-        const scale = height / skyImage.texture.height;
-        skyImage.tileScale.set(scale, scale);
+      // Adapt tile scale once the texture is loaded. Fit Y to the full height
+      // (so the horizon/sun aren't cropped) and cover the full sprite width on X
+      // — a non-panoramic (e.g. square) sky would otherwise repeat and show a
+      // vertical tiling seam mid-screen. The 1.02 gives a hair of overscan so
+      // the wrap sits just past the right edge.
+      if (skyImage.texture.width > 1) {
+        const scaleY = height / skyImage.texture.height;
+        const scaleX = Math.max(scaleY, (width * 1.02) / skyImage.texture.width);
+        if (
+          Math.abs(skyImage.tileScale.x - scaleX) > 0.001
+          || Math.abs(skyImage.tileScale.y - scaleY) > 0.001
+        ) {
+          skyImage.tileScale.set(scaleX, scaleY);
+        }
       }
 
       // Smooth horizontal parallax scrolling for the tiled sky

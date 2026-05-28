@@ -105,7 +105,8 @@ function stepPlaneByState(
   p: Plane,
   cmd: { rotate: -1 | 0 | 1 },
   dt: number,
-  worldWidth: number = WORLD_WIDTH
+  worldWidth: number = WORLD_WIDTH,
+  softFloor: boolean = false
 ): Plane {
   if (p.state === 'crashed') {
     const nextTimer = p.respawnTimer - dt;
@@ -167,9 +168,9 @@ function stepPlaneByState(
   }
 
   const preVy = p.kinematic.velocity.y;
-  const newKin = stepPlane(p.kinematic, { rotate: cmd.rotate }, dt, worldWidth);
+  const newKin = stepPlane(p.kinematic, { rotate: cmd.rotate }, dt, worldWidth, softFloor);
 
-  if (newKin.position.y >= GROUND_Y - 0.5 && preVy > CRASH_VY_THRESHOLD) {
+  if (!softFloor && newKin.position.y >= GROUND_Y - 0.5 && preVy > CRASH_VY_THRESHOLD) {
     return {
       ...p,
       kinematic: newKin,
@@ -235,6 +236,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
   if (state.gameOver || state.pendingLevelUp) return state;
 
   const worldWidth = state.worldWidth || WORLD_WIDTH;
+  const softFloor = state.softFloor ?? false;
 
   let nextEntityId = state.nextEntityId;
   let rngState = state.rngState;
@@ -287,7 +289,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
       kinematic: { ...state.player.kinematic, throttleLevel: playerThrottleLevel },
     };
 
-    player = stepPlaneByState(playerWithThrottle, { rotate: playerCommand.rotate }, TICK_DT, worldWidth);
+    player = stepPlaneByState(playerWithThrottle, { rotate: playerCommand.rotate }, TICK_DT, worldWidth, softFloor);
 
     // Eject player → spawn player pilot
     if (playerCommand.eject && player.state === 'flying' && player.alive) {
@@ -443,7 +445,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
       eWithThrottle = { ...e, kinematic: { ...e.kinematic, throttleLevel: newThrottle } };
     }
 
-    let stepped = stepPlaneByState(eWithThrottle, { rotate: cmd.rotate }, TICK_DT, worldWidth);
+    let stepped = stepPlaneByState(eWithThrottle, { rotate: cmd.rotate }, TICK_DT, worldWidth, softFloor);
     stepped = applyFireBurn(stepped, TICK_DT);
 
     if (!stepped.alive && stepped.state !== 'crashed') {

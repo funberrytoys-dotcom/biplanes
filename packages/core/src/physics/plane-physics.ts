@@ -43,7 +43,8 @@ export function stepPlane(
   p: PlaneKinematic,
   input: PhysicsInput,
   dt: number = TICK_DT,
-  worldWidth: number = WORLD_WIDTH
+  worldWidth: number = WORLD_WIDTH,
+  softFloor: boolean = false
 ): PlaneKinematic {
   // 1) Continuous rotation
   // rotate=-1 → CCW (nose toward up when facing right)
@@ -69,6 +70,25 @@ export function stepPlane(
     heading += diff * ceilingProximity * CEILING_FORCE_RATE * dt;
     while (heading > Math.PI) heading -= 2 * Math.PI;
     while (heading < -Math.PI) heading += 2 * Math.PI;
+  }
+
+  // 1c) FLOOR FORCE — symmetric to the ceiling, enabled only when softFloor is set
+  // (campaign has no lethal ground). Near the bottom of the map an aerodynamic force
+  // tilts the nose UP into a climb so the plane turns away instead of hitting ground.
+  if (softFloor) {
+    const FLOOR_ZONE = 120;
+    const floorEdge = GROUND_Y - FLOOR_ZONE;
+    if (p.position.y > floorEdge) {
+      const floorProximity = Math.max(0, Math.min(1, (p.position.y - floorEdge) / FLOOR_ZONE)); // 0..1
+      const climbTarget = -Math.PI / 2; // nose-up in screen coords
+      let diff = climbTarget - heading;
+      while (diff > Math.PI) diff -= 2 * Math.PI;
+      while (diff < -Math.PI) diff += 2 * Math.PI;
+      const FLOOR_FORCE_RATE = 6.0; // rad/sec at full proximity (mirrors ceiling)
+      heading += diff * floorProximity * FLOOR_FORCE_RATE * dt;
+      while (heading > Math.PI) heading -= 2 * Math.PI;
+      while (heading < -Math.PI) heading += 2 * Math.PI;
+    }
   }
 
   // 2) Facing derived from heading — presentational flag for sprite mirroring.

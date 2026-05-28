@@ -700,8 +700,13 @@ export async function startGame(container: HTMLElement) {
 
     // Setup scrolling world width and scaling
     state.worldWidth = MISSION_ONE_WORLD_WIDTH;
+    // Campaign has no lethal ground — the bottom turns the plane back like the ceiling.
+    state.softFloor = true;
     camera.setWorldWidth(MISSION_ONE_WORLD_WIDTH);
     layoutWorld();
+    // Start the camera already framed close on the carrier launch (no zoom-in pop).
+    camera.setFocus(state.player.kinematic.position.x + 90, WORLD_HEIGHT * 0.52, 1.55);
+    camera.snap();
 
     // Initialize Caravan State inside core state!
     const caravanStart = getMissionOneCaravanStart();
@@ -999,10 +1004,10 @@ export async function startGame(container: HTMLElement) {
       const px = state.player.kinematic.position.x;
       const py = state.player.kinematic.position.y;
       if (tSec < 2.5) {
-        // Launch — frame the carrier deck + player (sky altitude, not ground).
-        camera.setFocus(px + 110, WORLD_HEIGHT * 0.52, 1.42);
+        // Launch — frame the carrier deck + player up close.
+        camera.setFocus(px + 90, WORLD_HEIGHT * 0.52, 1.55);
       } else if (tSec < 8.0) {
-        // Launch → escort transition: ease zoom back to neutral while panning to player.
+        // Launch → escort transition: ease zoom back to cover while panning to player.
         const u = (tSec - 2.5) / 5.5;
         const cx = state.caravan ? state.caravan.position.x : px;
         const cy = state.caravan ? state.caravan.position.y : py;
@@ -1010,7 +1015,7 @@ export async function startGame(container: HTMLElement) {
         const midY = (py + cy) / 2;
         const fx = px + (midX - px) * u;
         const fy = WORLD_HEIGHT * 0.52 + (midY - WORLD_HEIGHT * 0.52) * u;
-        const zoom = 1.42 - u * 0.45;
+        const zoom = Math.max(1.0, 1.55 - u * 0.5);
         camera.setFocus(fx, fy, zoom);
       } else if (tSec >= 246 && tSec < 249) {
         // Boss entrance — frame Scar and the player together.

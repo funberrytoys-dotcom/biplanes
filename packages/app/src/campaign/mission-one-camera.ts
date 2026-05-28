@@ -25,6 +25,8 @@ export function getMissionOneEscortFocus(input: MissionOneEscortFocusInput): Mis
   return {
     x: input.playerX + offsetX * 0.38,
     y: clamp(input.playerY + offsetY * 0.45, WORLD_HEIGHT * 0.22, WORLD_HEIGHT * 0.72),
-    zoom: Math.max(0.95, Math.min(1.10, 1.10 - Math.max(0, dist - 280) / 600 * 0.15)),
+    // Never below 1.0: the world is exactly screen-height, so zooming out past
+    // the height-fit would expose black bars. Stay at cover or closer.
+    zoom: Math.max(1.0, Math.min(1.12, 1.12 - Math.max(0, dist - 280) / 600 * 0.12)),
   };
 }

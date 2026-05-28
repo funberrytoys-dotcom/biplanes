@@ -28,6 +28,9 @@ export interface WorldState {
   timeSec: number;          // wall clock since run started
   tickCount: number;
   worldWidth?: number;
+  // Campaign: no lethal ground. The bottom of the map turns the plane back like
+  // the ceiling instead of crashing it.
+  softFloor?: boolean;
   caravan?: CaravanState;
   nextEntityId: EntityId;
   rngSeed: number;

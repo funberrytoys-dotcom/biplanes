@@ -42,6 +42,12 @@ export function createCamera(worldRoot: Container, screenW: number, screenH: num
       targetFocusY = WORLD_HEIGHT / 2;
       targetZoom = 1.0;
     },
+    /** Jump current focus/zoom to the target immediately (no smoothing). */
+    snap() {
+      currentFocusX = targetFocusX;
+      currentFocusY = targetFocusY;
+      currentZoom = targetZoom;
+    },
     setWorldWidth(w: number) {
       worldWidth = w;
     },
@@ -78,17 +84,22 @@ export function createCamera(worldRoot: Container, screenW: number, screenH: num
 
       const scale = baseScale * activeZoom;
 
-      // Clamp focus X so we don't look beyond the world limits
+      // Clamp the focus on BOTH axes so the camera never looks past the backdrop
+      // (no black bars), and so the focus can't overshoot the world edge and
+      // shimmer against the clamp. If the world is smaller than the viewport on
+      // an axis, center it. Clamp the live focus in place so the parallax getter
+      // and the projection stay in agreement at the edges.
       const halfW = screenW / (2 * scale);
-      let clampFocusX = currentFocusX;
-      if (worldWidth > screenW / scale) {
-        clampFocusX = Math.max(halfW, Math.min(worldWidth - halfW, currentFocusX));
-      } else {
-        clampFocusX = worldWidth / 2;
-      }
+      const halfH = screenH / (2 * scale);
+      currentFocusX = worldWidth > 2 * halfW
+        ? Math.max(halfW, Math.min(worldWidth - halfW, currentFocusX))
+        : worldWidth / 2;
+      currentFocusY = WORLD_HEIGHT > 2 * halfH
+        ? Math.max(halfH, Math.min(WORLD_HEIGHT - halfH, currentFocusY))
+        : WORLD_HEIGHT / 2;
 
       // Project world focus point into screen center
-      const bx = screenW / 2 - clampFocusX * scale;
+      const bx = screenW / 2 - currentFocusX * scale;
       const by = screenH / 2 - currentFocusY * scale;
 
       // Apply shake and punch
