@@ -9,3 +9,4 @@ vendor/
 coverage/
 .idea/
 .vscode/
+.claude/worktrees/
