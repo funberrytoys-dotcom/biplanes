@@ -14,7 +14,7 @@ function makePlane(
   x: number,
   y: number,
   heading: number,
-  opts: { hp?: number; g?: number; throttleLevel?: number } = {},
+  opts: { hp?: number; g?: number; throttleLevel?: number; facing?: 1 | -1 } = {},
 ): Plane {
   return {
     id: 1,
@@ -25,7 +25,7 @@ function makePlane(
       heading,
       throttleOn: true,
       g: opts.g ?? 1200,
-      facing: 1,
+      facing: opts.facing ?? 1,
       throttle: true,
       throttleLevel: opts.throttleLevel ?? 1,
     },
@@ -174,5 +174,38 @@ describe('ai difficulty params', () => {
     expect(cmd.rotate).not.toBe(-1);
     // Should NOT fire during post-takeoff
     expect(cmd.fire).toBe(false);
+  });
+
+  it('post-takeoff keeps left-facing enemies level toward the battlefield', () => {
+    const ai = createAiState(5);
+    const enemy = makePlane(1700, 900, Math.PI, { g: 520, facing: -1 });
+    const target = makePlane(300, 100, 0);
+    const { cmd } = aiCommand(enemy, target, DIFFICULTIES.hard, ai, 30, 1 / 60, 0.1, false);
+
+    expect(cmd.rotate).toBe(0);
+    expect(cmd.throttleDelta).toBe(0);
+    expect(cmd.fire).toBe(false);
+  });
+
+  it('left-facing hard AI recovers from a slow nose-up stall by lowering the nose', () => {
+    const ai = settled(42);
+    const enemy = makePlane(1400, 500, -2.2, { g: G_STALL * 0.98, facing: -1 });
+    const target = makePlane(300, 100, 0);
+    const { cmd } = aiCommand(enemy, target, DIFFICULTIES.hard, ai, 30, 1 / 60, 1.0, true);
+
+    expect(cmd.rotate).toBe(-1);
+    expect(cmd.throttleDelta).toBe(0);
+    expect(cmd.fire).toBe(false);
+  });
+
+  it('hard AI holds throttle when already behind the player instead of overshooting', () => {
+    const ai = settled(77);
+    const enemy = makePlane(520, 450, 0, { g: 670, throttleLevel: 1.0, facing: 1 });
+    const target = makePlane(760, 450, 0, { g: 620, throttleLevel: 0.7, facing: 1 });
+    const { cmd } = aiCommand(enemy, target, DIFFICULTIES.hard, ai, 30, 1 / 60, 3.0, true);
+
+    expect(cmd.rotate).toBe(0);
+    expect(cmd.throttleDelta).toBe(-1);
+    expect(cmd.fire).toBe(true);
   });
 });

@@ -27,7 +27,7 @@ export function ownHangarX(faction: Faction): number {
  * Parachute descent. Gentle vertical fall; input adds horizontal drift.
  * Transitions to 'walking' when pilot reaches the ground.
  */
-export function stepPilotParachute(p: Pilot, input: PilotInput, dt: number): Pilot {
+export function stepPilotParachute(p: Pilot, input: PilotInput, dt: number, worldWidth: number = WORLD_WIDTH): Pilot {
   const vy = PARACHUTE_FALL_SPEED;
   const vx = input.rotate * PARACHUTE_DRIFT_SPEED;
 
@@ -35,8 +35,8 @@ export function stepPilotParachute(p: Pilot, input: PilotInput, dt: number): Pil
   let py = p.position.y + vy * dt;
 
   // World wrap on X to match plane physics
-  if (px < 0) px += WORLD_WIDTH;
-  if (px >= WORLD_WIDTH) px -= WORLD_WIDTH;
+  if (px < 0) px += worldWidth;
+  if (px >= worldWidth) px -= worldWidth;
 
   // Ground contact → switch to walking
   if (py >= GROUND_Y) {
@@ -68,7 +68,7 @@ export function stepPilotParachute(p: Pilot, input: PilotInput, dt: number): Pil
  * Transitions to 'safe' when within PILOT_HANGAR_ARRIVAL_DIST of own-faction hangar
  * (only valid when grounded — can't enter hangar mid-jump).
  */
-export function stepPilotWalking(p: Pilot, input: PilotInput, dt: number): Pilot {
+export function stepPilotWalking(p: Pilot, input: PilotInput, dt: number, worldWidth: number = WORLD_WIDTH): Pilot {
   // Horizontal motion strictly from input.
   let vx = 0;
   let facing = p.facing;
@@ -106,8 +106,8 @@ export function stepPilotWalking(p: Pilot, input: PilotInput, dt: number): Pilot
   }
 
   // World wrap on X
-  if (px < 0) px += WORLD_WIDTH;
-  if (px >= WORLD_WIDTH) px -= WORLD_WIDTH;
+  if (px < 0) px += worldWidth;
+  if (px >= worldWidth) px -= worldWidth;
 
   // Arrival at own hangar — only when grounded.
   const hangarX = ownHangarX(p.faction);

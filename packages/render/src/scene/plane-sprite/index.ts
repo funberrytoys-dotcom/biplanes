@@ -50,9 +50,13 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
   const c = new Container();
 
   const body = createPlaneBody(faction);
-  const { fuselageContainer, wingContainer, propellerContainer, blades, blurDisk } = body;
+  const { fuselageContainer, wingContainer, propellerContainer, usesFullSpriteArt, blades, blurDisk, wingShadow, fuselageGlint, propellerX, updateArt } = body;
 
   c.addChild(wingContainer, fuselageContainer, propellerContainer);
+  const VISUAL_SCALE = 1.16;
+  wingContainer.scale.set(VISUAL_SCALE);
+  fuselageContainer.scale.set(VISUAL_SCALE);
+  propellerContainer.scale.set(VISUAL_SCALE);
 
   // Propeller motion blur spokes (Task 2.8). Added BEFORE the blades so
   // they render under the spinner/blade overlay.
@@ -61,6 +65,8 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
 
   const controls = createPlaneControls(faction);
   const head = createPilotHead(faction);
+  controls.container.visible = !usesFullSpriteArt;
+  head.container.visible = !usesFullSpriteArt;
   fuselageContainer.addChild(controls.container);
   fuselageContainer.addChild(head.container);
 
@@ -70,9 +76,17 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
   let prevHeading: number | null = null;
   let prevState: PlaneState | null = null;
 
+  // Wingtip coordinates for continuous ribbon trails (Phase 3)
+  let prevTx: number | null = null;
+  let prevTy: number | null = null;
+  let prevBx: number | null = null;
+  let prevBy: number | null = null;
+
   // Particle emission timers
   let smokeAcc = 0;
   let fireAcc = 0;
+  let exhaustAcc = 0;
+  let dustAcc = 0;
   let wingTrailAcc = 0;
 
   // Banking visual squeeze (Task 2.2)
@@ -97,7 +111,7 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
   let lastDrawnMaxHp = -1;
   const HP_BAR_HEIGHT = 3;
   const HP_BAR_BASE_W = 30; // px per PLANE_INITIAL_HP
-  const HP_BAR_Y_OFFSET = -28;
+  const HP_BAR_Y_OFFSET = -34;
 
   return {
     container: c,
@@ -124,10 +138,27 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
         fx.addDebris(p.kinematic.position, bodyColor);
       }
 
+      updateArt(dt);
+
+      const taxiLean =
+        faction === 'player' && p.state === 'taxi'
+          ? Math.max(0, 1 - Math.min(1, p.kinematic.g / 260))
+          : 0;
+      const enemyRunwayVisual =
+        faction === 'enemy'
+        && (p.state === 'taxi' || (p.state === 'flying' && p.kinematic.position.y > GROUND_Y - 95));
+
       c.x = p.kinematic.position.x;
-      c.y = p.kinematic.position.y;
-      c.scale.x = 1;
-      c.rotation = p.kinematic.heading;
+      c.y = p.kinematic.position.y + taxiLean * 3.5;
+      c.scale.x = enemyRunwayVisual ? -1 : 1;
+      if (enemyRunwayVisual) {
+        let runwayHeading = p.kinematic.heading - Math.PI;
+        while (runwayHeading > Math.PI) runwayHeading -= Math.PI * 2;
+        while (runwayHeading < -Math.PI) runwayHeading += Math.PI * 2;
+        c.rotation = runwayHeading;
+      } else {
+        c.rotation = p.kinematic.heading - taxiLean * 0.13;
+      }
       c.alpha = p.state === 'crashed' ? 0 : 1;
 
       const aliveAndFlying = p.alive && p.state === 'flying';
@@ -148,8 +179,25 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
         c.scale.y = 1 - bankT * 0.12;
       }
 
+      // Dynamic specular highlight and shadow cast (Phase 1.1).
+      // Disabled for full sprite-sheet planes: the painted art already includes
+      // its own cockpit, pilot, shadows, highlights, and propeller frames.
+      if (!usesFullSpriteArt) {
+        // Sun position assumed at top-right (approx -Math.PI / 4)
+        const SUN_ANGLE = -Math.PI / 4;
+        const relativeAngle = p.kinematic.heading - SUN_ANGLE;
+        
+        // specularity is maximized when the fuselage curvature aligns with the sun
+        const lightFactor = Math.max(0, Math.cos(relativeAngle));
+        fuselageGlint.alpha = 0.15 + 0.65 * lightFactor;
+
+        // shadow casts down and leftwards relative to the sun direction
+        const shadowAngle = relativeAngle;
+        wingShadow.x = Math.sin(shadowAngle) * 5.5;
+      }
+
       // Aileron / elevator / rudder deflection (Task 2.3)
-      {
+      if (!usesFullSpriteArt) {
         const rawDelta = p.kinematic.heading - prevHeading;
         // Wrap to [-π, π] so a heading wrap doesn't slam the controls.
         let headingDelta = rawDelta;
@@ -160,22 +208,28 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
       }
 
       // Pilot head bob on throttle change (Task 2.4)
-      {
+      if (!usesFullSpriteArt) {
         const cur = p.kinematic.throttleLevel ?? 0;
         const throttleChange = cur - prevThrottle;
         head.update(throttleChange, dt);
         prevThrottle = cur;
       }
 
-      // Body shake under high-g / stall (Task 2.5)
+      // Body shake under deep stall / hard maneuver (Task 2.5).
+      // The stall shudder ramps in only once speed drops MEANINGFULLY below the
+      // stall line. Normal cruise sits just under G_STALL (stall-edge flight is
+      // the signature feel), so shaking at exactly G_STALL made the plane jitter
+      // every frame during ordinary flight.
       {
         let shakeX = 0;
         let shakeY = 0;
         if (aliveAndFlying) {
-          if (p.kinematic.g < G_STALL) {
-            // Stall: rough rivet-shake
-            shakeX = (Math.random() - 0.5) * 4;
-            shakeY = (Math.random() - 0.5) * 4;
+          const stallShakeFloor = G_STALL * 0.8;
+          if (p.kinematic.g < stallShakeFloor) {
+            const depth = Math.min(1, (stallShakeFloor - p.kinematic.g) / stallShakeFloor);
+            const amp = 4 * depth;
+            shakeX = (Math.random() - 0.5) * amp;
+            shakeY = (Math.random() - 0.5) * amp;
           } else if (turnRate > 1.5) {
             // Hard maneuver — subtle buffet
             shakeX = (Math.random() - 0.5) * 2;
@@ -245,8 +299,8 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
           for (let i = 0; i < 3; i++) {
             const a = (i / 3) * Math.PI * 2 + blades.rotation;
             spokes
-              .moveTo(20 + Math.cos(a) * 4, Math.sin(a) * 4)
-              .lineTo(20 + Math.cos(a) * 18, Math.sin(a) * 18)
+              .moveTo(propellerX + Math.cos(a) * 4, Math.sin(a) * 4)
+              .lineTo(propellerX + Math.cos(a) * 22, Math.sin(a) * 22)
               .stroke({ color: 0xeeeeee, width: 1, alpha: 0.3 });
           }
           if (throttle > 0.4 && throttle < 0.7) {
@@ -290,36 +344,41 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
       }
       prevHp = p.hp;
 
-      // 3. Aerodynamic Vortex Wingtip Trails
+      // 3. Aerodynamic Vortex Wingtip Trails (Vapor Ribbons — Phase 3)
       if (fx && aliveAndFlying) {
-        // Calculate hard-G turns or stall conditions
-        const isStalling = p.kinematic.g < G_STALL; // stalled flight
-        const isHighG = turnRate > 1.35; // turning extremely sharply
+        const isStalling = p.kinematic.g < G_STALL;
+        const isHighG = turnRate > 1.35;
+
+        const cos = Math.cos(p.kinematic.heading);
+        const sin = Math.sin(p.kinematic.heading);
+
+        // Convert top and bottom wingtips from local (-10, -18) and (-10, 15) to world space
+        const tx = p.kinematic.position.x - 10 * cos - (-18) * sin;
+        const ty = p.kinematic.position.y - 10 * sin + (-18) * cos;
+
+        const bx = p.kinematic.position.x - 10 * cos - 15 * sin;
+        const by = p.kinematic.position.y - 10 * sin + 15 * cos;
 
         if (isStalling || isHighG) {
-          wingTrailAcc += dt;
-          // Emit aerodynamic trails at ~40Hz
-          while (wingTrailAcc >= 1 / 40) {
-            const cos = Math.cos(p.kinematic.heading);
-            const sin = Math.sin(p.kinematic.heading);
-
-            // Convert top and bottom wingtips from local (-10, -18) and (-10, 15) to world space
-            const tx = p.kinematic.position.x - 10 * cos - (-18) * sin;
-            const ty = p.kinematic.position.y - 10 * sin + (-18) * cos;
-
-            const bx = p.kinematic.position.x - 10 * cos - 15 * sin;
-            const by = p.kinematic.position.y - 10 * sin + 15 * cos;
-
-            fx.addWindTrail({ x: tx, y: ty });
-            fx.addWindTrail({ x: bx, y: by });
-
-            wingTrailAcc -= 1 / 40;
+          if (prevTx !== null && prevTy !== null && prevBx !== null && prevBy !== null) {
+            fx.addVaporSegment({ x: prevTx, y: prevTy }, { x: tx, y: ty }, 2.8);
+            fx.addVaporSegment({ x: prevBx, y: prevBy }, { x: bx, y: by }, 2.8);
           }
+          prevTx = tx;
+          prevTy = ty;
+          prevBx = bx;
+          prevBy = by;
         } else {
-          wingTrailAcc = 0;
+          prevTx = null;
+          prevTy = null;
+          prevBx = null;
+          prevBy = null;
         }
       } else {
-        wingTrailAcc = 0;
+        prevTx = null;
+        prevTy = null;
+        prevBx = null;
+        prevBy = null;
       }
       prevHeading = p.kinematic.heading;
 
@@ -329,6 +388,30 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
         const tailDist = 18;
         const tailX = p.kinematic.position.x - Math.cos(p.kinematic.heading) * tailDist;
         const tailY = p.kinematic.position.y - Math.sin(p.kinematic.heading) * tailDist;
+        const throttle = p.kinematic.throttleLevel ?? 0;
+
+        if ((aliveAndFlying || p.state === 'taxi') && throttle > 0.12) {
+          exhaustAcc += dt * (0.7 + throttle);
+          while (exhaustAcc >= 1 / 18) {
+            fx.addEngineExhaust({ x: tailX, y: tailY }, throttle);
+            exhaustAcc -= 1 / 18;
+          }
+        } else {
+          exhaustAcc = 0;
+        }
+
+        if (p.state === 'taxi' && throttle > 0.2) {
+          dustAcc += dt * throttle;
+          while (dustAcc >= 1 / 16) {
+            fx.addRunwayDust({
+              x: p.kinematic.position.x - Math.cos(p.kinematic.heading) * 12,
+              y: p.kinematic.position.y + 3,
+            }, 1);
+            dustAcc -= 1 / 16;
+          }
+        } else {
+          dustAcc = 0;
+        }
 
         if (isDying) {
           // Cranked emission while spinning down — heavy fire + heavy smoke.

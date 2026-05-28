@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { tick } from './tick.js';
-import { createWorldState } from './world-state.js';
+import { createWorldState, type WorldState } from './world-state.js';
 import { TICK_DT, PLANE_INITIAL_HP, XP_PER_KILL_LIGHT, DYING_DURATION_SEC } from '@biplanes/shared';
 
 function makePlayer() {
@@ -290,5 +290,227 @@ describe('world tick', () => {
     const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
     // Enemy should take damage from flame trail
     expect(after.enemies[0]!.hp).toBeLessThan(30);
+  });
+
+  it('ends the run when player reaches the ace score target', () => {
+    const player = makePlayer();
+    const enemy = {
+      ...makePlayer(),
+      id: 2,
+      faction: 'enemy' as const,
+      hp: 1,
+      kinematic: { ...makePlayer().kinematic, position: { x: 600, y: 500 } },
+    };
+    const s = {
+      ...createWorldState(42, player),
+      playerScore: 9,
+      enemies: [enemy],
+      bullets: [{
+        id: 100,
+        ownerId: 1,
+        ownerFaction: 'player' as const,
+        position: { x: 600, y: 500 },
+        velocity: { x: 0, y: 0 },
+        lifetime: 1,
+        damage: 100,
+        alive: true,
+      }],
+    };
+
+    const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+
+    expect(after.playerScore).toBe(10);
+    expect(after.gameOver).toBe(true);
+  });
+
+  it('spawns only one enemy plane per tick even when target pressure is higher', () => {
+    const s = {
+      ...createWorldState(42, makePlayer()),
+      difficulty: 'hard' as const,
+      timeSec: 100,
+      enemies: [],
+    };
+
+    const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+
+    expect(after.enemies.filter(e => e.state === 'taxi')).toHaveLength(1);
+  });
+
+  it('does not spawn another enemy while one is still taking off', () => {
+    const taxiEnemy = {
+      ...makePlayer(),
+      id: 2,
+      faction: 'enemy' as const,
+      state: 'taxi' as const,
+      kinematic: {
+        ...makePlayer().kinematic,
+        heading: Math.PI,
+        facing: -1 as const,
+        g: 0,
+        throttleLevel: 0,
+      },
+    };
+    const s = {
+      ...createWorldState(42, makePlayer()),
+      difficulty: 'hard' as const,
+      timeSec: 100,
+      enemies: [taxiEnemy],
+    };
+
+    const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+
+    expect(after.enemies).toHaveLength(1);
+  });
+
+  describe('Caravan Escort Mechanics', () => {
+    it('moves caravan horizontally in tick', () => {
+      const s = {
+        ...createWorldState(42, makePlayer()),
+        caravan: {
+          active: true,
+          position: { x: 500, y: 300 },
+          velocity: { x: 10, y: 0 },
+          hp: 100,
+          maxHp: 100,
+        },
+      };
+
+      const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+      expect(after.caravan!.position.x).toBeCloseTo(500 + 10 * TICK_DT, 4);
+      expect(after.caravan!.position.y).toBeCloseTo(300, 4);
+    });
+
+    it('enemy bullet hitting the caravan deals damage and consumes the bullet', () => {
+      const s = {
+        ...createWorldState(42, makePlayer()),
+        caravan: {
+          active: true,
+          position: { x: 500, y: 300 },
+          velocity: { x: 0, y: 0 },
+          hp: 100,
+          maxHp: 100,
+        },
+        bullets: [{
+          id: 100,
+          ownerId: 2,
+          ownerFaction: 'enemy' as const,
+          position: { x: 500, y: 300 }, // hits exactly
+          velocity: { x: 0, y: 0 },
+          lifetime: 1,
+          damage: 25,
+          alive: true,
+        }],
+      };
+
+      const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+      expect(after.caravan!.hp).toBe(75);
+      expect(after.bullets).toHaveLength(0); // consumed!
+      expect(after.explosionEvents).toHaveLength(0);
+    });
+
+    it('can reduce incoming caravan damage for training escort missions', () => {
+      const s = {
+        ...createWorldState(42, makePlayer()),
+        caravan: {
+          active: true,
+          position: { x: 500, y: 300 },
+          velocity: { x: 0, y: 0 },
+          hp: 100,
+          maxHp: 100,
+          incomingDamageMultiplier: 0.5,
+        },
+        bullets: [{
+          id: 100,
+          ownerId: 2,
+          ownerFaction: 'enemy' as const,
+          position: { x: 500, y: 300 },
+          velocity: { x: 0, y: 0 },
+          lifetime: 1,
+          damage: 20,
+          alive: true,
+        }],
+      };
+
+      const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+      expect(after.caravan!.hp).toBe(90);
+      expect(after.bullets).toHaveLength(0);
+    });
+
+    it('triggers game over when caravan hp drops to 0', () => {
+      const s = {
+        ...createWorldState(42, makePlayer()),
+        caravan: {
+          active: true,
+          position: { x: 500, y: 300 },
+          velocity: { x: 0, y: 0 },
+          hp: 5,
+          maxHp: 100,
+        },
+        bullets: [{
+          id: 100,
+          ownerId: 2,
+          ownerFaction: 'enemy' as const,
+          position: { x: 500, y: 300 },
+          velocity: { x: 0, y: 0 },
+          lifetime: 1,
+          damage: 10,
+          alive: true,
+        }],
+      };
+
+      const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+      expect(after.caravan!.hp).toBe(0);
+      expect(after.gameOver).toBe(true);
+    });
+
+    it('keeps campaign-style airspawn attackers airborne during their opening run', () => {
+      const player = {
+        ...makePlayer(),
+        kinematic: {
+          ...makePlayer().kinematic,
+          position: { x: 520, y: 380 },
+          velocity: { x: 260, y: 0 },
+          g: 720,
+          throttleLevel: 0.75,
+        },
+      };
+      const attacker = {
+        ...makePlayer(),
+        id: 2,
+        faction: 'enemy' as const,
+        aiRole: 'attack-caravan' as const,
+        kinematic: {
+          ...makePlayer().kinematic,
+          position: { x: 1780, y: 260 },
+          velocity: { x: -220, y: 0 },
+          heading: Math.PI,
+          facing: -1 as const,
+          g: 720,
+          throttleLevel: 0.86,
+        },
+        hp: 30,
+        maxHp: 30,
+        state: 'flying' as const,
+      };
+      let s: WorldState = {
+        ...createWorldState(42, player),
+        difficulty: 'medium' as const,
+        enemies: [attacker],
+        caravan: {
+          active: true,
+          position: { x: 760, y: 250 },
+          velocity: { x: 4, y: 0 },
+          hp: 100,
+          maxHp: 100,
+        },
+      };
+
+      for (let i = 0; i < Math.round(12 / TICK_DT); i++) {
+        s = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+      }
+
+      expect(s.enemies[0]!.state).toBe('flying');
+      expect(s.enemies[0]!.alive).toBe(true);
+    });
   });
 });

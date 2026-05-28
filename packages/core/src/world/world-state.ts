@@ -15,9 +15,20 @@ export interface Blimp {
   velocity: Vec2;
 }
 
+export interface CaravanState {
+  active: boolean;
+  position: Vec2;
+  velocity: Vec2;
+  hp: number;
+  maxHp: number;
+  incomingDamageMultiplier?: number;
+}
+
 export interface WorldState {
   timeSec: number;          // wall clock since run started
   tickCount: number;
+  worldWidth?: number;
+  caravan?: CaravanState;
   nextEntityId: EntityId;
   rngSeed: number;
   rngState: number;         // current PRNG state (for replay)
@@ -86,6 +97,8 @@ export function createWorldState(seed: number, player: Plane): WorldState {
   return {
     timeSec: 0,
     tickCount: 0,
+    worldWidth: undefined,
+    caravan: undefined,
     nextEntityId: player.id + 1,
     rngSeed: seed,
     rngState: seed,

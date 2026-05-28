@@ -1,5 +1,6 @@
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import type { WorldState } from '@biplanes/core';
+import { PLAYER_SCORE_TO_WIN } from '@biplanes/shared';
 
 export function createDeathScreen(width: number, height: number, onRestart: () => void) {
   const c = new Container();
@@ -181,8 +182,8 @@ export function createDeathScreen(width: number, height: number, onRestart: () =
   return {
     container: c,
     show(state: WorldState) {
-      const isVictory = state.playerScore >= 10;
-      const statusLabel = isVictory ? 'ACE PILOT' : 'K.I.A.';
+      const isVictory = state.playerScore >= PLAYER_SCORE_TO_WIN;
+      const statusLabel = isVictory ? 'VICTORY' : 'DOWNED';
       const stampColor = isVictory ? 0x277a3d : 0xb22222; // Green or Red
 
       // Procedurally draw distressed double-line ink stamp box
@@ -205,7 +206,7 @@ export function createDeathScreen(width: number, height: number, onRestart: () =
 
       const lines = [
         `PILOT IDENT: CAPTAIN CHICO (01)`,
-        `TACTICAL STATUS: ${isVictory ? 'ACE COMBAT (SURVIVED)' : 'KILLED IN DOGFIGHT'}`,
+        `TACTICAL STATUS: ${isVictory ? 'SKIES SECURED' : 'AIRFRAME LOST'}`,
         `MISSION TIME: ${state.timeSec.toFixed(1)} SECONDS`,
         `BOGEYS DOWNED: ${state.playerScore} PLANES`,
         `AVIONICS LEVEL: ${state.level}`,
@@ -243,7 +244,7 @@ export function createDeathScreen(width: number, height: number, onRestart: () =
           currentLength = Math.min(charsToType, targetText.length);
           
           // Append mechanical blinking block cursor while actively typing
-          const cursor = Math.floor(cursorPhase * 8) % 2 === 0 ? '█' : ' ';
+          const cursor = Math.floor(cursorPhase * 8) % 2 === 0 ? '|' : ' ';
           stats.text = targetText.slice(0, currentLength) + (currentLength < targetText.length ? cursor : '');
 
           if (currentLength >= targetText.length) {

@@ -37,7 +37,7 @@ export const UPGRADE_DEFS: UpgradeDef[] = [
   { id: 'heavy_cannon', title: 'Heavy Cannon', description: 'Slow, high-damage piercing shots.', category: 'weapon', isEvolution: false },
   { id: 'homing_rocket', title: 'Homing Rocket', description: 'Auto-fires seeking missiles at targets.', category: 'weapon', isEvolution: false },
   { id: 'flame_trail', title: 'Flame Trail', description: 'Leaves a burning tail that harms enemies.', category: 'passive', isEvolution: false },
-  { id: 'gatling_evolution', title: '⚡ Gatling Gun', description: 'EVOLUTION: continuous stream of fire.', category: 'weapon', isEvolution: true, evolutionRequires: ['damage_plus_50', 'fire_rate_plus_50'] },
+  { id: 'gatling_evolution', title: 'Gatling Gun', description: 'EVOLUTION: continuous stream of fire.', category: 'weapon', isEvolution: true, evolutionRequires: ['damage_plus_50', 'fire_rate_plus_50'] },
 
 ];
 

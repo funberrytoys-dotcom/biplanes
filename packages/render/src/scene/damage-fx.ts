@@ -85,6 +85,99 @@ export class DamageFx {
     }
   }
 
+  addEngineExhaust(position: { x: number; y: number }, throttle: number = 0.5) {
+    // 1. Thick smoke with wavy expansion (Phase 3.2)
+    const radius = (2.2 + Math.random() * 3.0) * (0.7 + throttle * 0.8);
+    const palette = [0x7f8c8d, 0x95a5a6, 0xbdc3c7, 0x5a5f69];
+    const color = palette[Math.floor(Math.random() * palette.length)]!;
+    
+    const g = this.acquire(color, radius, 'smoke');
+    g.x = position.x + (Math.random() - 0.5) * 4;
+    g.y = position.y + (Math.random() - 0.5) * 4;
+    g.scale.set(1);
+    
+    // Add sinusoidal wave movement to Y (wind sway)
+    const waveAmp = (Math.random() - 0.5) * 15;
+    
+    this.active.push({
+      g,
+      vx: -20 * (0.5 + throttle) + (Math.random() - 0.5) * 12,
+      vy: -6 - Math.random() * 10 + waveAmp,
+      life: 0.38 + Math.random() * 0.22,
+      maxLife: 0.6,
+      baseAlpha: 0.16 + throttle * 0.14,
+      baseRadius: radius,
+      type: 'smoke',
+    });
+
+    // 2. Spawn rare glowing orange sparks at high throttle
+    if (throttle > 0.78 && Math.random() < 0.32) {
+      const sparkRadius = 0.8 + Math.random() * 1.2;
+      const sparkG = this.acquire(0xff8800, sparkRadius, 'spark');
+      sparkG.x = position.x;
+      sparkG.y = position.y;
+      sparkG.scale.set(1);
+      
+      this.active.push({
+        g: sparkG,
+        vx: -38 * throttle + (Math.random() - 0.5) * 20,
+        vy: -12 + (Math.random() - 0.5) * 25,
+        life: 0.12 + Math.random() * 0.15,
+        maxLife: 0.27,
+        baseAlpha: 0.95,
+        baseRadius: sparkRadius,
+        type: 'spark',
+      });
+    }
+  }
+
+  addVaporSegment(p1: { x: number; y: number }, p2: { x: number; y: number }, size: number = 2.6) {
+    const g = this.acquire(0xffffff, 0, 'windstreak'); // routes to glow layer additively
+    g.x = 0;
+    g.y = 0;
+    
+    const dx = p2.x - p1.x;
+    const dy = p2.y - p1.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 0.2) {
+      this.release(g);
+      return;
+    }
+    
+    g.moveTo(p1.x, p1.y)
+     .lineTo(p2.x, p2.y)
+     .stroke({ color: 0xeeeeee, width: size, alpha: 0.36 });
+     
+    this.active.push({
+      g,
+      vx: 0, vy: 0,
+      life: 0.3, maxLife: 0.3,
+      baseAlpha: 0.4,
+      baseRadius: size,
+      type: 'windstreak', // keeps scale at 1, only fades alpha
+    });
+  }
+
+  addRunwayDust(position: { x: number; y: number }, count: number = 1) {
+    for (let i = 0; i < count; i++) {
+      const radius = 5 + Math.random() * 7;
+      const g = this.acquire(0x8a6244, radius, 'smoke');
+      g.x = position.x + (Math.random() - 0.5) * 12;
+      g.y = position.y + (Math.random() - 0.5) * 4;
+      g.scale.set(1);
+      this.active.push({
+        g,
+        vx: -35 - Math.random() * 35,
+        vy: -12 - Math.random() * 18,
+        life: 0.45 + Math.random() * 0.25,
+        maxLife: 0.7,
+        baseAlpha: 0.32,
+        baseRadius: radius,
+        type: 'smoke',
+      });
+    }
+  }
+
   addFireTrail(position: { x: number; y: number }, count: number) {
     for (let i = 0; i < count; i++) {
       const radius = 3 + Math.random() * 5;

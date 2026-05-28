@@ -18,12 +18,14 @@ export class BulletTracers {
     if (!g) g = new Graphics();
     g.clear();
     const color = bullet.ownerFaction === 'player' ? 0xffe88c : 0xff5a22;
-    g.circle(0, 0, 2.5).fill({ color, alpha: 0.85 });
+    g.rect(-12, -1.1, 16, 2.2).fill({ color, alpha: 0.62 });
+    g.circle(3, 0, 2.6).fill({ color: 0xffffff, alpha: 0.72 });
     g.x = bullet.position.x;
     g.y = bullet.position.y;
+    g.rotation = Math.atan2(bullet.velocity.y, bullet.velocity.x);
     g.blendMode = 'add';
     this.container.addChild(g);
-    this.active.push({ g, life: 0.12, maxLife: 0.12 });
+    this.active.push({ g, life: 0.1, maxLife: 0.1 });
   }
 
   update(dt: number) {

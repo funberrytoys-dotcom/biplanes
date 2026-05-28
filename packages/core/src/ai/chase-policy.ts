@@ -45,11 +45,45 @@ function noise(seed: number, t: number): number {
   return (((x ^ (x >>> 14)) >>> 0) / 4294967296) * 2 - 1;
 }
 
+// Deterministic [0,1) draw per (enemy, tick, salt). Replaces Math.random() so
+// AI evasion and rookie mistakes are reproducible — required for replay and
+// honest difficulty balancing. `salt` separates independent draws within a tick.
+function det01(seed: number, t: number, salt: number): number {
+  return (noise((seed + Math.imul(salt, 0x9e3779b1)) >>> 0, t) + 1) / 2;
+}
+
 /** Wrap a heading delta into (-π, π]. */
 function normalizeAngle(a: number): number {
   while (a > Math.PI) a -= 2 * Math.PI;
   while (a < -Math.PI) a += 2 * Math.PI;
   return a;
+}
+
+function facingHeading(facing: 1 | -1, pitch: number = 0): number {
+  if (facing === 1) return pitch;
+  const heading = pitch >= 0 ? Math.PI - pitch : -Math.PI - pitch;
+  return normalizeAngle(heading);
+}
+
+function forwardVector(heading: number): { x: number; y: number } {
+  return { x: Math.cos(heading), y: Math.sin(heading) };
+}
+
+function isInTailSector(self: Plane, target: Plane): boolean {
+  const forward = forwardVector(target.kinematic.heading);
+  const rel = {
+    x: self.kinematic.position.x - target.kinematic.position.x,
+    y: self.kinematic.position.y - target.kinematic.position.y,
+  };
+  const behind = -(rel.x * forward.x + rel.y * forward.y);
+  if (behind < 140 || behind > 420) return false;
+
+  const lateral = rel.x * -forward.y + rel.y * forward.x;
+  const maxLateral = Math.tan(35 * Math.PI / 180) * behind;
+  if (Math.abs(lateral) > maxLateral) return false;
+
+  const headingDiff = Math.abs(normalizeAngle(self.kinematic.heading - target.kinematic.heading));
+  return headingDiff < 50 * Math.PI / 180;
 }
 
 /**
@@ -119,7 +153,7 @@ export function aiCommand(
 
   // 1a. Post-takeoff stabilisation — level out and build speed.
   if (newState.timeFlyingSec < params.postTakeoffStabilizationSec) {
-    overrideHeading = 0;                       // horizontal in world frame
+    overrideHeading = facingHeading(self.kinematic.facing); // horizontal toward current side
     overrideThrottle = 1.0;
     inSurvival = true;
   }
@@ -129,7 +163,7 @@ export function aiCommand(
     // Pull up, but if we're very slow AND nose-up, ease the climb angle to
     // avoid trading ground impact for stall fall.
     const slow = g < G_STALL * 1.05;
-    overrideHeading = slow ? -0.15 : -0.45;
+    overrideHeading = facingHeading(self.kinematic.facing, slow ? -0.15 : -0.45);
     overrideThrottle = 1.0;
     inSurvival = true;
   }
@@ -137,13 +171,13 @@ export function aiCommand(
   // sinH < -0.3 means nose is meaningfully above the horizon (sin is positive
   // toward y-down, so negative sin = nose up in screen coords).
   else if (params.stallAvoidEnabled && g < G_STALL * 1.15 && sinH < -0.3) {
-    overrideHeading = 0.1;                     // slight dive to feed speed
+    overrideHeading = facingHeading(self.kinematic.facing, 0.1); // slight dive to feed speed
     overrideThrottle = 1.0;
     inSurvival = true;
   }
   // 1d. Ceiling avoidance — dive, throttle back so we don't over-accelerate.
   else if (y < params.ceilingClearance) {
-    overrideHeading = 0.4;
+    overrideHeading = facingHeading(self.kinematic.facing, 0.4);
     overrideThrottle = 0.7;
     inSurvival = true;
   }
@@ -163,11 +197,21 @@ export function aiCommand(
     // Compute aim point (with optional altitude offset).
     let aimX: number;
     let aimY: number;
+    const inTailSector = params.energyManagement && isInTailSector(self, target);
 
-    if (params.positioningEnabled) {
-      // Position above (or below) target by preferredAltitudeOffset.
+    if (inTailSector) {
       aimX = bufferedPos.x;
-      aimY = bufferedPos.y + params.preferredAltitudeOffset;
+      aimY = bufferedPos.y;
+    } else if (params.positioningEnabled) {
+      if (params.energyManagement) {
+        const targetForward = forwardVector(target.kinematic.heading);
+        aimX = bufferedPos.x - targetForward.x * 230;
+        aimY = bufferedPos.y - targetForward.y * 230 + params.preferredAltitudeOffset * 0.5;
+      } else {
+        // Position above (or below) target by preferredAltitudeOffset.
+        aimX = bufferedPos.x;
+        aimY = bufferedPos.y + params.preferredAltitudeOffset;
+      }
     } else {
       aimX = bufferedPos.x;
       aimY = bufferedPos.y;
@@ -181,7 +225,14 @@ export function aiCommand(
     const targetIsAbove = dyToTarget < -40;
     const ourSpeedRatio = g / G_MAX_LEVEL;
 
-    if (params.energyManagement && targetIsAbove && ourSpeedRatio < 0.9) {
+    if (inTailSector) {
+      const realDist = Math.hypot(
+        target.kinematic.position.x - self.kinematic.position.x,
+        target.kinematic.position.y - self.kinematic.position.y,
+      );
+      const speedRatioToTarget = target.kinematic.g > 1 ? g / target.kinematic.g : 1;
+      throttleIntent = realDist < 190 || speedRatioToTarget > 1.08 ? 0.55 : 0.7;
+    } else if (params.energyManagement && targetIsAbove && ourSpeedRatio < 0.9) {
       // Dive to convert altitude (we have none) into speed; actually trade by
       // pointing slightly down to feed speed, then climb. We do this by
       // overriding the aim point downward briefly.
@@ -220,11 +271,11 @@ export function aiCommand(
   if (
     !inSurvival
     && wasHit
-    && Math.random() < params.evasionChanceWhenHit * dt
+    && det01(newState.wobbleSeed, currentTime, 1) < params.evasionChanceWhenHit * dt
     && newState.evasionTimer <= 0
   ) {
     newState.evasionTimer = 0.6;
-    newState.evasionDir = Math.random() < 0.5 ? -1 : 1;
+    newState.evasionDir = det01(newState.wobbleSeed, currentTime, 2) < 0.5 ? -1 : 1;
   }
   if (newState.evasionTimer > 0) {
     newState.evasionTimer -= dt;
@@ -240,8 +291,8 @@ export function aiCommand(
   if (params.rookieMistakeChancePerSec > 0 && !inSurvival) {
     if (newState.rookieMistakeTimer > 0) {
       newState.rookieMistakeTimer -= dt;
-    } else if (Math.random() < params.rookieMistakeChancePerSec * dt) {
-      const r = Math.random();
+    } else if (det01(newState.wobbleSeed, currentTime, 3) < params.rookieMistakeChancePerSec * dt) {
+      const r = det01(newState.wobbleSeed, currentTime, 4);
       if (r < 0.35) {
         newState.rookieMistakeAction = 'climb';
       } else if (r < 0.6) {
@@ -251,7 +302,7 @@ export function aiCommand(
       } else {
         newState.rookieMistakeAction = 'throttle-off';
       }
-      newState.rookieMistakeTimer = 0.6 + Math.random() * 0.8;
+      newState.rookieMistakeTimer = 0.6 + det01(newState.wobbleSeed, currentTime, 5) * 0.8;
     } else {
       newState.rookieMistakeAction = 'none';
     }

@@ -13,6 +13,8 @@ export type PlaneFaction = 'player' | 'enemy';
  */
 export type PlaneState = 'taxi' | 'flying' | 'crashed' | 'spawning' | 'dying';
 
+export type PlaneAiRole = 'chase-player' | 'attack-caravan';
+
 export interface Plane {
   id: EntityId;
   faction: PlaneFaction;
@@ -26,5 +28,5 @@ export interface Plane {
   state: PlaneState;
   respawnTimer: number;   // seconds until respawn (only meaningful when state === 'crashed')
   dyingTimer?: number;    // seconds remaining in death-spin (only meaningful when state === 'dying')
-
+  aiRole?: PlaneAiRole;
 }

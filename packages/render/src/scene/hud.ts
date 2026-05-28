@@ -1,7 +1,14 @@
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import type { WorldState } from '@biplanes/core';
 import { findPilot } from '@biplanes/core';
-import { PLAYER_HANGAR_X, LEVEL_UP_THRESHOLDS, GROUND_Y } from '@biplanes/shared';
+import {
+  ENEMY_SCORE_TO_LOSE,
+  GROUND_Y,
+  LEVEL_UP_THRESHOLDS,
+  PLAYER_HANGAR_X,
+  PLAYER_SCORE_TO_WIN,
+  WORLD_WIDTH,
+} from '@biplanes/shared';
 
 const G_MAX_REF = 950;      // max speed for gauge scale
 const G_STALL_LINE = 620;   // stall warning threshold
@@ -34,6 +41,13 @@ export function createHud(width: number, height: number) {
 
   const hpGauge = new Graphics();
   dashboard.addChild(hpGauge);
+  const hpGaugeLabel = new Text({
+    text: 'OIL',
+    style: new TextStyle({ fontFamily: 'monospace', fontSize: 8, fill: 0x8890a0, fontWeight: 'bold' }),
+  });
+  hpGaugeLabel.x = HP_CX - hpGaugeLabel.width / 2;
+  hpGaugeLabel.y = HP_CY + 14;
+  dashboard.addChild(hpGaugeLabel);
 
   // 3. Circular Speed (RPM / Wind Speed) Gauge
   const SPD_CX = 155;
@@ -41,6 +55,13 @@ export function createHud(width: number, height: number) {
 
   const spdGauge = new Graphics();
   dashboard.addChild(spdGauge);
+  const spdGaugeLabel = new Text({
+    text: 'RPM',
+    style: new TextStyle({ fontFamily: 'monospace', fontSize: 8, fill: 0x8890a0, fontWeight: 'bold' }),
+  });
+  spdGaugeLabel.x = SPD_CX - spdGaugeLabel.width / 2;
+  spdGaugeLabel.y = SPD_CY + 14;
+  dashboard.addChild(spdGaugeLabel);
 
   // 4. Needles Nodes
   const hpNeedle = new Graphics();
@@ -114,6 +135,41 @@ export function createHud(width: number, height: number) {
   const xpBorder = new Graphics().rect(NIXIE_X + 95, NIXIE_Y + 17, 104, 8).stroke({ color: 0x8b5a2b, width: 1 });
   dashboard.addChild(nixieText, xpBg, xpFill, xpBorder);
 
+  // 12. Mechanical Warning Lamp "STALL / ENGINE" (Phase 5.3)
+  const stallHousing = new Graphics()
+    .circle(110, 42, 7.5).fill(0x424652).stroke({ color: 0x000000, width: 1.2 }) // bezel
+    .circle(110, 42, 5).fill(0x220202); // dark red unlit bulb
+  dashboard.addChild(stallHousing);
+
+  const stallGlow = new Graphics();
+  dashboard.addChild(stallGlow);
+
+  // 13. Glass Dome Reflection Overlay on the Dashboard (Phase 5.1)
+  const glassG = new Graphics()
+    .roundRect(15, 15, 290, 165, 14)
+    .fill({ color: 0xffffff, alpha: 0.05 }) // subtle glass tint
+    // diagonal glare stripes
+    .moveTo(15, 15)
+    .lineTo(130, 15)
+    .lineTo(15, 130)
+    .closePath()
+    .moveTo(85, 15)
+    .lineTo(240, 15)
+    .lineTo(15, 240)
+    .closePath()
+    .fill({ color: 0xffffff, alpha: 0.04 })
+    // shiny white highlight outline
+    .roundRect(16, 16, 288, 163, 13)
+    .stroke({ color: 0xffffff, width: 1, alpha: 0.14 });
+  glassG.blendMode = 'add';
+  dashboard.addChild(glassG);
+
+  // 14. Horizonal CRT Scanline grid (Phase 5.2)
+  const crtScanlines = new Graphics();
+  for (let y = 186; y < 255; y += 3) {
+    crtScanlines.moveTo(15, y).lineTo(305, y).stroke({ color: 0x000000, width: 1, alpha: 0.28 });
+  }
+
   // 7. Phosphorescent CRT Monitor Terminal Readout (Below dashboard)
   const textStyle = new TextStyle({
     fontFamily: 'monospace',
@@ -124,7 +180,7 @@ export function createHud(width: number, height: number) {
   const text = new Text({ text: '', style: textStyle });
   text.x = 20;
   text.y = 192;
-  c.addChild(text);
+  c.addChild(text, crtScanlines);
 
   // Center overlay
   const overlayStyle = new TextStyle({
@@ -162,6 +218,22 @@ export function createHud(width: number, height: number) {
   c.addChild(ramNotice);
 
   let ramLife = 0;
+  let compactHud = false;
+
+  function layoutHud(w: number, h: number) {
+    compactHud = w < 900 || h < 520;
+
+    dashboard.scale.set(compactHud ? 0.72 : 1);
+    text.style.fontSize = compactHud ? 10 : 12;
+    text.x = compactHud ? 14 : 20;
+    text.y = compactHud ? 138 : 192;
+    crtScanlines.visible = !compactHud;
+
+    ramNotice.style.fontSize = compactHud ? 24 : 32;
+    ramNotice.x = (w - ramNotice.width) / 2;
+    ramNotice.y = h * 0.12;
+    centerOverlay(w, h);
+  }
 
   function showRamNotice() {
     ramLife = 1.2;
@@ -228,6 +300,8 @@ export function createHud(width: number, height: number) {
     arrow.visible = true;
   }
 
+  layoutHud(width, height);
+
   return {
     container: c,
     update(s: WorldState) {
@@ -263,13 +337,6 @@ export function createHud(width: number, height: number) {
       
       // HP Label
       hpGauge.circle(HP_CX, HP_CY + 18, 5).fill(0x05070a);
-      const hpText = new Text({
-        text: 'OIL',
-        style: new TextStyle({ fontFamily: 'monospace', fontSize: 8, fill: 0x8890a0, fontWeight: 'bold' }),
-      });
-      hpText.x = HP_CX - hpText.width / 2;
-      hpText.y = HP_CY + 14;
-      hpGauge.addChild(hpText);
 
       // 2. Render RPM Speed Gauge Backing & Ticks
       const g = s.player.kinematic.g;
@@ -299,13 +366,6 @@ export function createHud(width: number, height: number) {
       
       // Speed Label
       spdGauge.circle(SPD_CX, SPD_CY + 18, 5).fill(0x05070a);
-      const spdText = new Text({
-        text: 'RPM',
-        style: new TextStyle({ fontFamily: 'monospace', fontSize: 8, fill: 0x8890a0, fontWeight: 'bold' }),
-      });
-      spdText.x = SPD_CX - spdText.width / 2;
-      spdText.y = SPD_CY + 14;
-      spdGauge.addChild(spdText);
 
       // 3. Render Needles with physical behavior (trembling on stall/low-HP)
       hpNeedle.clear();
@@ -351,28 +411,76 @@ export function createHud(width: number, height: number) {
       
       xpFill.clear().rect(NIXIE_X + 96, NIXIE_Y + 18, 102 * xpPct, 6).fill(s.pendingLevelUp ? 0xffffff : 0xff8c19);
 
-      // 6. CRT readouts below Dashboard
+      // 5. Stall emergency warning light (Phase 5.3)
+      stallGlow.clear();
+      if (stalling) {
+        const flashState = Math.floor(timeSec * 7) % 2 === 0;
+        if (flashState) {
+          stallGlow.circle(110, 42, 5.2).fill(0xff0033);
+          stallGlow.circle(110, 42, 16).fill({ color: 0xff0033, alpha: 0.32 }); // glows additively
+        }
+      }
+
+
+      // Caravan off-screen tracking logic
+      let showCaravanArrow = false;
+      let caravanArrowDir: 1 | -1 = 1;
+      let caravanDist = 0;
+      if (s.caravan && s.caravan.active && s.player.state === 'flying' && s.player.alive) {
+        const dx = s.caravan.position.x - s.player.kinematic.position.x;
+        caravanDist = Math.abs(dx);
+        if (caravanDist > 900) {
+          showCaravanArrow = true;
+          caravanArrowDir = dx > 0 ? 1 : -1;
+        }
+      }
+
+      if (showCaravanArrow) {
+        drawArrow(caravanArrowDir, width, height);
+      }
+
+      // 6. CRT readouts below Dashboard (with scanlines & phosphor micro-flicker - Phase 5.2)
+      text.alpha = 0.93 + 0.07 * Math.random();
       const enemyAlive = s.enemies.filter(e => e.state !== 'crashed').length;
       const h = s.player.kinematic.heading;
       const inverted = s.player.state === 'flying' && Math.abs(h) > Math.PI / 2 + 0.4 && Math.abs(h) < Math.PI - 0.4;
       
-      text.text = `[${s.difficulty.toUpperCase()}]   YOU: ${s.playerScore}  |  ENEMY: ${s.enemyScore}/5\nTIME: ${timeSec.toFixed(1)}s   BOGEYS: ${enemyAlive}\nALTITUDE: ${Math.round(GROUND_Y - s.player.kinematic.position.y)} ft\nSYSTEM: ${stalling ? 'STALLING WARNING!' : inverted ? 'INVERTED FLIGHT' : 'STABLE'}`;
+      if (s.caravan && s.caravan.active) {
+        const caravanHpPct = Math.round(s.caravan.hp / s.caravan.maxHp * 100);
+        // Calculate progress dynamically based on scroll world boundaries if world is wide
+        const isWide = s.worldWidth && s.worldWidth > 2000;
+        const progressPct = isWide
+          ? Math.round((s.caravan.position.x - 1200) / 9000 * 100)
+          : Math.round((s.caravan.position.x - WORLD_WIDTH * 0.16) / (WORLD_WIDTH * 0.6) * 100);
+        
+        const distStr = showCaravanArrow
+          ? `  |  DIST: ${Math.round(caravanDist / 10)}m [${caravanArrowDir > 0 ? '-> E' : 'W <-'}]`
+          : '';
+
+        text.text = `[ESCORT MISSION]   CARAVAN HP: ${caravanHpPct}%  |  PROGRESS: ${Math.min(100, Math.max(0, progressPct))}%${distStr}
+TIME: ${timeSec.toFixed(1)}s   BOGEYS: ${enemyAlive}   SCORE: ${s.playerScore}
+ALTITUDE: ${Math.round(GROUND_Y - s.player.kinematic.position.y)} ft
+SYSTEM: ${stalling ? 'STALLING WARNING!' : s.caravan.hp < s.caravan.maxHp * 0.3 ? 'CARAVAN HP CRITICAL!' : inverted ? 'INVERTED FLIGHT' : 'STABLE'}`;
+      } else {
+        text.text = `[${s.difficulty.toUpperCase()}]   YOU: ${s.playerScore}/${PLAYER_SCORE_TO_WIN}  |  ENEMY: ${s.enemyScore}/${ENEMY_SCORE_TO_LOSE}\nTIME: ${timeSec.toFixed(1)}s   BOGEYS: ${enemyAlive}\nALTITUDE: ${Math.round(GROUND_Y - s.player.kinematic.position.y)} ft\nSYSTEM: ${stalling ? 'STALLING WARNING!' : inverted ? 'INVERTED FLIGHT' : 'STABLE'}`;
+      }
 
       // 7. Announcements / overlay logic
       const playerPilot = findPilot(s.pilots, 'player');
+      overlay.alpha = 1;
       if (playerPilot) {
         overlay.style.fontSize = 36;
         if (playerPilot.state === 'parachute') {
-          overlay.text = 'EJECTED — STEER LEFT/RIGHT';
-          arrow.visible = false;
+          overlay.text = 'EJECTED - STEER LEFT/RIGHT';
+          if (!showCaravanArrow) arrow.visible = false;
         } else if (playerPilot.state === 'walking' || playerPilot.state === 'safe') {
-          overlay.text = 'RUN TO HANGAR — SPACE TO JUMP';
+          overlay.text = 'RUN TO HANGAR - SPACE TO JUMP';
           const dir: 1 | -1 = playerPilot.position.x > PLAYER_HANGAR_X ? -1 : 1;
           drawArrow(dir, width, height);
         } else if (playerPilot.state === 'dead') {
           const remaining = Math.max(0, 5.0 - s.pilotEjectTimeSec);
           overlay.text = `PILOT DOWN\nrespawn in ${remaining.toFixed(1)}`;
-          arrow.visible = false;
+          if (!showCaravanArrow) arrow.visible = false;
         }
         overlay.visible = true;
         centerOverlay(width, height);
@@ -380,18 +488,30 @@ export function createHud(width: number, height: number) {
         overlay.text = `CRASHED\nrespawn in ${Math.max(0, s.player.respawnTimer).toFixed(1)}`;
         overlay.style.fontSize = 42;
         overlay.visible = true;
-        arrow.visible = false;
+        if (!showCaravanArrow) arrow.visible = false;
         centerOverlay(width, height);
       } else if (s.player.state === 'taxi') {
-        overlay.text = 'PRESS W TO START ENGINE — A to pitch up';
-        overlay.style.fontSize = 28;
+        overlay.text = throttle < 0.15
+          ? 'ENGINE IDLE\nTHROTTLE UP'
+          : 'ROLLING\nPITCH UP';
+        overlay.style.fontSize = 24;
         overlay.visible = true;
-        arrow.visible = false;
+        if (!showCaravanArrow) arrow.visible = false;
         centerOverlay(width, height);
+        overlay.y = height * (compactHud ? 0.62 : 0.68);
+      } else if (stalling) {
+        overlay.text = 'STALL\nDIVE TO RECOVER';
+        overlay.style.fontSize = 24;
+        overlay.alpha = 0.65 + 0.35 * Math.abs(Math.sin(pulseT));
+        overlay.visible = true;
+        if (!showCaravanArrow) arrow.visible = false;
+        centerOverlay(width, height);
+        overlay.y = height * 0.18;
       } else {
         overlay.visible = false;
-        arrow.visible = false;
+        if (!showCaravanArrow) arrow.visible = false;
         overlay.style.fontSize = 42;
+        overlay.alpha = 1;
       }
 
       // RAM! notice fade — HUD update has no dt, approximate at 60Hz.
@@ -404,7 +524,7 @@ export function createHud(width: number, height: number) {
         }
       }
     },
-    resize(w: number, h: number) { width = w; height = h; centerOverlay(w, h); },
+    resize(w: number, h: number) { width = w; height = h; layoutHud(w, h); },
     showDirArrow,
     hideDirArrow,
     showRamNotice,

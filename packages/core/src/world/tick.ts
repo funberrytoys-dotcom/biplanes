@@ -12,7 +12,9 @@ import {
   FIRE_BURN_RATE,
   PLANE_RESPAWN_AFTER_PILOT_DEATH,
   ENEMY_HANGAR_X,
+  ENEMY_SCORE_TO_LOSE,
   XP_PER_KILL_LIGHT,
+  PLAYER_SCORE_TO_WIN,
   LEVEL_UP_THRESHOLDS,
   BOMB_GRAVITY,
   BOMB_COOLDOWN,
@@ -54,8 +56,6 @@ import { distance, sub, scale, add, normalize, angleOf } from '../math/vec2.js';
 import type { WorldState } from './world-state.js';
 
 const ENEMY_RESPAWN_DELAY_SEC = 3.0;
-const ENEMY_SCORE_GAME_OVER = 5;
-
 function nextRandom(rngState: number): { value: number; rngState: number } {
   const nextState = (rngState + 0x6d2b79f5) >>> 0;
   let t = nextState;
@@ -75,9 +75,10 @@ function targetEnemyCount(difficulty: WorldState['difficulty'], timeSec: number,
 }
 
 /** Reset a plane's kinematic state back to its faction's runway, taxiing. */
-function resetToRunway(p: Plane): Plane {
+/** Reset a plane's kinematic state back to its faction's runway, taxiing. */
+function resetToRunway(p: Plane, worldWidth: number = WORLD_WIDTH): Plane {
   const playerSide = p.faction === 'player';
-  const x = playerSide ? RUNWAY_X : WORLD_WIDTH - RUNWAY_X;
+  const x = playerSide ? RUNWAY_X : worldWidth - RUNWAY_X;
   const facing: 1 | -1 = playerSide ? 1 : -1;
   const heading = playerSide ? 0 : Math.PI;
   return {
@@ -103,12 +104,13 @@ function resetToRunway(p: Plane): Plane {
 function stepPlaneByState(
   p: Plane,
   cmd: { rotate: -1 | 0 | 1 },
-  dt: number
+  dt: number,
+  worldWidth: number = WORLD_WIDTH
 ): Plane {
   if (p.state === 'crashed') {
     const nextTimer = p.respawnTimer - dt;
     if (nextTimer <= 0) {
-      return resetToRunway(p);
+      return resetToRunway(p, worldWidth);
     }
     return { ...p, respawnTimer: nextTimer };
   }
@@ -151,7 +153,7 @@ function stepPlaneByState(
     const { kinematic, readyForLiftoff } = stepPlaneTaxi(p.kinematic, { rotate: cmd.rotate }, dt);
     // If pilot taxis past the runway edge without lifting off → crash.
     // Plane is destroyed, point goes to the opposing side via the standard "alive→dead" score path.
-    if (kinematic.position.x < 0 || kinematic.position.x > WORLD_WIDTH) {
+    if (kinematic.position.x < 0 || kinematic.position.x > worldWidth) {
       return {
         ...p,
         kinematic,
@@ -165,7 +167,7 @@ function stepPlaneByState(
   }
 
   const preVy = p.kinematic.velocity.y;
-  const newKin = stepPlane(p.kinematic, { rotate: cmd.rotate }, dt);
+  const newKin = stepPlane(p.kinematic, { rotate: cmd.rotate }, dt, worldWidth);
 
   if (newKin.position.y >= GROUND_Y - 0.5 && preVy > CRASH_VY_THRESHOLD) {
     return {
@@ -232,6 +234,8 @@ function spawnPilot(id: number, x: number, y: number, faction: Faction): Pilot {
 export function tick(state: WorldState, playerCommand: PlayerCommand): WorldState {
   if (state.gameOver || state.pendingLevelUp) return state;
 
+  const worldWidth = state.worldWidth || WORLD_WIDTH;
+
   let nextEntityId = state.nextEntityId;
   let rngState = state.rngState;
   let pilots: Pilot[] = state.pilots.map(p => ({ ...p }));
@@ -239,6 +243,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
   let playerScore = state.playerScore;
   let enemyScore = state.enemyScore;
   let playerEjectedThisTick = false;
+  let caravan = state.caravan ? { ...state.caravan } : undefined;
 
   // ---- Player branch ----
   // When a player pilot is active, the player plane sits in 'crashed' and does NOT
@@ -259,9 +264,9 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     const pilotInput = { rotate: playerCommand.rotate, jump: playerCommand.jump };
     let pp = pilots[playerPilotIdx]!;
     if (pp.state === 'parachute') {
-      pp = stepPilotParachute(pp, pilotInput, TICK_DT);
+      pp = stepPilotParachute(pp, pilotInput, TICK_DT, worldWidth);
     } else if (pp.state === 'walking') {
-      pp = stepPilotWalking(pp, pilotInput, TICK_DT);
+      pp = stepPilotWalking(pp, pilotInput, TICK_DT, worldWidth);
     } else if (pp.state === 'dead') {
       pp = stepPilotDead(pp, TICK_DT);
     }
@@ -282,7 +287,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
       kinematic: { ...state.player.kinematic, throttleLevel: playerThrottleLevel },
     };
 
-    player = stepPlaneByState(playerWithThrottle, { rotate: playerCommand.rotate }, TICK_DT);
+    player = stepPlaneByState(playerWithThrottle, { rotate: playerCommand.rotate }, TICK_DT, worldWidth);
 
     // Eject player → spawn player pilot
     if (playerCommand.eject && player.state === 'flying' && player.alive) {
@@ -313,11 +318,11 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     if (pp.state === 'parachute') {
       // Enemy AI under canopy: drift toward enemy hangar.
       const rotate: -1 | 0 | 1 = pp.position.x < ENEMY_HANGAR_X ? 1 : -1;
-      return stepPilotParachute(pp, { rotate, jump: false }, TICK_DT);
+      return stepPilotParachute(pp, { rotate, jump: false }, TICK_DT, worldWidth);
     }
     if (pp.state === 'walking') {
       const rotate: -1 | 0 | 1 = pp.position.x < ENEMY_HANGAR_X ? 1 : -1;
-      return stepPilotWalking(pp, { rotate, jump: false }, TICK_DT);
+      return stepPilotWalking(pp, { rotate, jump: false }, TICK_DT, worldWidth);
     }
     if (pp.state === 'dead') {
       return stepPilotDead(pp, TICK_DT);
@@ -362,7 +367,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
 
     if (e.state === 'dying') {
       // Skip AI/weapon path; just run death-spin via stepPlaneByState.
-      return stepPlaneByState(e, { rotate: 0 }, TICK_DT);
+      return stepPlaneByState(e, { rotate: 0 }, TICK_DT, worldWidth);
     }
 
     const taxiPitchUp: -1 | 0 | 1 = e.kinematic.facing === 1 ? -1 : 1;
@@ -382,10 +387,46 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
         state.enemyAiStates.set(e.id, aiState);
       }
       const prevHp = state.prevEnemyHp.get(e.id) ?? e.hp;
+
+      // Escort mission target override
+      let target = player;
+      let targetPilot = playerPilotForAi;
+
+      let role = e.aiRole;
+      if (e.maxHp >= ENEMY_INITIAL_HP_LIGHT * 4) {
+        // Boss-class enemies alternate between pressuring the caravan and dueling the player.
+        const cycle = Math.floor(state.timeSec / 8);
+        role = cycle % 2 === 0 ? 'attack-caravan' : 'chase-player';
+      }
+
+      if (role === 'attack-caravan' && caravan && caravan.active) {
+        target = {
+          id: -99,
+          faction: 'player',
+          kinematic: {
+            position: { ...caravan.position },
+            velocity: { ...caravan.velocity },
+            heading: 0,
+            throttleOn: false,
+            g: 220,
+            facing: 1,
+            throttle: false,
+            throttleLevel: 0.5,
+          },
+          hp: caravan.hp,
+          maxHp: caravan.maxHp,
+          weaponCooldown: 0,
+          alive: caravan.hp > 0,
+          state: 'flying',
+          respawnTimer: 0,
+        };
+        targetPilot = undefined;
+      }
+
       // Priority target: ejected player pilot (it's the only target if player plane is down).
-      const result = playerPilotForAi
-        ? aiCommandPilotTarget(e, playerPilotForAi, params, aiState, prevHp, TICK_DT, state.timeSec, wasFlyingThisTick)
-        : aiCommand(e, player, params, aiState, prevHp, TICK_DT, state.timeSec, wasFlyingThisTick);
+      const result = targetPilot
+        ? aiCommandPilotTarget(e, targetPilot, params, aiState, prevHp, TICK_DT, state.timeSec, wasFlyingThisTick)
+        : aiCommand(e, target, params, aiState, prevHp, TICK_DT, state.timeSec, wasFlyingThisTick);
       cmd = result.cmd;
       state.enemyAiStates.set(e.id, result.aiState);
     }
@@ -402,7 +443,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
       eWithThrottle = { ...e, kinematic: { ...e.kinematic, throttleLevel: newThrottle } };
     }
 
-    let stepped = stepPlaneByState(eWithThrottle, { rotate: cmd.rotate }, TICK_DT);
+    let stepped = stepPlaneByState(eWithThrottle, { rotate: cmd.rotate }, TICK_DT, worldWidth);
     stepped = applyFireBurn(stepped, TICK_DT);
 
     if (!stepped.alive && stepped.state !== 'crashed') {
@@ -893,7 +934,8 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
   const newTime = state.timeSec + TICK_DT;
   const enemyPilotInPlay = findPilot(pilots, 'enemy') !== undefined;
   const targetEnemies = targetEnemyCount(state.difficulty, newTime, playerScore);
-  while (enemies.length < targetEnemies && newTime > 1.0 && !enemyPilotInPlay) {
+  const enemyTakingOff = enemies.some(e => e.state === 'taxi');
+  if (enemies.length < targetEnemies && newTime > 1.0 && !enemyPilotInPlay && !enemyTakingOff) {
     enemies.push(spawnEnemy(nextEntityId, params.hpMultiplier));
     nextEntityId++;
   }
@@ -907,6 +949,50 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     position: { x: blimpX, y: state.blimp.position.y },
   };
 
+  // ---- Caravan Escort Mission logic ----
+  if (caravan && caravan.active) {
+    // 1. Move caravan
+    const nextCaravanPos = {
+      x: caravan.position.x + caravan.velocity.x * TICK_DT,
+      y: caravan.position.y + caravan.velocity.y * TICK_DT,
+    };
+    
+    // 2. Resolve bullet collisions against caravan
+    let caravanHp = caravan.hp;
+    const caravanDamageMultiplier = caravan.incomingDamageMultiplier ?? 1;
+    const CARAVAN_HIT_RADIUS = 50;
+    const remainingBulletsAfterCaravan: Bullet[] = [];
+    for (const b of collision.bullets) {
+      if (b.ownerFaction === 'enemy') {
+        const dx = b.position.x - nextCaravanPos.x;
+        const dy = b.position.y - nextCaravanPos.y;
+        if (dx * dx + dy * dy < CARAVAN_HIT_RADIUS * CARAVAN_HIT_RADIUS) {
+          caravanHp = Math.max(0, caravanHp - b.damage * caravanDamageMultiplier);
+          continue;
+        }
+      }
+      remainingBulletsAfterCaravan.push(b);
+    }
+    collision.bullets = remainingBulletsAfterCaravan;
+
+    // 3. Resolve explosion collisions against caravan
+    for (const expPos of nextExplosionEvents) {
+      const dx = expPos.x - nextCaravanPos.x;
+      const dy = expPos.y - nextCaravanPos.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 100) {
+        const damage = 40 * (1 - dist / 100);
+        caravanHp = Math.max(0, caravanHp - damage * caravanDamageMultiplier);
+      }
+    }
+
+    caravan = {
+      ...caravan,
+      position: nextCaravanPos,
+      hp: caravanHp,
+    };
+  }
+
   const earnedXp = (enemiesKilledThisTick + collision.playerScoreDelta) * XP_PER_KILL_LIGHT;
   let xpCollected = state.xpCollected + earnedXp;
   let level = state.level;
@@ -916,6 +1002,8 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     level += 1;
     pendingLevelUp = true;
   }
+
+  const caravanDead = caravan !== undefined && caravan.active && caravan.hp <= 0;
 
   return {
     ...state,
@@ -939,8 +1027,9 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     xpCollected,
     level,
     pendingLevelUp,
-    gameOver: enemyScore >= ENEMY_SCORE_GAME_OVER,
+    gameOver: playerScore >= PLAYER_SCORE_TO_WIN || enemyScore >= ENEMY_SCORE_TO_LOSE || caravanDead,
     planeCollisionCooldowns,
     planeCollisionEvents,
+    caravan,
   };
 }

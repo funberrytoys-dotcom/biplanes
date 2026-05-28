@@ -1,174 +1,194 @@
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
-import type { Difficulty } from '@biplanes/core';
 
-export function createStartScreen(width: number, height: number, onPick: (d: Difficulty) => void) {
+export type MenuAction = 'story' | 'arena' | 'multiplayer' | 'settings' | 'exit';
+
+export function createStartScreen(width: number, height: number, onPick: (action: MenuAction) => void) {
   const c = new Container();
   c.eventMode = 'static';
 
-  // 1. Dark ambient background overlay
-  const dim = new Graphics().rect(0, 0, width, height).fill({ color: 0x070b12, alpha: 0.85 });
-  c.addChild(dim);
-
-  // 2. Glassmorphic Central Console Panel
+  const dim = new Graphics();
+  const leftShade = new Graphics();
   const panel = new Container();
-  c.addChild(panel);
+  const statusPanel = new Container();
+  c.addChild(dim, leftShade, panel, statusPanel);
 
-  const panelBg = new Graphics()
-    .roundRect(0, 0, 820, 480, 20)
-    .fill({ color: 0x0d1424, alpha: 0.92 }) // Glass tint
-    .stroke({ color: 0x8b5a2b, width: 2.5 }); // Copper frame
-  
-  // Decorative copper rivets at the corners of the panel
-  const panelBezel = new Graphics()
-    .roundRect(4, 4, 812, 472, 18)
-    .stroke({ color: 0x3d4a66, width: 1.5, alpha: 0.45 })
-    // Corner rivets (screws)
-    .circle(16, 16, 4).fill(0x5a5f69).stroke({ color: 0x000, width: 1 })
-    .circle(804, 16, 4).fill(0x5a5f69).stroke({ color: 0x000, width: 1 })
-    .circle(16, 464, 4).fill(0x5a5f69).stroke({ color: 0x000, width: 1 })
-    .circle(804, 464, 4).fill(0x5a5f69).stroke({ color: 0x000, width: 1 });
-
-  panel.addChild(panelBg, panelBezel);
-
-  // 3. Stenciled Metallic Title
   const titleStyle = new TextStyle({
-    fontFamily: 'monospace',
-    fontSize: 54,
+    fontFamily: 'Georgia, Times New Roman, serif',
+    fontSize: 58,
     fontWeight: 'bold',
-    fill: 0xf4d35e, // Warm diesel gold
-    stroke: { color: 0x3d1000, width: 4 },
+    fill: 0xfff0c0,
+    stroke: { color: 0x1b0d05, width: 5 },
   });
-  const title = new Text({ text: '⚡ B I P L A N E S ⚡', style: titleStyle });
-  
-  const subtitleStyle = new TextStyle({
-    fontFamily: 'monospace',
-    fontSize: 18,
-    fill: 0xa0a5b5,
-    fontWeight: 'bold',
-    letterSpacing: 2,
-  });
-  const subtitle = new Text({ text: 'RETRO DIESELPUNK FLIGHT COMBAT', style: subtitleStyle });
-  
-  const instructionStyle = new TextStyle({
-    fontFamily: 'monospace',
-    fontSize: 14,
-    fill: 0x8890a0,
-    align: 'center',
-  });
-  const instruction = new Text({
-    text: 'A/D or Arrows to steer  |  Space to fire machine gun  |  Shift to drop bomb\n(Hold W to start engine and throttle up)',
-    style: instructionStyle,
+  const title = new Text({ text: 'Biplanes', style: titleStyle });
+
+  const subtitle = new Text({
+    text: 'ОГНИ МАЯКОВ',
+    style: new TextStyle({
+      fontFamily: 'monospace',
+      fontSize: 26,
+      fontWeight: 'bold',
+      fill: 0xffb44a,
+      stroke: { color: 0x170704, width: 4 },
+    }),
   });
 
-  panel.addChild(title, subtitle, instruction);
+  const tagline = new Text({
+    text: 'Пока горят маяки, Архипелаг помнит дорогу домой.',
+    style: new TextStyle({
+      fontFamily: 'monospace',
+      fontSize: 16,
+      fill: 0xf7d8a0,
+      stroke: { color: 0x000000, width: 3 },
+    }),
+  });
 
-  // 4. Interactive Neon-bordered Buttons
-  const buttons: Container[] = [];
-  const levels: { label: string; d: Difficulty; color: number }[] = [
-    { label: 'EASY',   d: 'easy',   color: 0x2ecc71 }, // Glowing Green
-    { label: 'MEDIUM', d: 'medium', color: 0xf39c12 }, // Glowing Amber
-    { label: 'HARD',   d: 'hard',   color: 0xe74c3c }, // Glowing Crimson
+  panel.addChild(title, subtitle, tagline);
+
+  const statusBg = new Graphics();
+  const statusText = new Text({
+    text: '',
+    style: new TextStyle({
+      fontFamily: 'monospace',
+      fontSize: 15,
+      fill: 0xe7eaf4,
+      align: 'center',
+      lineHeight: 22,
+      wordWrap: true,
+      wordWrapWidth: 520,
+      stroke: { color: 0x000000, width: 3 },
+    }),
+  });
+  statusPanel.addChild(statusBg, statusText);
+
+  const buttonDefs: { action: MenuAction; label: string; note: string; enabled: boolean }[] = [
+    { action: 'story', label: 'ОДИНОЧНАЯ ИГРА', note: 'Уровень 1: Караван в тумане. Защити дирижабли СОВ на подлете к маяку.', enabled: true },
+    { action: 'arena', label: 'АРЕНА', note: 'Рабочий режим: 10 побед, улучшения, быстрый вылет.', enabled: true },
+    { action: 'multiplayer', label: 'МУЛЬТИПЛЕЕР', note: 'Будущий режим воздушных дуэлей на карте.', enabled: false },
+    { action: 'settings', label: 'НАСТРОЙКИ', note: 'Настройки пока в разработке. Управление: W, A/D, Space, Shift.', enabled: false },
+    { action: 'exit', label: 'ВЫХОД', note: 'В браузерной версии выход закрывается вкладкой.', enabled: false },
   ];
 
-  levels.forEach(({ label, d, color }) => {
+  const buttons: Container[] = [];
+  let statusLife = 0;
+
+  function setStatus(text: string, life = 2.8) {
+    statusText.text = text;
+    statusText.x = (560 - statusText.width) / 2;
+    statusText.y = (84 - statusText.height) / 2;
+    statusPanel.visible = true;
+    statusPanel.alpha = 1;
+    statusLife = life;
+  }
+
+  function redrawButton(bg: Graphics, enabled: boolean, hovered: boolean) {
+    const color = enabled ? 0xffb44a : 0x8390a8;
+    const fillAlpha = enabled ? (hovered ? 0.28 : 0.16) : 0.08;
+    const strokeAlpha = enabled ? (hovered ? 1 : 0.82) : 0.46;
+    bg.clear()
+      .roundRect(-180, -27, 360, 54, 8)
+      .fill({ color: 0x101827, alpha: fillAlpha })
+      .stroke({ color, width: hovered && enabled ? 3 : 2, alpha: strokeAlpha })
+      .moveTo(-160, 19)
+      .lineTo(160, 19)
+      .stroke({ color: 0xffffff, width: 1, alpha: hovered && enabled ? 0.3 : 0.12 });
+  }
+
+  for (const def of buttonDefs) {
     const btn = new Container();
     btn.eventMode = 'static';
     btn.cursor = 'pointer';
-
-    // Local anchor at button center for clean scaling animations
-    const btnW = 210;
-    const btnH = 75;
-    
-    // Draw base button graphics
-    const bg = new Graphics()
-      .roundRect(-btnW / 2, -btnH / 2, btnW, btnH, 12)
-      .fill({ color: color, alpha: 0.12 })
-      .stroke({ color: color, width: 2 });
-    
-    const t = new Text({
-      text: label,
+    const bg = new Graphics();
+    const text = new Text({
+      text: def.label,
       style: new TextStyle({
         fontFamily: 'monospace',
-        fontSize: 24,
-        fill: color,
+        fontSize: 22,
+        fill: def.enabled ? 0xffd07a : 0x9ca6ba,
         fontWeight: 'bold',
+        stroke: { color: 0x05080e, width: 4 },
       }),
     });
-    // Center text locally
-    t.x = -t.width / 2;
-    t.y = -t.height / 2;
-    
-    btn.addChild(bg, t);
-
-    // Interactive Hover Scales and Neon Glow transitions
+    text.x = -text.width / 2;
+    text.y = -text.height / 2 - 1;
+    redrawButton(bg, def.enabled, false);
+    btn.addChild(bg, text);
     btn.on('pointerover', () => {
-      // Scale up smoothly
-      btn.scale.set(1.06);
-      
-      // Intense neon glow border fill
-      bg.clear()
-        .roundRect(-btnW / 2, -btnH / 2, btnW, btnH, 12)
-        .fill({ color: color, alpha: 0.32 })
-        .stroke({ color: color, width: 3.5 });
-      
-      t.style.fill = 0xffffff;
+      btn.scale.set(def.enabled ? 1.04 : 1.01);
+      text.style.fill = def.enabled ? 0xffffff : 0xc2cad9;
+      redrawButton(bg, def.enabled, true);
+      setStatus(def.note, 1.2);
     });
-
     btn.on('pointerout', () => {
-      // Revert scaling
-      btn.scale.set(1.0);
-      
-      // Revert basic border style
-      bg.clear()
-        .roundRect(-btnW / 2, -btnH / 2, btnW, btnH, 12)
-        .fill({ color: color, alpha: 0.12 })
-        .stroke({ color: color, width: 2 });
-      
-      t.style.fill = color;
+      btn.scale.set(1);
+      text.style.fill = def.enabled ? 0xffd07a : 0x9ca6ba;
+      redrawButton(bg, def.enabled, false);
     });
-
     btn.on('pointerdown', () => {
-      onPick(d);
+      if (def.enabled) {
+        onPick(def.action);
+      } else {
+        setStatus(def.note);
+      }
     });
-
     buttons.push(btn);
     panel.addChild(btn);
-  });
+  }
 
   function layout(w: number, h: number) {
-    dim.clear().rect(0, 0, w, h).fill({ color: 0x070b12, alpha: 0.85 });
-    
-    // Center panel on screen
-    panel.x = (w - 820) / 2;
-    panel.y = (h - 480) / 2;
+    dim.clear().rect(0, 0, w, h).fill({ color: 0x03101e, alpha: 0.34 });
+    leftShade.clear()
+      .rect(0, 0, Math.max(620, w * 0.42), h)
+      .fill({ color: 0x06101f, alpha: 0.58 })
+      .rect(0, 0, w, h)
+      .fill({ color: 0x000000, alpha: 0.08 });
 
-    // Arrange contents inside panel
-    title.x = (820 - title.width) / 2;
-    title.y = 55;
-    
-    subtitle.x = (820 - subtitle.width) / 2;
-    subtitle.y = 125;
+    const panelX = Math.max(44, Math.min(w * 0.08, 120));
+    panel.x = panelX;
+    panel.y = Math.max(48, h * 0.12);
 
-    instruction.x = (820 - instruction.width) / 2;
-    instruction.y = 390;
+    title.x = 0;
+    title.y = 0;
+    subtitle.x = 6;
+    subtitle.y = 66;
+    tagline.x = 7;
+    tagline.y = 112;
 
-    // Arrange buttons horizontally in center of panel
-    const gap = 45;
-    const btnW = 210;
-    const totalW = btnW * 3 + gap * 2;
-    const startX = (820 - totalW) / 2 + btnW / 2;
-    
-    buttons.forEach((b, i) => {
-      b.x = startX + i * (btnW + gap);
-      b.y = 265;
+    const buttonStartY = 190;
+    buttons.forEach((btn, i) => {
+      btn.x = 187;
+      btn.y = buttonStartY + i * 68;
     });
+
+    statusPanel.x = Math.max(32, Math.min(w - 592, panelX));
+    statusPanel.y = h - 122;
+    statusBg.clear()
+      .roundRect(0, 0, 560, 84, 12)
+      .fill({ color: 0x060b13, alpha: 0.68 })
+      .stroke({ color: 0xffb44a, width: 1.5, alpha: 0.5 });
+    statusText.style.wordWrapWidth = 520;
+    statusText.x = (560 - statusText.width) / 2;
+    statusText.y = (84 - statusText.height) / 2;
   }
   layout(width, height);
+  statusPanel.visible = false;
 
   return {
     container: c,
-    show() { c.visible = true; },
+    show() {
+      c.visible = true;
+      setStatus('Выбери режим. Готовы Арена и первый сюжетный вылет: Караван в тумане.', 3.2);
+    },
     hide() { c.visible = false; },
+    update(dt: number) {
+      if (!statusPanel.visible) return;
+      if (statusLife > 0) {
+        statusLife -= dt;
+        if (statusLife <= 0) statusLife = 0;
+      } else {
+        statusPanel.alpha = Math.max(0, statusPanel.alpha - dt * 2);
+        if (statusPanel.alpha <= 0) statusPanel.visible = false;
+      }
+    },
     resize(w: number, h: number) { layout(w, h); },
   };
 }

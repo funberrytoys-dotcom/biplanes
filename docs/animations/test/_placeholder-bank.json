@@ -1,0 +1,355 @@
+{
+  "frames": {
+    "_placeholder-bank-00": {
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 260,
+        "h": 260
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 260,
+        "h": 260
+      },
+      "sourceSize": {
+        "w": 260,
+        "h": 260
+      }
+    },
+    "_placeholder-bank-01": {
+      "frame": {
+        "x": 260,
+        "y": 0,
+        "w": 260,
+        "h": 260
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 260,
+        "h": 260
+      },
+      "sourceSize": {
+        "w": 260,
+        "h": 260
+      }
+    },
+    "_placeholder-bank-02": {
+      "frame": {
+        "x": 520,
+        "y": 0,
+        "w": 260,
+        "h": 260
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 260,
+        "h": 260
+      },
+      "sourceSize": {
+        "w": 260,
+        "h": 260
+      }
+    },
+    "_placeholder-bank-03": {
+      "frame": {
+        "x": 780,
+        "y": 0,
+        "w": 260,
+        "h": 260
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 260,
+        "h": 260
+      },
+      "sourceSize": {
+        "w": 260,
+        "h": 260
+      }
+    },
+    "_placeholder-bank-04": {
+      "frame": {
+        "x": 0,
+        "y": 260,
+        "w": 260,
+        "h": 260
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 260,
+        "h": 260
+      },
+      "sourceSize": {
+        "w": 260,
+        "h": 260
+      }
+    },
+    "_placeholder-bank-05": {
+      "frame": {
+        "x": 260,
+        "y": 260,
+        "w": 260,
+        "h": 260
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 260,
+        "h": 260
+      },
+      "sourceSize": {
+        "w": 260,
+        "h": 260
+      }
+    },
+    "_placeholder-bank-06": {
+      "frame": {
+        "x": 520,
+        "y": 260,
+        "w": 260,
+        "h": 260
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 260,
+        "h": 260
+      },
+      "sourceSize": {
+        "w": 260,
+        "h": 260
+      }
+    },
+    "_placeholder-bank-07": {
+      "frame": {
+        "x": 780,
+        "y": 260,
+        "w": 260,
+        "h": 260
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 260,
+        "h": 260
+      },
+      "sourceSize": {
+        "w": 260,
+        "h": 260
+      }
+    },
+    "_placeholder-bank-08": {
+      "frame": {
+        "x": 0,
+        "y": 520,
+        "w": 260,
+        "h": 260
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 260,
+        "h": 260
+      },
+      "sourceSize": {
+        "w": 260,
+        "h": 260
+      }
+    },
+    "_placeholder-bank-09": {
+      "frame": {
+        "x": 260,
+        "y": 520,
+        "w": 260,
+        "h": 260
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 260,
+        "h": 260
+      },
+      "sourceSize": {
+        "w": 260,
+        "h": 260
+      }
+    },
+    "_placeholder-bank-10": {
+      "frame": {
+        "x": 520,
+        "y": 520,
+        "w": 260,
+        "h": 260
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 260,
+        "h": 260
+      },
+      "sourceSize": {
+        "w": 260,
+        "h": 260
+      }
+    },
+    "_placeholder-bank-11": {
+      "frame": {
+        "x": 780,
+        "y": 520,
+        "w": 260,
+        "h": 260
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 260,
+        "h": 260
+      },
+      "sourceSize": {
+        "w": 260,
+        "h": 260
+      }
+    },
+    "_placeholder-bank-12": {
+      "frame": {
+        "x": 0,
+        "y": 780,
+        "w": 260,
+        "h": 260
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 260,
+        "h": 260
+      },
+      "sourceSize": {
+        "w": 260,
+        "h": 260
+      }
+    },
+    "_placeholder-bank-13": {
+      "frame": {
+        "x": 260,
+        "y": 780,
+        "w": 260,
+        "h": 260
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 260,
+        "h": 260
+      },
+      "sourceSize": {
+        "w": 260,
+        "h": 260
+      }
+    },
+    "_placeholder-bank-14": {
+      "frame": {
+        "x": 520,
+        "y": 780,
+        "w": 260,
+        "h": 260
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 260,
+        "h": 260
+      },
+      "sourceSize": {
+        "w": 260,
+        "h": 260
+      }
+    },
+    "_placeholder-bank-15": {
+      "frame": {
+        "x": 780,
+        "y": 780,
+        "w": 260,
+        "h": 260
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 260,
+        "h": 260
+      },
+      "sourceSize": {
+        "w": 260,
+        "h": 260
+      }
+    }
+  },
+  "meta": {
+    "app": "biplanes-animate-tool",
+    "version": "1.0",
+    "image": "_placeholder-bank.png",
+    "format": "RGBA8888",
+    "size": {
+      "w": 1040,
+      "h": 1040
+    },
+    "scale": "1"
+  },
+  "animations": {
+    "_placeholder-bank": [
+      "_placeholder-bank-00",
+      "_placeholder-bank-01",
+      "_placeholder-bank-02",
+      "_placeholder-bank-03",
+      "_placeholder-bank-04",
+      "_placeholder-bank-05",
+      "_placeholder-bank-06",
+      "_placeholder-bank-07",
+      "_placeholder-bank-08",
+      "_placeholder-bank-09",
+      "_placeholder-bank-10",
+      "_placeholder-bank-11",
+      "_placeholder-bank-12",
+      "_placeholder-bank-13",
+      "_placeholder-bank-14",
+      "_placeholder-bank-15"
+    ]
+  }
+}

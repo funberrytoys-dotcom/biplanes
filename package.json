@@ -8,14 +8,16 @@
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",
-    "typecheck": "pnpm -r typecheck"
+    "typecheck": "pnpm -r typecheck",
+    "animate:bank": "node tools/animate/bank-sheet.mjs"
   },
   "devDependencies": {
-    "typescript": "^5.5.0",
     "@types/node": "^22.0.0",
-    "eslint": "^9.0.0",
-    "@typescript-eslint/parser": "^8.0.0",
     "@typescript-eslint/eslint-plugin": "^8.0.0",
+    "@typescript-eslint/parser": "^8.0.0",
+    "eslint": "^9.0.0",
+    "sharp": "^0.34.5",
+    "typescript": "^5.5.0",
     "vitest": "^2.0.0"
   },
   "packageManager": "pnpm@9.0.0"

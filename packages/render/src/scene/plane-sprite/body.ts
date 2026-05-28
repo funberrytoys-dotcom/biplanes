@@ -1,11 +1,64 @@
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js';
 
 export interface PlaneBodyHandle {
   fuselageContainer: Container;
   wingContainer: Container;
   propellerContainer: Container;
+  usesFullSpriteArt: boolean;
   blades: Graphics;
   blurDisk: Graphics;
+  wingShadow: Graphics;
+  fuselageGlint: Graphics;
+  propellerX: number;
+  updateArt: (dt: number) => void;
+}
+
+const PLANE_ART = {
+  player: {
+    url: '/assets/biplanes/plane_player_sov_sheet.png',
+    width: 512,
+    noseX: 0.43,
+    frameWidth: 512,
+    frameHeight: 286,
+    frameCount: 50,
+    columns: 10,
+    fps: 24,
+  },
+  enemy: {
+    url: '/assets/biplanes/plane_enemy_crimson_sheet.png',
+    width: 512,
+    noseX: 0.43,
+    frameWidth: 512,
+    frameHeight: 306,
+    frameCount: 17,
+    columns: 6,
+    fps: 12,
+  },
+} as const;
+
+function createAnimatedPlaneArt(art: typeof PLANE_ART.player | typeof PLANE_ART.enemy): { sprite: Sprite; update: (dt: number) => void } {
+  const sheet = Texture.from(art.url);
+  const frames = Array.from({ length: art.frameCount }, (_, i) => {
+    const x = (i % art.columns) * art.frameWidth;
+    const y = Math.floor(i / art.columns) * art.frameHeight;
+    return new Texture({
+      source: sheet.source,
+      frame: new Rectangle(x, y, art.frameWidth, art.frameHeight),
+    });
+  });
+  const firstFrame = frames[0];
+  if (!firstFrame) throw new Error('Enemy plane spritesheet has no frames');
+  const sprite = new Sprite(firstFrame);
+  let time = 0;
+
+  return {
+    sprite,
+    update(dt: number) {
+      time += dt;
+      const frame = Math.floor(time * art.fps) % frames.length;
+      sprite.texture = frames[frame] ?? firstFrame;
+    },
+  };
 }
 
 export function createPlaneBody(faction: 'player' | 'enemy'): PlaneBodyHandle {
@@ -14,18 +67,32 @@ export function createPlaneBody(faction: 'player' | 'enemy'): PlaneBodyHandle {
   const propellerContainer = new Container();
 
   const isPlayer = faction === 'player';
+  const art = PLANE_ART[faction];
+  const artHandle = createAnimatedPlaneArt(art);
+  const planeArt = artHandle.sprite;
+  planeArt.anchor.set(0.5);
+  const artScale = 104 / art.width;
+  planeArt.scale.set(-artScale, artScale);
+  fuselageContainer.addChild(planeArt);
+
   const primaryColor = isPlayer ? 0xf4d35e : 0xc0392b;    // Warm yellow / Crimson red
   const secondaryColor = isPlayer ? 0xeab308 : 0x962d22;  // Golden ochre / Dark burgundy
-  const metalColor = 0x5a5f69;                            // Steel grey for engine cylinders
+  const metalColor = 0x8a929e;                            // Chrome grey for engine cylinders
   const outlineColor = 0x000000;
 
-  // 1. Draw Exposed Cylinder Engine (Radial block at the nose)
+  // 1. Draw Exposed Cylinder Engine (Radial block at the nose) with metallic specular shading
   const engineNode = new Graphics();
-  // Drawing 4 small engine cylinder caps radiating near the cowling
-  engineNode.circle(13, -6, 2.5).fill(metalColor).stroke({ color: outlineColor, width: 1 });
-  engineNode.circle(13, 6, 2.5).fill(metalColor).stroke({ color: outlineColor, width: 1 });
-  engineNode.circle(10, -9, 2.5).fill(metalColor).stroke({ color: outlineColor, width: 1 });
-  engineNode.circle(10, 9, 2.5).fill(metalColor).stroke({ color: outlineColor, width: 1 });
+  // Draw 4 shiny engine cylinder caps with highlights (outer rim, inner metal, specular dot)
+  const drawCylinder = (x: number, y: number) => {
+    engineNode.circle(x, y, 3.5).fill(outlineColor);
+    engineNode.circle(x, y, 2.5).fill(metalColor);
+    engineNode.circle(x - 0.8, y - 0.8, 0.6).fill(0xffffff); // Specular highlight
+  };
+  drawCylinder(13, -6);
+  drawCylinder(13, 6);
+  drawCylinder(10, -9);
+  drawCylinder(10, 9);
+  engineNode.alpha = 0;
   fuselageContainer.addChild(engineNode);
 
   // 2. Draw Aerodynamic Fuselage (Body)
@@ -44,15 +111,49 @@ export function createPlaneBody(faction: 'player' | 'enemy'): PlaneBodyHandle {
       .fill(primaryColor)
       .stroke({ color: outlineColor, width: 1.8 });
 
-  // Fuselage canopy glass / decorative stripes
+  // Fuselage canopy glass / decorative stripes with premium reflective look
   const canopy = new Graphics()
     .moveTo(4, -6)
     .lineTo(8, -6)
     .bezierCurveTo(6, -2, 2, -2, 0, -5)
     .closePath()
-    .fill(isPlayer ? 0x66d9ef : 0xe74c3c); // Blue / Red canopy glass
+    .fill(isPlayer ? 0x33bfe5 : 0xd63031); // Sleek cyan / Crimson red base
 
-  fuselageContainer.addChild(body, canopy);
+  // Canopy gloss / reflections (diagonal shiny white stripes)
+  const canopyGlare = new Graphics()
+    .moveTo(2, -4.5)
+    .lineTo(5, -5.8)
+    .lineTo(6, -5.8)
+    .lineTo(3, -4.5)
+    .closePath()
+    .moveTo(4.8, -4.8)
+    .lineTo(6.8, -5.6)
+    .lineTo(7.4, -5.6)
+    .lineTo(5.4, -4.8)
+    .closePath()
+    .fill({ color: 0xffffff, alpha: 0.65 });
+  canopyGlare.blendMode = 'add';
+  canopy.addChild(canopyGlare);
+
+  // Dynamic wing shadow cast by the upper wing onto the fuselage (Phase 1.1)
+  const wingShadow = new Graphics()
+    .rect(-4, -14, 8, 22)
+    .fill({ color: 0x000000, alpha: 0.24 });
+  wingShadow.visible = false;
+  
+  // Dynamic fuselage specular metallic glint (Phase 1.1)
+  const fuselageGlint = new Graphics()
+    .moveTo(15, -2.5)
+    .bezierCurveTo(15, -5.5, 7, -7.5, -2, -5.5)
+    .lineTo(-11, -3.5)
+    .stroke({ color: 0xffffff, width: 1.6, alpha: 0.7 });
+  fuselageGlint.blendMode = 'add';
+  fuselageGlint.visible = false;
+
+  body.alpha = 0;
+  canopy.alpha = 0;
+  wingShadow.alpha = 0.18;
+  fuselageContainer.addChild(body, canopy, wingShadow, fuselageGlint);
 
   // 3. Draw Unique Faction Stencil Symbols on the Fuselage
   const symbol = new Graphics();
@@ -71,9 +172,10 @@ export function createPlaneBody(faction: 'player' | 'enemy'): PlaneBodyHandle {
       .moveTo(-5, -2).lineTo(-1, 2).stroke({ color: 0xff3333, width: 1 })
       .moveTo(-1, -2).lineTo(-5, 2).stroke({ color: 0xff3333, width: 1 });
   }
+  symbol.alpha = 0;
   fuselageContainer.addChild(symbol);
 
-  // 4. Draw Biplane Wings with wire struts
+  // 4. Draw Biplane Wings with wire struts and premium gradients
   const wingTop = new Graphics()
     .roundRect(-10, -18, 22, 5, 2.5)
     .fill(secondaryColor)
@@ -91,39 +193,49 @@ export function createPlaneBody(faction: 'player' | 'enemy'): PlaneBodyHandle {
     .moveTo(-8, -13).lineTo(8, 13)  // Diagonal strut wire
     .stroke({ color: 0x222222, width: 1, alpha: 0.65 });
 
+  wires.alpha = 0;
+  wingTop.alpha = 0;
+  wingBot.alpha = 0;
   wingContainer.addChild(wires, wingTop, wingBot);
 
   // 5. Draw Propeller Spinner and Blades
   // Blurred speed disk behind the propeller blades
+  const noseX = 104 * art.noseX;
   const blurDisk = new Graphics()
-    .ellipse(20, 0, 3, 20)
+    .ellipse(noseX, 0, 3.2, 28)
     .fill({ color: 0xffffff, alpha: 0.16 });
   blurDisk.visible = false;
   propellerContainer.addChild(blurDisk);
 
   const blades = new Graphics();
   // Nose spinner cap
-  blades.circle(20, 0, 3.5).fill(0xd3d3d3).stroke({ color: outlineColor, width: 1.2 });
+  blades.circle(noseX, 0, 3.5).fill(0xd3d3d3).stroke({ color: outlineColor, width: 1.2 });
   // Dynamic blades structure (starts pointing up/down)
-  blades.moveTo(20, 0)
-        .lineTo(19, -17).lineTo(21, -17)
-        .lineTo(20, 0)
-        .lineTo(19, 17).lineTo(21, 17)
+  blades.moveTo(noseX, 0)
+        .lineTo(noseX - 1.2, -26).lineTo(noseX + 1.2, -26)
+        .lineTo(noseX, 0)
+        .lineTo(noseX - 1.2, 26).lineTo(noseX + 1.2, 26)
         .closePath()
-        .fill(0xd8d8d8)
+        .fill(0xc47a2c)
         .stroke({ color: outlineColor, width: 1 });
 
   // Pivot propeller blades at the nose spinner center
-  blades.pivot.set(20, 0);
-  blades.x = 20;
+  blades.pivot.set(noseX, 0);
+  blades.x = noseX;
   blades.y = 0;
   propellerContainer.addChild(blades);
+  propellerContainer.visible = false;
 
   return {
     fuselageContainer,
     wingContainer,
     propellerContainer,
+    usesFullSpriteArt: true,
     blades,
     blurDisk,
+    wingShadow,
+    fuselageGlint,
+    propellerX: noseX,
+    updateArt: artHandle.update,
   };
 }

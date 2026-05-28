@@ -18,7 +18,7 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
     fontWeight: 'bold',
     stroke: { color: 0x000000, width: 3 },
   });
-  const title = new Text({ text: '⚡ AVIONICS LEVEL UP — UPGRADE SLOTS ⚡', style: titleStyle });
+  const title = new Text({ text: 'AVIONICS LEVEL UP - PICK AN UPGRADE', style: titleStyle });
   c.addChild(title);
 
   // 3. Staggered card management state
@@ -172,7 +172,7 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
         const u = choices[i];
         if (u) {
           b.currentId = u.id;
-          b.titleText.text = `⚡ ${u.title.toUpperCase()}`;
+          b.titleText.text = u.title.toUpperCase();
           b.descText.text = u.description;
           
           // Trigger sliding stagger entry variables

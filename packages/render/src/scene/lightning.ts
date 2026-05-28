@@ -13,25 +13,17 @@ export function createLightning(width: number, height: number, screenFx?: Screen
 
   function draw() {
     bolt.clear();
-    const startX = Math.random() * width;
-    const startY = Math.random() * height * 0.2;
-    let x = startX, y = startY;
-    bolt.moveTo(x, y);
-    const segs = 4 + (Math.random() * 3 | 0);
-    for (let i = 0; i < segs; i++) {
-      x += (Math.random() - 0.5) * 60;
-      y += 30 + Math.random() * 40;
-      bolt.lineTo(x, y);
-    }
-    bolt.stroke({ color: 0xffffff, width: 1.5, alpha: 1 });
-    bolt.alpha = 1;
+    const glowY = Math.random() * height * 0.12;
+    bolt.rect(0, glowY, width, height * 0.24).fill({ color: 0xb9d8ff, alpha: 0.1 });
+    bolt.alpha = 0.55;
     boltLife = 0.08;
-    if (screenFx) screenFx.flash(0xffffff, 0.12, 0.2);
+    if (screenFx) screenFx.flash(0xffffff, 0.07, 0.18);
   }
 
   return {
     container: c,
     setActive(v: boolean) { isActive = v; if (!v) { bolt.alpha = 0; boltLife = 0; } },
+    isLightningActive() { return boltLife > 0; },
     update(dt: number) {
       if (!isActive) return;
       if (boltLife > 0) {

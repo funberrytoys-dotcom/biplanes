@@ -42,7 +42,8 @@ export function isStalling(p: PlaneKinematic): boolean {
 export function stepPlane(
   p: PlaneKinematic,
   input: PhysicsInput,
-  dt: number = TICK_DT
+  dt: number = TICK_DT,
+  worldWidth: number = WORLD_WIDTH
 ): PlaneKinematic {
   // 1) Continuous rotation
   // rotate=-1 → CCW (nose toward up when facing right)
@@ -112,6 +113,18 @@ export function stepPlane(
   let vx = cosH * g;
   let vy = sinH * g;
 
+  // Apply boundary soft winds to vx if world is scrolling (worldWidth > 2000)
+  if (worldWidth > 2000) {
+    const curX = p.position.x;
+    if (curX < 300) {
+      const ratio = (300 - curX) / 300; // 0 at 300, 1 at 0
+      vx += 1500 * ratio * dt; // strong wind blowing right
+    } else if (curX > worldWidth - 300) {
+      const ratio = (curX - (worldWidth - 300)) / 300; // 0 at bound-300, 1 at bound
+      vx -= 1500 * ratio * dt; // strong wind blowing left
+    }
+  }
+
   // 8) Soft stall sink — gradual ramp instead of sharp cliff at G_STALL.
   // Below G_MAX_LEVEL, sink ramps from 0 to STALL_SINK_MAX as g drops to 0.
   if (g < G_MAX_LEVEL) {
@@ -125,8 +138,8 @@ export function stepPlane(
   let py = p.position.y + vy * dt;
 
   // 10) World wrap on X
-  if (px < 0) px += WORLD_WIDTH;
-  if (px >= WORLD_WIDTH) px -= WORLD_WIDTH;
+  if (px < 0) px += worldWidth;
+  if (px >= worldWidth) px -= worldWidth;
 
   // 11) Ground/ceiling
   if (py > GROUND_Y) {
@@ -194,9 +207,10 @@ export function stepPlaneTaxi(
   //
   // For simplicity & symmetry, we only support facing=1 for taxi (player runway is on the left
   // and the player faces right; AI taxi starts facing left and we mirror by flipping heading).
+  const maxRunwayPitchUp = TAKEOFF_LIFTOFF_PITCH + 0.08;
   if (facing === 1) {
     if (heading > 0) heading = 0;             // can't dip below horizon on the ground
-    if (heading < -Math.PI / 2 + 0.05) heading = -Math.PI / 2 + 0.05;
+    if (heading < -maxRunwayPitchUp) heading = -maxRunwayPitchUp;
   } else {
     // Facing left: horizontal heading is π (or -π). Pitch-up = heading in (π/2, π).
     // Normalize heading toward π for comparison.
@@ -204,13 +218,13 @@ export function stepPlaneTaxi(
     if (h < 0) h += 2 * Math.PI; // bring into [0, 2π)
     // Allowed: [π, 3π/2 - 0.05]  (horizon to just before straight up on the left side)
     if (h < Math.PI) h = Math.PI;
-    if (h > 3 * Math.PI / 2 - 0.05) h = 3 * Math.PI / 2 - 0.05;
+    if (h > Math.PI + maxRunwayPitchUp) h = Math.PI + maxRunwayPitchUp;
     heading = h > Math.PI ? h - 2 * Math.PI : h;
   }
 
   // Position rolls along the runway in the facing direction.
   const px = p.position.x + facing * g * dt;
-  const py = RUNWAY_Y;
+  const py = p.position.y;
   const vx = facing * g;
   const vy = 0;
 
@@ -239,5 +253,4 @@ export function stepPlaneTaxi(
     readyForLiftoff,
   };
 }
-
 

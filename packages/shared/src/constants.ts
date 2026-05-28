@@ -20,6 +20,8 @@ export const MACHINE_GUN_COOLDOWN = 0.12;
 export const MACHINE_GUN_DAMAGE = 10;
 export const XP_PER_KILL_LIGHT = 5;
 export const XP_PER_KILL_HEAVY = 12;
+export const PLAYER_SCORE_TO_WIN = 10;
+export const ENEMY_SCORE_TO_LOSE = 5;
 export const XP_PICKUP_MAGNET_RANGE = 120;
 export const XP_PICKUP_ABSORB_RANGE = 30;
 export const LEVEL_UP_THRESHOLDS = [10, 25, 50, 90, 150, 230, 330, 450];
@@ -109,4 +111,3 @@ export const COLLISION_DAMAGE_K = 0.055;       // tuned so head-on at ~1800 px/s
 export const COLLISION_COOLDOWN_TICKS = 30;    // 0.5s at 60 Hz
 export const COLLISION_BOUNCE_VELOCITY_RETAIN = 0.6;
 export const COLLISION_BOUNCE_HEADING_JITTER = 0.4;   // rad
-

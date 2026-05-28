@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { stepPlane, isStalling, type PlaneKinematic } from './plane-physics.js';
-import { TICK_DT, G_MAX_LEVEL, GROUND_Y } from '@biplanes/shared';
+import { stepPlane, stepPlaneTaxi, isStalling, type PlaneKinematic } from './plane-physics.js';
+import { TICK_DT, G_MAX_LEVEL, GROUND_Y, TAKEOFF_LIFTOFF_PITCH } from '@biplanes/shared';
 
 function makePlane(overrides: Partial<PlaneKinematic> = {}): PlaneKinematic {
   return {
@@ -95,5 +95,22 @@ describe('plane-physics (continuous model)', () => {
     const p = makePlane({ heading: Math.PI * 0.8, g: 1200 });
     const after = stepPlane(p, { rotate: 0 }, TICK_DT);
     expect(after.facing).toBe(-1);
+  });
+
+  it('taxi pitch is capped to a mild takeoff angle when facing right', () => {
+    let p = makePlane({ heading: 0, g: 450, facing: 1, throttleLevel: 1 });
+    for (let i = 0; i < 60; i++) {
+      p = stepPlaneTaxi(p, { rotate: -1 }, TICK_DT).kinematic;
+    }
+    expect(-p.heading).toBeLessThanOrEqual(TAKEOFF_LIFTOFF_PITCH + 0.081);
+  });
+
+  it('taxi pitch is capped to a mild takeoff angle when facing left', () => {
+    let p = makePlane({ heading: Math.PI, g: 450, facing: -1, throttleLevel: 1 });
+    for (let i = 0; i < 60; i++) {
+      p = stepPlaneTaxi(p, { rotate: 1 }, TICK_DT).kinematic;
+    }
+    const pitchUp = Math.PI - Math.abs(p.heading);
+    expect(pitchUp).toBeLessThanOrEqual(TAKEOFF_LIFTOFF_PITCH + 0.081);
   });
 });

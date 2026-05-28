@@ -1,0 +1,355 @@
+{
+  "frames": {
+    "plane-player-bank-00": {
+      "frame": {
+        "x": 0,
+        "y": 0,
+        "w": 597,
+        "h": 597
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 597,
+        "h": 597
+      },
+      "sourceSize": {
+        "w": 597,
+        "h": 597
+      }
+    },
+    "plane-player-bank-01": {
+      "frame": {
+        "x": 597,
+        "y": 0,
+        "w": 597,
+        "h": 597
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 597,
+        "h": 597
+      },
+      "sourceSize": {
+        "w": 597,
+        "h": 597
+      }
+    },
+    "plane-player-bank-02": {
+      "frame": {
+        "x": 1194,
+        "y": 0,
+        "w": 597,
+        "h": 597
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 597,
+        "h": 597
+      },
+      "sourceSize": {
+        "w": 597,
+        "h": 597
+      }
+    },
+    "plane-player-bank-03": {
+      "frame": {
+        "x": 1791,
+        "y": 0,
+        "w": 597,
+        "h": 597
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 597,
+        "h": 597
+      },
+      "sourceSize": {
+        "w": 597,
+        "h": 597
+      }
+    },
+    "plane-player-bank-04": {
+      "frame": {
+        "x": 0,
+        "y": 597,
+        "w": 597,
+        "h": 597
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 597,
+        "h": 597
+      },
+      "sourceSize": {
+        "w": 597,
+        "h": 597
+      }
+    },
+    "plane-player-bank-05": {
+      "frame": {
+        "x": 597,
+        "y": 597,
+        "w": 597,
+        "h": 597
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 597,
+        "h": 597
+      },
+      "sourceSize": {
+        "w": 597,
+        "h": 597
+      }
+    },
+    "plane-player-bank-06": {
+      "frame": {
+        "x": 1194,
+        "y": 597,
+        "w": 597,
+        "h": 597
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 597,
+        "h": 597
+      },
+      "sourceSize": {
+        "w": 597,
+        "h": 597
+      }
+    },
+    "plane-player-bank-07": {
+      "frame": {
+        "x": 1791,
+        "y": 597,
+        "w": 597,
+        "h": 597
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 597,
+        "h": 597
+      },
+      "sourceSize": {
+        "w": 597,
+        "h": 597
+      }
+    },
+    "plane-player-bank-08": {
+      "frame": {
+        "x": 0,
+        "y": 1194,
+        "w": 597,
+        "h": 597
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 597,
+        "h": 597
+      },
+      "sourceSize": {
+        "w": 597,
+        "h": 597
+      }
+    },
+    "plane-player-bank-09": {
+      "frame": {
+        "x": 597,
+        "y": 1194,
+        "w": 597,
+        "h": 597
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 597,
+        "h": 597
+      },
+      "sourceSize": {
+        "w": 597,
+        "h": 597
+      }
+    },
+    "plane-player-bank-10": {
+      "frame": {
+        "x": 1194,
+        "y": 1194,
+        "w": 597,
+        "h": 597
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 597,
+        "h": 597
+      },
+      "sourceSize": {
+        "w": 597,
+        "h": 597
+      }
+    },
+    "plane-player-bank-11": {
+      "frame": {
+        "x": 1791,
+        "y": 1194,
+        "w": 597,
+        "h": 597
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 597,
+        "h": 597
+      },
+      "sourceSize": {
+        "w": 597,
+        "h": 597
+      }
+    },
+    "plane-player-bank-12": {
+      "frame": {
+        "x": 0,
+        "y": 1791,
+        "w": 597,
+        "h": 597
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 597,
+        "h": 597
+      },
+      "sourceSize": {
+        "w": 597,
+        "h": 597
+      }
+    },
+    "plane-player-bank-13": {
+      "frame": {
+        "x": 597,
+        "y": 1791,
+        "w": 597,
+        "h": 597
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 597,
+        "h": 597
+      },
+      "sourceSize": {
+        "w": 597,
+        "h": 597
+      }
+    },
+    "plane-player-bank-14": {
+      "frame": {
+        "x": 1194,
+        "y": 1791,
+        "w": 597,
+        "h": 597
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 597,
+        "h": 597
+      },
+      "sourceSize": {
+        "w": 597,
+        "h": 597
+      }
+    },
+    "plane-player-bank-15": {
+      "frame": {
+        "x": 1791,
+        "y": 1791,
+        "w": 597,
+        "h": 597
+      },
+      "rotated": false,
+      "trimmed": false,
+      "spriteSourceSize": {
+        "x": 0,
+        "y": 0,
+        "w": 597,
+        "h": 597
+      },
+      "sourceSize": {
+        "w": 597,
+        "h": 597
+      }
+    }
+  },
+  "meta": {
+    "app": "biplanes-animate-tool",
+    "version": "1.0",
+    "image": "plane-player-bank.png",
+    "format": "RGBA8888",
+    "size": {
+      "w": 2388,
+      "h": 2388
+    },
+    "scale": "1"
+  },
+  "animations": {
+    "plane-player-bank": [
+      "plane-player-bank-00",
+      "plane-player-bank-01",
+      "plane-player-bank-02",
+      "plane-player-bank-03",
+      "plane-player-bank-04",
+      "plane-player-bank-05",
+      "plane-player-bank-06",
+      "plane-player-bank-07",
+      "plane-player-bank-08",
+      "plane-player-bank-09",
+      "plane-player-bank-10",
+      "plane-player-bank-11",
+      "plane-player-bank-12",
+      "plane-player-bank-13",
+      "plane-player-bank-14",
+      "plane-player-bank-15"
+    ]
+  }
+}
