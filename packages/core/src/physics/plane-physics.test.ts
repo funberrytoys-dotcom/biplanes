@@ -42,6 +42,15 @@ describe('plane-physics (continuous model)', () => {
     expect(after.g).toBeGreaterThan(p.g);
   });
 
+  it('boost raises the level-flight speed target by 30 percent', () => {
+    const p = makePlane({ heading: 0, g: G_MAX_LEVEL * 1.08, throttleLevel: 1 });
+    const normal = stepPlane(p, { rotate: 0 }, TICK_DT);
+    const boosted = stepPlane(p, { rotate: 0, boost: true }, TICK_DT);
+
+    expect(normal.g).toBeLessThan(p.g);
+    expect(boosted.g).toBeGreaterThan(p.g);
+  });
+
   it('climbing (heading near -π/2) bleeds speed over time', () => {
     let s = makePlane({ heading: -1.2, g: G_MAX_LEVEL, throttle: false });
     for (let i = 0; i < 30; i++) s = stepPlane(s, { rotate: 0 }, TICK_DT);

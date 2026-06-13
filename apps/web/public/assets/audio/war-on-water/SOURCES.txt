@@ -1,0 +1,14 @@
+War on Water: SNDFX by yd
+Source: https://opengameart.org/content/war-on-water-sndfx
+License: CC0
+Used for aircraft engine, dive/boost layers, guns, explosions, UI warning/click sounds.
+
+Win Jingle by Fupi
+Source: https://opengameart.org/content/win-jingle
+License: CC0
+Used for victory cue.
+
+Lose Game Short Music Clip by Robin Lamb
+Source: https://opengameart.org/content/lose-game-short-music-clip
+License: CC0
+Used for defeat cue.

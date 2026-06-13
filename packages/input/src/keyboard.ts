@@ -33,7 +33,8 @@ export function createKeyboardController(): KeyboardController {
         // the ejected pilot on foot. The tick router decides which based on world state.
         fire: keys.has('Space'),
         jump: keys.has('Space'),
-        bomb: keys.has('ShiftLeft') || keys.has('KeyB'),
+        bomb: keys.has('KeyB'),
+        boost: keys.has('ShiftLeft') || keys.has('ShiftRight'),
         throttleDelta,
         eject: keys.has('KeyE'),
       };

@@ -9,17 +9,19 @@ export interface TouchController {
     rotateCw: { x: number; y: number; r: number };
     fire: { x: number; y: number; r: number };
     bomb: { x: number; y: number; r: number };
+    boost: { x: number; y: number; r: number };
   };
   updateZones(viewportW: number, viewportH: number): void;
 }
 
 export function createTouchController(canvas: HTMLElement): TouchController {
-  const state = { rotateCcw: false, rotateCw: false, fire: false, bomb: false };
+  const state = { rotateCcw: false, rotateCw: false, fire: false, bomb: false, boost: false };
   const zones = {
     rotateCcw: { x: 0, y: 0, r: 0 },
     rotateCw: { x: 0, y: 0, r: 0 },
     fire: { x: 0, y: 0, r: 0 },
     bomb: { x: 0, y: 0, r: 0 },
+    boost: { x: 0, y: 0, r: 0 },
   };
 
   function updateZones(w: number, h: number) {
@@ -28,6 +30,7 @@ export function createTouchController(canvas: HTMLElement): TouchController {
     zones.rotateCw = { x: r * 3.2, y: h - r * 1.2, r };
     zones.fire = { x: w - r * 1.5, y: h - r * 1.5, r: r * 1.2 };
     zones.bomb = { x: w - r * 3.5, y: h - r * 1.5, r };
+    zones.boost = { x: w - r * 2.5, y: h - r * 3.15, r: r * 0.9 };
   }
 
   function inZone(px: number, py: number, z: { x: number; y: number; r: number }) {
@@ -36,7 +39,7 @@ export function createTouchController(canvas: HTMLElement): TouchController {
   }
 
   function handleTouches(touches: TouchList) {
-    state.rotateCcw = state.rotateCw = state.fire = state.bomb = false;
+    state.rotateCcw = state.rotateCw = state.fire = state.bomb = state.boost = false;
     for (let i = 0; i < touches.length; i++) {
       const t = touches[i]!;
       const rect = canvas.getBoundingClientRect();
@@ -46,6 +49,7 @@ export function createTouchController(canvas: HTMLElement): TouchController {
       if (inZone(x, y, zones.rotateCw)) state.rotateCw = true;
       if (inZone(x, y, zones.fire)) state.fire = true;
       if (inZone(x, y, zones.bomb)) state.bomb = true;
+      if (inZone(x, y, zones.boost)) state.boost = true;
     }
   }
 
@@ -64,8 +68,8 @@ export function createTouchController(canvas: HTMLElement): TouchController {
       let rotate: -1 | 0 | 1 = 0;
       if (state.rotateCcw && !state.rotateCw) rotate = -1;
       else if (state.rotateCw && !state.rotateCcw) rotate = 1;
-      const touching = state.rotateCcw || state.rotateCw || state.fire || state.bomb;
-      return { rotate, fire: state.fire, bomb: state.bomb, throttleDelta: touching ? 1 : 0, eject: false, jump: false };
+      const touching = state.rotateCcw || state.rotateCw || state.fire || state.bomb || state.boost;
+      return { rotate, fire: state.fire, bomb: state.bomb, throttleDelta: touching ? 1 : 0, eject: false, jump: false, boost: state.boost };
     },
     destroy() {
       canvas.removeEventListener('touchstart', onTouch);

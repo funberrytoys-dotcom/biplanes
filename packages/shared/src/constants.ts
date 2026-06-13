@@ -8,6 +8,10 @@ export const PITCH_BLEED_MAX = 700;   // px/sec², speed bleed when nose fully v
 export const STALL_SINK_MAX = 680;    // px/sec, downward push when g=0
 export const DRAG_COEFFICIENT = 0.05; // fractional speed loss per second (scale-invariant)
 export const PLANE_TURN_RATE = 2.2;   // radians/sec when rotate input held (was 3.5)
+export const BOOST_SPEED_MULTIPLIER = 1.3;
+export const BOOST_OVERHEAT_SEC = 4.0;
+export const BOOST_COOL_SEC = 8.0;
+export const NO_THROTTLE_STALL_SEC = 3.0;
 export const THROTTLE_CHANGE_RATE = 1.5; // throttle units/sec (full sweep 0→1 in ~0.67s)
 
 // === Existing tunables — KEEP unless physics-related ===
@@ -20,11 +24,11 @@ export const MACHINE_GUN_COOLDOWN = 0.12;
 export const MACHINE_GUN_DAMAGE = 10;
 export const XP_PER_KILL_LIGHT = 5;
 export const XP_PER_KILL_HEAVY = 12;
-export const PLAYER_SCORE_TO_WIN = 10;
+export const PLAYER_SCORE_TO_WIN = 15;
 export const ENEMY_SCORE_TO_LOSE = 5;
 export const XP_PICKUP_MAGNET_RANGE = 120;
 export const XP_PICKUP_ABSORB_RANGE = 30;
-export const LEVEL_UP_THRESHOLDS = [10, 25, 50, 90, 150, 230, 330, 450];
+export const LEVEL_UP_THRESHOLDS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75];
 export const TICK_HZ = 60;
 export const TICK_DT = 1 / TICK_HZ;
 export const WORLD_WIDTH = 1920;

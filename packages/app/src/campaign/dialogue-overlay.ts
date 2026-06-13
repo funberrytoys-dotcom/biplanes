@@ -1,4 +1,5 @@
 import { Container, Graphics, Sprite, Text, TextStyle } from 'pixi.js';
+import { getMissionUiLayout } from './mission-ui-layout.js';
 
 export interface DialogueLine {
   speaker: string;
@@ -183,7 +184,7 @@ export function createDialogueOverlay(width: number, height: number) {
   };
 }
 
-export function createRadioPopup(width: number) {
+export function createRadioPopup(width: number, height: number) {
   const container = new Container();
   container.visible = false;
   container.alpha = 0;
@@ -216,9 +217,11 @@ export function createRadioPopup(width: number) {
   let life = 0;
   let maxLife = 0;
   let screenW = width;
+  let screenH = height;
 
   function redraw() {
-    const w = Math.min(520, screenW - 42);
+    const layout = getMissionUiLayout(screenW, screenH);
+    const w = layout.radioWidth;
     bg.clear()
       .roundRect(0, 0, w, 76, 8)
       .fill({ color: 0x07101f, alpha: 0.82 })
@@ -228,8 +231,8 @@ export function createRadioPopup(width: number) {
     bodyText.x = 16;
     bodyText.y = 31;
     bodyText.style.wordWrapWidth = w - 32;
-    container.x = Math.max(20, screenW - w - 28);
-    container.y = 116;
+    container.x = layout.radioX;
+    container.y = layout.radioY;
   }
 
   redraw();
@@ -264,8 +267,9 @@ export function createRadioPopup(width: number) {
       container.visible = false;
       container.alpha = 0;
     },
-    resize(w: number) {
+    resize(w: number, h: number) {
       screenW = w;
+      screenH = h;
       redraw();
     },
   };

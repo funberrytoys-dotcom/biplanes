@@ -18,7 +18,7 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
     fontWeight: 'bold',
     stroke: { color: 0x000000, width: 3 },
   });
-  const title = new Text({ text: 'AVIONICS LEVEL UP - PICK AN UPGRADE', style: titleStyle });
+  const title = new Text({ text: 'НОВЫЙ УРОВЕНЬ - ВЫБЕРИ УЛУЧШЕНИЕ', style: titleStyle });
   c.addChild(title);
 
   // 3. Staggered card management state

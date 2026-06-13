@@ -28,5 +28,11 @@ export interface Plane {
   state: PlaneState;
   respawnTimer: number;   // seconds until respawn (only meaningful when state === 'crashed')
   dyingTimer?: number;    // seconds remaining in death-spin (only meaningful when state === 'dying')
+  boostHeat?: number;     // 0..1 engine heat from boost use
+  boostActive?: boolean;
+  noThrottleSec?: number; // time spent flying with throttle at zero
   aiRole?: PlaneAiRole;
+  isBoss?: boolean;
+  visualScale?: number;
+  bossName?: string;
 }

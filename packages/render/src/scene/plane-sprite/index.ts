@@ -3,8 +3,6 @@ import type { Plane, PlaneState } from '@biplanes/core';
 import {
   SMOKE_THRESHOLD,
   FIRE_THRESHOLD,
-  HIT_PAUSE_FRAMES_HIT,
-  HIT_PAUSE_FRAMES_KILL,
   HIT_PAUSE_FRAMES_EXPLODE,
   G_STALL,
   G_MAX_LEVEL,
@@ -19,6 +17,7 @@ import type { ScreenEffectsHandle } from '../screen-effects.js';
 import { createPlaneBody } from './body.js';
 import { createPlaneControls } from './controls.js';
 import { createPilotHead } from './pilot-head.js';
+import { resolveGunfeelImpact, shouldApplyImpactCamera } from '../gunfeel-math.js';
 
 interface CameraLike {
   punch(dx: number, dy: number, amount: number): void;
@@ -50,7 +49,18 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
   const c = new Container();
 
   const body = createPlaneBody(faction);
-  const { fuselageContainer, wingContainer, propellerContainer, usesFullSpriteArt, blades, blurDisk, wingShadow, fuselageGlint, propellerX, updateArt } = body;
+  const {
+    fuselageContainer,
+    wingContainer,
+    propellerContainer,
+    usesFullSpriteArt,
+    blades,
+    blurDisk,
+    wingShadow,
+    fuselageGlint,
+    propellerX,
+    updateArt,
+  } = body;
 
   c.addChild(wingContainer, fuselageContainer, propellerContainer);
   const VISUAL_SCALE = 1.16;
@@ -87,7 +97,6 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
   let fireAcc = 0;
   let exhaustAcc = 0;
   let dustAcc = 0;
-  let wingTrailAcc = 0;
 
   // Banking visual squeeze (Task 2.2)
   let bankT = 0;
@@ -97,6 +106,7 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
 
   // Heat shimmer accumulator (Task 2.6)
   let heatAcc = 0;
+  let shudderTime = 0;
 
   // Wind streak accumulator (Task 3.2 — player only at high g)
   let windAcc = 0;
@@ -112,6 +122,11 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
   const HP_BAR_HEIGHT = 3;
   const HP_BAR_BASE_W = 30; // px per PLANE_INITIAL_HP
   const HP_BAR_Y_OFFSET = -34;
+
+  function hpBarWidth(p: Plane) {
+    const scaled = HP_BAR_BASE_W * (p.maxHp / PLANE_INITIAL_HP);
+    return Math.min(p.isBoss ? 96 : 54, scaled);
+  }
 
   return {
     container: c,
@@ -144,13 +159,13 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
         faction === 'player' && p.state === 'taxi'
           ? Math.max(0, 1 - Math.min(1, p.kinematic.g / 260))
           : 0;
-      const enemyRunwayVisual =
-        faction === 'enemy'
-        && (p.state === 'taxi' || (p.state === 'flying' && p.kinematic.position.y > GROUND_Y - 95));
+      const enemyRunwayVisual = faction === 'enemy' && p.state === 'taxi';
 
       c.x = p.kinematic.position.x;
       c.y = p.kinematic.position.y + taxiLean * 3.5;
-      c.scale.x = enemyRunwayVisual ? -1 : 1;
+      const spriteScale = p.visualScale ?? 1;
+      c.scale.x = (enemyRunwayVisual ? -1 : 1) * spriteScale;
+      c.scale.y = spriteScale;
       if (enemyRunwayVisual) {
         let runwayHeading = p.kinematic.heading - Math.PI;
         while (runwayHeading > Math.PI) runwayHeading -= Math.PI * 2;
@@ -224,17 +239,21 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
         let shakeX = 0;
         let shakeY = 0;
         if (aliveAndFlying) {
+          shudderTime += dt;
           const stallShakeFloor = G_STALL * 0.8;
           if (p.kinematic.g < stallShakeFloor) {
             const depth = Math.min(1, (stallShakeFloor - p.kinematic.g) / stallShakeFloor);
-            const amp = 4 * depth;
-            shakeX = (Math.random() - 0.5) * amp;
-            shakeY = (Math.random() - 0.5) * amp;
+            const amp = 2.4 * depth;
+            shakeX = Math.sin(shudderTime * 42) * amp;
+            shakeY = Math.sin(shudderTime * 57 + 1.8) * amp * 0.7;
           } else if (turnRate > 1.5) {
             // Hard maneuver — subtle buffet
-            shakeX = (Math.random() - 0.5) * 2;
-            shakeY = (Math.random() - 0.5) * 2;
+            const amp = Math.min(1, (turnRate - 1.5) / 2.8);
+            shakeX = Math.sin(shudderTime * 36 + 0.6) * amp;
+            shakeY = Math.sin(shudderTime * 48 + 2.2) * amp * 0.5;
           }
+        } else {
+          shudderTime = 0;
         }
         fuselageContainer.x = shakeX;
         fuselageContainer.y = shakeY;
@@ -315,19 +334,32 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
       // 2. Damage impact sparks trigger
       if (aliveAndFlying && p.hp < prevHp) {
         const wasKill = p.hp <= 0 && prevHp > 0;
+        const incomingHeading = Math.atan2(p.kinematic.velocity.y, p.kinematic.velocity.x) + Math.PI;
+        const impact = resolveGunfeelImpact({
+          incomingHeadingRad: incomingHeading,
+          isHeavy: wasKill,
+          killed: wasKill,
+        });
         if (fx) {
-          fx.addSparks({ x: p.kinematic.position.x, y: p.kinematic.position.y }, 10);
-          fx.addImpactFlash({ x: p.kinematic.position.x, y: p.kinematic.position.y });
+          fx.addDirectionalSparks(
+            { x: p.kinematic.position.x, y: p.kinematic.position.y },
+            impact.sparkDirection,
+            impact.sparkCount,
+            wasKill ? 1.35 : 1,
+          );
+          fx.addImpactFlash({ x: p.kinematic.position.x, y: p.kinematic.position.y }, impact.flashRadius);
         }
-        if (clock) {
-          clock.hitPause(wasKill ? HIT_PAUSE_FRAMES_KILL : HIT_PAUSE_FRAMES_HIT);
+        const applyImpactCamera = shouldApplyImpactCamera({
+          targetFaction: p.faction,
+          killed: wasKill,
+        });
+        if (clock && applyImpactCamera) {
+          clock.hitPause(impact.hitPauseFrames);
         }
-        if (camera) {
-          const dirX = p.kinematic.velocity.x;
-          const dirY = p.kinematic.velocity.y;
-          camera.punch(-dirX, -dirY, 3);
-          camera.shake(wasKill ? 8 : 4);
-          if (wasKill) camera.zoomPunch(1.04, 0.1);
+        if (camera && applyImpactCamera) {
+          camera.punch(-impact.sparkDirection.x, -impact.sparkDirection.y, impact.cameraPunch);
+          camera.shake(impact.cameraShake);
+          camera.zoomPunch(impact.zoomPunch, wasKill ? 0.12 : 0.08);
         }
         if (numbers) {
           const damageDealt = prevHp - p.hp;
@@ -456,7 +488,7 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
         if (wasAlive && p.state === 'crashed' && prevState !== 'dying') {
           fx.addExplosion({ x: p.kinematic.position.x, y: p.kinematic.position.y });
           if (groundFx && p.kinematic.position.y > GROUND_Y - 10) {
-            groundFx.spawnCrater(p.kinematic.position.x, GROUND_Y);
+            groundFx.spawnCrater(p.kinematic.position.x, p.kinematic.position.y);
           }
         }
 
@@ -472,7 +504,7 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
           }
           if (opts?.screenFx) opts.screenFx.flash(0xffa040, 0.5, 0.3);
           if (groundFx && p.kinematic.position.y > GROUND_Y - 10) {
-            groundFx.spawnCrater(p.kinematic.position.x, GROUND_Y);
+            groundFx.spawnCrater(p.kinematic.position.x, p.kinematic.position.y);
           }
         }
       }
@@ -484,24 +516,24 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
         hpBar.visible = visible;
         if (visible) {
           if (p.maxHp !== lastDrawnMaxHp) {
-            const w = HP_BAR_BASE_W * (p.maxHp / PLANE_INITIAL_HP);
+            const w = hpBarWidth(p);
             hpBarBg.clear()
-              .rect(-w / 2, 0, w, HP_BAR_HEIGHT)
+              .rect(-w / 2, 0, w, p.isBoss ? HP_BAR_HEIGHT + 2 : HP_BAR_HEIGHT)
               .fill({ color: 0x000000, alpha: 0.6 })
               .stroke({ color: 0x000000, width: 1, alpha: 0.9 });
             lastDrawnMaxHp = p.maxHp;
           }
-          const w = HP_BAR_BASE_W * (p.maxHp / PLANE_INITIAL_HP);
+          const w = hpBarWidth(p);
           const hpFrac = Math.max(0, Math.min(1, p.hp / p.maxHp));
           // Color shifts green → yellow → red as HP drops.
           let fillColor = 0x4ade80;
           if (hpFrac <= 0.25) fillColor = 0xef4444;
           else if (hpFrac <= 0.5) fillColor = 0xfacc15;
           hpBarFill.clear()
-            .rect(-w / 2, 0, w * hpFrac, HP_BAR_HEIGHT)
-            .fill(fillColor);
+            .rect(-w / 2, 0, w * hpFrac, p.isBoss ? HP_BAR_HEIGHT + 2 : HP_BAR_HEIGHT)
+            .fill({ color: fillColor });
           hpBar.x = p.kinematic.position.x;
-          hpBar.y = p.kinematic.position.y + HP_BAR_Y_OFFSET;
+          hpBar.y = p.kinematic.position.y + (p.isBoss ? HP_BAR_Y_OFFSET - 16 : HP_BAR_Y_OFFSET);
         }
       }
 

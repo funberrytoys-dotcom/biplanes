@@ -7,13 +7,13 @@ import {
   PITCH_BLEED_MAX,
   STALL_SINK_MAX,
   PLANE_TURN_RATE,
-  GROUND_Y,
   WORLD_WIDTH,
+  WORLD_HEIGHT,
   DRAG_COEFFICIENT,
   TAKEOFF_ROLL_ACCEL,
   TAKEOFF_LIFTOFF_SPEED,
   TAKEOFF_LIFTOFF_PITCH,
-  RUNWAY_Y,
+  BOOST_SPEED_MULTIPLIER,
   type Vec2,
 } from '@biplanes/shared';
 
@@ -33,6 +33,8 @@ export interface PlaneKinematic {
 
 export interface PhysicsInput {
   rotate: -1 | 0 | 1;
+  boost?: boolean;
+  boostMultiplier?: number;
 }
 
 export function isStalling(p: PlaneKinematic): boolean {
@@ -44,8 +46,10 @@ export function stepPlane(
   input: PhysicsInput,
   dt: number = TICK_DT,
   worldWidth: number = WORLD_WIDTH,
-  softFloor: boolean = false
+  softFloor: boolean = false,
+  worldHeight: number = WORLD_HEIGHT
 ): PlaneKinematic {
+  const groundY = worldHeight - 90;
   // 1) Continuous rotation
   // rotate=-1 → CCW (nose toward up when facing right)
   // rotate=+1 → CW (nose toward down when facing right)
@@ -77,7 +81,7 @@ export function stepPlane(
   // tilts the nose UP into a climb so the plane turns away instead of hitting ground.
   if (softFloor) {
     const FLOOR_ZONE = 120;
-    const floorEdge = GROUND_Y - FLOOR_ZONE;
+      const floorEdge = groundY - FLOOR_ZONE;
     if (p.position.y > floorEdge) {
       const floorProximity = Math.max(0, Math.min(1, (p.position.y - floorEdge) / FLOOR_ZONE)); // 0..1
       const climbTarget = -Math.PI / 2; // nose-up in screen coords
@@ -105,7 +109,9 @@ export function stepPlane(
   // from pitch-feed but more slowly than at full throttle.
   let g = p.g;
   const throttleLevel = Math.max(0, Math.min(1, p.throttleLevel));
-  const targetSpeed = G_MAX_LEVEL * throttleLevel;
+  const targetSpeed = G_MAX_LEVEL
+    * throttleLevel
+    * (input.boost ? BOOST_SPEED_MULTIPLIER * (input.boostMultiplier ?? 1) : 1);
   const thrustFactor = Math.abs(cosH); // 1 at horizontal, 0 at vertical
   if (g < targetSpeed) {
     // Accelerate toward target
@@ -162,8 +168,8 @@ export function stepPlane(
   if (px >= worldWidth) px -= worldWidth;
 
   // 11) Ground/ceiling
-  if (py > GROUND_Y) {
-    py = GROUND_Y;
+  if (py > groundY) {
+    py = groundY;
     if (vy > 0) vy = 0;
   }
   if (py < 0) {
@@ -273,4 +279,3 @@ export function stepPlaneTaxi(
     readyForLiftoff,
   };
 }
-

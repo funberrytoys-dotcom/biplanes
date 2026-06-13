@@ -98,8 +98,8 @@ export const DIFFICULTIES: Record<Difficulty, AiParams> = {
     positioningEnabled: false,        // dumb chase only
     preferredAltitudeOffset: 0,
     energyManagement: false,
-    fireConeRad: Math.PI / 3.5,      // ±51° — really sloppy
-    fireRange: 300,
+    fireConeRad: Math.PI / 5,        // ±36° — rookie, but no longer a screen-wide spray
+    fireRange: 260,
     leadFactor: 0,
     turnDeadzoneRad: 0.25,
     reactionDelaySec: 0.5,
@@ -120,32 +120,32 @@ export const DIFFICULTIES: Record<Difficulty, AiParams> = {
     rookieMistakeChancePerSec: 0.5,   // a mistake every ~2 seconds
     ejectChancePerSec: 0.3,           // rarely bails, dies in plane
     hpMultiplier: 0.7,                 // fragile — goes down quickly
-    damageMultiplier: 0.7,             // weak bullets
-    fireRateMultiplier: 0.7,           // slow trigger finger
+    damageMultiplier: 0.55,            // weak bullets
+    fireRateMultiplier: 0.55,          // slow trigger finger
   },
   medium: {
     stallAvoidEnabled: true,
-    groundClearance: 200,
+    groundClearance: 210,
     ceilingClearance: 120,
-    postTakeoffStabilizationSec: 1.5,
+    postTakeoffStabilizationSec: 0.8,
     positioningEnabled: true,
-    preferredAltitudeOffset: -50,
+    preferredAltitudeOffset: -10,
     energyManagement: false,          // simple chase, no energy fight
-    fireConeRad: Math.PI / 6,         // ±30°
-    fireRange: 550,
-    leadFactor: 0.5,
-    turnDeadzoneRad: 0.1,
-    reactionDelaySec: 0.12,            // quicker than before — keeps the nose on you
-    errorWobbleRad: 0.025,
+    fireConeRad: Math.PI / 5.8,       // ±31°
+    fireRange: 700,
+    leadFactor: 0.72,
+    turnDeadzoneRad: 0.08,
+    reactionDelaySec: 0.08,            // quicker than before — keeps the nose on you
+    errorWobbleRad: 0.018,
     evasionChanceWhenHit: 1.0,
     evasionStrengthRad: 0.6,
     evasionDurationSec: 0.5,
     burstFire: true,                   // disciplined bursts — dangerous but readable
-    burstOnSec: 0.5,
-    burstOffSec: 0.4,
-    tailStandoffPx: 200,               // presses closer than before
-    overshootDistancePx: 170,
-    pressAttackThrottle: 0.85,
+    burstOnSec: 0.78,
+    burstOffSec: 0.14,
+    tailStandoffPx: 240,
+    overshootDistancePx: 240,
+    pressAttackThrottle: 1.0,
     manageThrottle: true,
     cruiseThrottle: 1.0,
     diveThrottle: 0.8,
@@ -161,12 +161,12 @@ export const DIFFICULTIES: Record<Difficulty, AiParams> = {
     stallAvoidEnabled: true,
     groundClearance: 350,             // pulls up with lots of margin
     ceilingClearance: 180,
-    postTakeoffStabilizationSec: 2.0, // patient — sets up properly
+    postTakeoffStabilizationSec: 0.7, // quick setup, then pressure
     positioningEnabled: true,
     preferredAltitudeOffset: -120,    // aggressively positions above player
     energyManagement: true,           // dives for speed before climbing
-    fireConeRad: Math.PI / 10,        // ±18°
-    fireRange: 800,
+    fireConeRad: Math.PI / 7,         // ±26°
+    fireRange: 880,
     leadFactor: 0.95,
     turnDeadzoneRad: 0.04,
     reactionDelaySec: 0.04,           // basically instant
@@ -175,14 +175,14 @@ export const DIFFICULTIES: Record<Difficulty, AiParams> = {
     evasionStrengthRad: 0.9,          // hard, committed jink — hard to track
     evasionDurationSec: 0.45,         // short so it snaps back onto your tail
     burstFire: true,                  // ace-style controlled bursts
-    burstOnSec: 0.45,
-    burstOffSec: 0.3,
-    tailStandoffPx: 150,              // gets right into the kill zone
-    overshootDistancePx: 200,
-    pressAttackThrottle: 0.8,
+    burstOnSec: 0.72,
+    burstOffSec: 0.14,
+    tailStandoffPx: 280,
+    overshootDistancePx: 280,
+    pressAttackThrottle: 1.0,
     manageThrottle: true,
     cruiseThrottle: 1.0,
-    diveThrottle: 0.6,                // controlled dives
+    diveThrottle: 0.68,               // controlled dives
     climbThrottle: 1.0,
     rookieMistakeChancePerSec: 0,
     ejectChancePerSec: 3.0,           // always bails when burning
@@ -190,6 +190,6 @@ export const DIFFICULTIES: Record<Difficulty, AiParams> = {
     // stat bonuses are eased back from before (HP 2.5→2.0, fireRate 1.8→1.5).
     hpMultiplier: 2.0,                 // tough but no longer a flying brick
     damageMultiplier: 1.8,             // bullets bite hard
-    fireRateMultiplier: 1.5,           // brisk, but bursts (not raw rate) do the work
+    fireRateMultiplier: 1.75,          // later rounds must feel more dangerous than round one
   },
 };

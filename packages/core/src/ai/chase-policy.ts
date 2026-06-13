@@ -1,5 +1,5 @@
 import type { PlayerCommand } from '@biplanes/shared';
-import { GROUND_Y, G_STALL, G_MAX_LEVEL, BULLET_SPEED } from '@biplanes/shared';
+import { G_STALL, G_MAX_LEVEL, BULLET_SPEED, WORLD_HEIGHT } from '@biplanes/shared';
 import type { Plane } from '../entities/plane.js';
 import type { Pilot } from '../entities/pilot.js';
 import type { AiParams } from './difficulty.js';
@@ -91,6 +91,46 @@ function isInTailSector(self: Plane, target: Plane): boolean {
   return headingDiff < 50 * Math.PI / 180;
 }
 
+function isHeadOnThreat(self: Plane, target: Plane): boolean {
+  const dx = target.kinematic.position.x - self.kinematic.position.x;
+  const dy = target.kinematic.position.y - self.kinematic.position.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist > 260) return false;
+
+  const toTarget = Math.atan2(dy, dx);
+  const selfNoseOn = Math.abs(normalizeAngle(toTarget - self.kinematic.heading)) < Math.PI / 5;
+  const targetNoseOn = Math.abs(normalizeAngle(toTarget + Math.PI - target.kinematic.heading)) < Math.PI / 4;
+  return selfNoseOn && targetNoseOn;
+}
+
+function collisionAvoidanceHeading(
+  self: Plane,
+  target: Plane,
+  worldHeight: number,
+): { heading: number; throttle: number } | null {
+  const dx = target.kinematic.position.x - self.kinematic.position.x;
+  const dy = target.kinematic.position.y - self.kinematic.position.y;
+  const dvx = target.kinematic.velocity.x - self.kinematic.velocity.x;
+  const dvy = target.kinematic.velocity.y - self.kinematic.velocity.y;
+  const relSpeedSq = dvx * dvx + dvy * dvy;
+  if (relSpeedSq < 1) return null;
+
+  const tClosest = Math.max(0, Math.min(0.65, -(dx * dvx + dy * dvy) / relSpeedSq));
+  const closestX = dx + dvx * tClosest;
+  const closestY = dy + dvy * tClosest;
+  const closestDist = Math.hypot(closestX, closestY);
+  const currentDist = Math.hypot(dx, dy);
+  const headOn = isHeadOnThreat(self, target);
+  if (!headOn && (tClosest <= 0.05 || closestDist > 150 || currentDist > 520)) return null;
+
+  const roomAbove = self.kinematic.position.y;
+  const roomBelow = (worldHeight - 90) - self.kinematic.position.y;
+  return {
+    heading: facingHeading(self.kinematic.facing, roomAbove > roomBelow ? -0.72 : 0.72),
+    throttle: headOn ? 0.25 : 0.45,
+  };
+}
+
 /**
  * Three-layer AI command:
  *   1) SURVIVAL  — stall recovery, ground/ceiling avoidance, post-takeoff level out
@@ -112,6 +152,7 @@ export function aiCommand(
   dt: number,
   currentTime: number,
   wasFlying: boolean = true,
+  worldHeight: number = WORLD_HEIGHT,
 ): { cmd: PlayerCommand; aiState: AiState } {
   const newState: AiState = { ...aiState };
 
@@ -155,16 +196,24 @@ export function aiCommand(
   const sinH = Math.sin(self.kinematic.heading);
   const y = self.kinematic.position.y;
   const g = self.kinematic.g;
+  const groundY = worldHeight - 90;
+  const avoidance = newState.timeFlyingSec >= params.postTakeoffStabilizationSec
+    ? collisionAvoidanceHeading(self, target, worldHeight)
+    : null;
 
   // 1a. Post-takeoff stabilisation — level out and build speed.
   if (newState.timeFlyingSec < params.postTakeoffStabilizationSec) {
     overrideHeading = facingHeading(self.kinematic.facing); // horizontal toward current side
     overrideThrottle = 1.0;
     inSurvival = true;
+  } else if (avoidance) {
+    overrideHeading = avoidance.heading;
+    overrideThrottle = avoidance.throttle;
+    inSurvival = true;
   }
   // 1b. Ground crash imminent — pull up. Always wins over stall avoid because
   // hitting the ground is more immediately fatal than a recoverable stall.
-  else if (y > GROUND_Y - params.groundClearance) {
+  else if (y > groundY - params.groundClearance) {
     // Pull up, but if we're very slow AND nose-up, ease the climb angle to
     // avoid trading ground impact for stall fall.
     const slow = g < G_STALL * 1.05;
@@ -267,6 +316,9 @@ export function aiCommand(
       throttleIntent = params.cruiseThrottle;
     }
     targetThrottle = throttleIntent;
+    if (isHeadOnThreat(self, target)) {
+      targetThrottle = Math.min(targetThrottle, 0.35);
+    }
 
     // --- Layer 3: Aiming with lead ---
     const dx0 = aimX - self.kinematic.position.x;
@@ -481,5 +533,21 @@ export function aiCommandPilotTarget(
     fireRange: Math.max(params.fireRange, 700),
   };
 
-  return aiCommand(self, virtual, strafingParams, aiState, prevSelfHp, dt, currentTime, wasFlying);
+  const result = aiCommand(self, virtual, strafingParams, aiState, prevSelfHp, dt, currentTime, wasFlying);
+
+  const dx = pilot.position.x - self.kinematic.position.x;
+  const dy = pilot.position.y - self.kinematic.position.y;
+  const dist = Math.hypot(dx, dy);
+  const angleToPilot = Math.atan2(dy, dx);
+  const noseDiff = Math.abs(normalizeAngle(angleToPilot - self.kinematic.heading));
+  const pilotInStrafeCone = dist < Math.max(strafingParams.fireRange, 1150)
+    && noseDiff < Math.max(strafingParams.fireConeRad, Math.PI / 2.4);
+
+  return {
+    cmd: {
+      ...result.cmd,
+      fire: result.cmd.fire || pilotInStrafeCone,
+    },
+    aiState: result.aiState,
+  };
 }

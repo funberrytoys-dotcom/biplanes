@@ -1,0 +1,163 @@
+import { describe, expect, it } from 'vitest';
+import {
+  arenaDifficultyForRound,
+  arenaEnemyCountForRound,
+  arenaEnemyHpMultiplierForRound,
+  resolveArenaDuelFlow,
+  shouldHoldArenaAutoSpawnForFinalBoss,
+  shouldSpawnArenaFinalBoss,
+} from './arena-director.js';
+
+describe('shouldSpawnArenaFinalBoss', () => {
+  const ready = {
+    playerScore: 14,
+    finalBossScore: 14,
+    bossAlreadySpawned: false,
+    gameOver: false,
+    pendingLevelUp: false,
+    choicesShowing: false,
+  };
+
+  it('spawns once the final score gate is reached and upgrades are resolved', () => {
+    expect(shouldSpawnArenaFinalBoss(ready)).toBe(true);
+  });
+
+  it('waits while the upgrade choice is pending', () => {
+    expect(shouldSpawnArenaFinalBoss({ ...ready, pendingLevelUp: true })).toBe(false);
+    expect(shouldSpawnArenaFinalBoss({ ...ready, choicesShowing: true })).toBe(false);
+  });
+
+  it('does not spawn before the final score gate or after the boss already exists', () => {
+    expect(shouldSpawnArenaFinalBoss({ ...ready, playerScore: 13 })).toBe(false);
+    expect(shouldSpawnArenaFinalBoss({ ...ready, bossAlreadySpawned: true })).toBe(false);
+  });
+
+  it('holds ordinary auto-spawn once the final boss gate is reached', () => {
+    expect(shouldHoldArenaAutoSpawnForFinalBoss(ready)).toBe(true);
+    expect(shouldHoldArenaAutoSpawnForFinalBoss({ ...ready, playerScore: 13 })).toBe(false);
+    expect(shouldHoldArenaAutoSpawnForFinalBoss({ ...ready, gameOver: true })).toBe(false);
+  });
+});
+
+describe('arena duel round flow', () => {
+  function baseFlowState() {
+    return {
+      phase: 'duel' as const,
+      round: 1,
+      previousScore: 0,
+      currentScore: 1,
+      enemyAliveCount: 0,
+      playerPilotActive: false,
+      choicesShowing: false,
+      gameOver: false,
+      upgradeDelaySec: 0,
+      requiredUpgradeDelaySec: 2,
+      victoryFlightSec: 0,
+      requiredVictoryFlightSec: 3,
+    };
+  }
+
+  it('starts a two-second trophy delay after the enemies in a round are destroyed', () => {
+    const next = resolveArenaDuelFlow({
+      ...baseFlowState(),
+    });
+
+    expect(next.phase).toBe('upgradeDelay');
+    expect(next.shouldStartVictoryFlight).toBe(true);
+    expect(next.shouldShowUpgrade).toBe(false);
+    expect(next.shouldLaunchNextRound).toBe(false);
+  });
+
+  it('does not open the build choice before the trophy delay is complete', () => {
+    const next = resolveArenaDuelFlow({
+      ...baseFlowState(),
+      phase: 'upgradeDelay',
+      upgradeDelaySec: 1.9,
+    });
+
+    expect(next.phase).toBe('upgradeDelay');
+    expect(next.shouldShowUpgrade).toBe(false);
+  });
+
+  it('opens the build choice after two seconds of clean flight over the cleared arena', () => {
+    const next = resolveArenaDuelFlow({
+      ...baseFlowState(),
+      phase: 'upgradeDelay',
+      upgradeDelaySec: 2,
+    });
+
+    expect(next.phase).toBe('upgrade');
+    expect(next.shouldShowUpgrade).toBe(true);
+    expect(next.shouldLaunchNextRound).toBe(false);
+  });
+
+  it('starts the mandatory clean flight only after the build choice is resolved', () => {
+    const next = resolveArenaDuelFlow({
+      ...baseFlowState(),
+      phase: 'upgrade',
+      round: 3,
+      previousScore: 2,
+      currentScore: 2,
+    });
+
+    expect(next.phase).toBe('victoryFlight');
+    expect(next.shouldStartVictoryFlight).toBe(true);
+    expect(next.shouldShowUpgrade).toBe(false);
+    expect(next.shouldLaunchNextRound).toBe(false);
+  });
+
+  it('does not launch the next takeoff before the clean-flight timer is complete', () => {
+    const next = resolveArenaDuelFlow({
+      ...baseFlowState(),
+      phase: 'victoryFlight',
+      round: 3,
+      previousScore: 2,
+      currentScore: 2,
+      victoryFlightSec: 2.9,
+    });
+
+    expect(next.phase).toBe('victoryFlight');
+    expect(next.shouldShowUpgrade).toBe(false);
+    expect(next.shouldLaunchNextRound).toBe(false);
+  });
+
+  it('keeps the duel alive while the player pilot is still trying to reach the hangar', () => {
+    const next = resolveArenaDuelFlow({
+      ...baseFlowState(),
+      phase: 'duel',
+      round: 3,
+      previousScore: 2,
+      currentScore: 3,
+      playerPilotActive: true,
+    });
+
+    expect(next.phase).toBe('duel');
+    expect(next.shouldShowUpgrade).toBe(false);
+    expect(next.shouldLaunchNextRound).toBe(false);
+  });
+
+  it('launches the next round only after three seconds of clean flight', () => {
+    const next = resolveArenaDuelFlow({
+      ...baseFlowState(),
+      phase: 'victoryFlight',
+      round: 2,
+      previousScore: 2,
+      currentScore: 2,
+      victoryFlightSec: 3,
+    });
+
+    expect(next.phase).toBe('takeoff');
+    expect(next.round).toBe(3);
+    expect(next.shouldLaunchNextRound).toBe(true);
+  });
+
+  it('ramps enemy toughness without changing the player build', () => {
+    expect(arenaEnemyHpMultiplierForRound(1)).toBeLessThan(arenaEnemyHpMultiplierForRound(4));
+    expect(arenaEnemyHpMultiplierForRound(6)).toBeGreaterThan(arenaEnemyHpMultiplierForRound(3) * 1.8);
+    expect(arenaEnemyCountForRound(1)).toBe(1);
+    expect(arenaEnemyCountForRound(5)).toBe(3);
+    expect(arenaDifficultyForRound(1)).toBe('easy');
+    expect(arenaDifficultyForRound(4)).toBe('medium');
+    expect(arenaDifficultyForRound(8)).toBe('hard');
+  });
+});

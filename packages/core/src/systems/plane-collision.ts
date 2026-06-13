@@ -32,6 +32,7 @@ export function resolvePlanePlaneCollisions(
   enemies: readonly Plane[],
   cooldowns: Map<string, number>,
   rngSeed: number,
+  playerDamageMultiplier: number = 1,
 ): { player: Plane; enemies: Plane[]; events: PlaneCollisionEvent[]; newCooldowns: Map<string, number> } {
   // Decrement cooldowns from previous tick
   const newCooldowns = new Map(cooldowns);
@@ -88,8 +89,10 @@ export function resolvePlanePlaneCollisions(
       // Min damage 30 ensures even a graze does noticeable HP.
       const damage = Math.max(30, Math.min(A.maxHp, impact * COLLISION_DAMAGE_K * 100));
 
-      A.hp = Math.max(0, A.hp - damage);
-      B.hp = Math.max(0, B.hp - damage);
+      const damageToA = damage * (A.faction === 'player' ? playerDamageMultiplier : 1);
+      const damageToB = damage * (B.faction === 'player' ? playerDamageMultiplier : 1);
+      A.hp = Math.max(0, A.hp - damageToA);
+      B.hp = Math.max(0, B.hp - damageToB);
 
       const aDied = A.hp === 0;
       const bDied = B.hp === 0;

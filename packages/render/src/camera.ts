@@ -15,10 +15,11 @@ export function createCamera(worldRoot: Container, screenW: number, screenH: num
   let zoomTime = 0;
   let zoomDur = 0;
   const SHAKE_CAP = 12;
-  let baseX = worldRoot.x;
-  let baseY = worldRoot.y;
   let baseScale = worldRoot.scale.x;
   let worldWidth = WORLD_WIDTH;
+  let worldHeight = WORLD_HEIGHT;
+
+  const snapToPixel = (v: number) => Math.round(v);
 
   // Custom pan and focus targets
   let targetFocusX = WORLD_WIDTH / 2;
@@ -51,6 +52,10 @@ export function createCamera(worldRoot: Container, screenW: number, screenH: num
     setWorldWidth(w: number) {
       worldWidth = w;
     },
+    setWorldSize(w: number, h: number) {
+      worldWidth = w;
+      worldHeight = h;
+    },
     get currentFocusX() {
       return currentFocusX;
     },
@@ -59,15 +64,13 @@ export function createCamera(worldRoot: Container, screenW: number, screenH: num
       // intentionally empty
     },
     /** Record the post-layout (un-shaken) world position and scale. */
-    setBase(x: number, y: number) {
-      baseX = x;
-      baseY = y;
+    setBase(_x: number, _y: number) {
       baseScale = worldRoot.scale.x;
     },
     /** Apply per-frame shake jitter, punch decay, and smooth camera focal tracking. */
     tickShake(dt: number) {
       // Smoothly interpolate focus point and zoom level using exponential decay
-      const k = 1 - Math.pow(0.003, dt); // camera damping factor
+      const k = 1 - Math.pow(0.000003, dt); // camera damping factor
       currentFocusX += (targetFocusX - currentFocusX) * k;
       currentFocusY += (targetFocusY - currentFocusY) * k;
       currentZoom += (targetZoom - currentZoom) * k;
@@ -94,9 +97,9 @@ export function createCamera(worldRoot: Container, screenW: number, screenH: num
       currentFocusX = worldWidth > 2 * halfW
         ? Math.max(halfW, Math.min(worldWidth - halfW, currentFocusX))
         : worldWidth / 2;
-      currentFocusY = WORLD_HEIGHT > 2 * halfH
-        ? Math.max(halfH, Math.min(WORLD_HEIGHT - halfH, currentFocusY))
-        : WORLD_HEIGHT / 2;
+      currentFocusY = worldHeight > 2 * halfH
+        ? Math.max(halfH, Math.min(worldHeight - halfH, currentFocusY))
+        : worldHeight / 2;
 
       // Project world focus point into screen center
       const bx = screenW / 2 - currentFocusX * scale;
@@ -104,14 +107,14 @@ export function createCamera(worldRoot: Container, screenW: number, screenH: num
 
       // Apply shake and punch
       if (shakeAmount > 0.05) {
-        worldRoot.x = bx + (Math.random() - 0.5) * shakeAmount + punchVX;
-        worldRoot.y = by + (Math.random() - 0.5) * shakeAmount + punchVY;
+        worldRoot.x = snapToPixel(bx + (Math.random() - 0.5) * shakeAmount + punchVX);
+        worldRoot.y = snapToPixel(by + (Math.random() - 0.5) * shakeAmount + punchVY);
         shakeAmount *= Math.pow(0.55, dt);
         punchVX *= 0.7;
         punchVY *= 0.7;
       } else {
-        worldRoot.x = bx + punchVX;
-        worldRoot.y = by + punchVY;
+        worldRoot.x = snapToPixel(bx + punchVX);
+        worldRoot.y = snapToPixel(by + punchVY);
         punchVX *= 0.7;
         punchVY *= 0.7;
         if (Math.abs(punchVX) < 0.05 && Math.abs(punchVY) < 0.05) {

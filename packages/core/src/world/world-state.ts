@@ -28,6 +28,8 @@ export interface WorldState {
   timeSec: number;          // wall clock since run started
   tickCount: number;
   worldWidth?: number;
+  worldHeight?: number;
+  disableAutoEnemySpawn?: boolean;
   // Campaign: no lethal ground. The bottom of the map turns the plane back like
   // the ceiling instead of crashing it.
   softFloor?: boolean;
@@ -63,6 +65,10 @@ export interface WorldState {
   damageMultiplier: number;         // 1.0 base, multiplies bullet damage
   fireRateMultiplier: number;       // 1.0 base, divides cooldown
   hpMultiplier: number;             // 1.0 base, multiplies max HP on apply
+  boostHeatMultiplier: number;      // <1 means boost heats slower
+  boostCoolingMultiplier: number;   // >1 means boost cools faster
+  boostPowerMultiplier: number;     // >1 means boost pushes harder
+  collisionDamageMultiplier: number;// <1 means rams are less lethal
   xpMagnetRange: number;            // base XP_PICKUP_MAGNET_RANGE
   hasDrone: boolean;                // future flag for drone companion
   hasHomingRockets: boolean;
@@ -101,6 +107,7 @@ export function createWorldState(seed: number, player: Plane): WorldState {
     timeSec: 0,
     tickCount: 0,
     worldWidth: undefined,
+    worldHeight: undefined,
     caravan: undefined,
     nextEntityId: player.id + 1,
     rngSeed: seed,
@@ -125,6 +132,10 @@ export function createWorldState(seed: number, player: Plane): WorldState {
     damageMultiplier: 1,
     fireRateMultiplier: 1,
     hpMultiplier: 1,
+    boostHeatMultiplier: 1,
+    boostCoolingMultiplier: 1,
+    boostPowerMultiplier: 1,
+    collisionDamageMultiplier: 1,
     xpMagnetRange: XP_PICKUP_MAGNET_RANGE,
     hasDrone: false,
     hasHomingRockets: false,

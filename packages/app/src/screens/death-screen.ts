@@ -1,5 +1,6 @@
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import type { WorldState } from '@biplanes/core';
+import { UPGRADE_DEFS } from '@biplanes/core';
 import { PLAYER_SCORE_TO_WIN } from '@biplanes/shared';
 
 export function createDeathScreen(width: number, height: number, onRestart: () => void) {
@@ -183,7 +184,7 @@ export function createDeathScreen(width: number, height: number, onRestart: () =
     container: c,
     show(state: WorldState) {
       const isVictory = state.playerScore >= PLAYER_SCORE_TO_WIN;
-      const statusLabel = isVictory ? 'VICTORY' : 'DOWNED';
+      const statusLabel = isVictory ? 'ПОБЕДА' : 'СБИТ';
       const stampColor = isVictory ? 0x277a3d : 0xb22222; // Green or Red
 
       // Procedurally draw distressed double-line ink stamp box
@@ -199,18 +200,19 @@ export function createDeathScreen(width: number, height: number, onRestart: () =
       stampText.y = -stampText.height / 2;
 
       // Construct detailed mechanical debrief log lines
+      const upgradeTitles = new Map<string, string>(UPGRADE_DEFS.map(upgrade => [upgrade.id, upgrade.title]));
       const upgradeNames = state.appliedUpgradeIds
-        .map(id => id.replace('upgrade_', '').replace('_', ' ').toUpperCase())
+        .map(id => upgradeTitles.get(id) ?? id)
         .join(', ');
-      const upgradesList = upgradeNames ? upgradeNames : 'NONE';
+      const upgradesList = upgradeNames ? upgradeNames : 'НЕТ';
 
       const lines = [
-        `PILOT IDENT: CAPTAIN CHICO (01)`,
-        `TACTICAL STATUS: ${isVictory ? 'SKIES SECURED' : 'AIRFRAME LOST'}`,
-        `MISSION TIME: ${state.timeSec.toFixed(1)} SECONDS`,
-        `BOGEYS DOWNED: ${state.playerScore} PLANES`,
-        `AVIONICS LEVEL: ${state.level}`,
-        `ACTIVE SLOTS: ${upgradesList}`,
+        `ПИЛОТ: КАПИТАН ЧИКО (01)`,
+        `СТАТУС: ${isVictory ? 'НЕБО ОЧИЩЕНО' : 'САМОЛЕТ ПОТЕРЯН'}`,
+        `ВРЕМЯ ВЫЛЕТА: ${state.timeSec.toFixed(1)} СЕК`,
+        `СБИТО ВРАГОВ: ${state.playerScore}`,
+        `УРОВЕНЬ АВИОНИКИ: ${state.level}`,
+        `АКТИВНЫЕ УЛУЧШЕНИЯ: ${upgradesList}`,
       ];
 
       targetText = lines.join('\n\n');

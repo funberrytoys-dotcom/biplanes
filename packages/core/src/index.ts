@@ -16,3 +16,4 @@ export { aiCommand, createAiState, chasePolicy } from './ai/chase-policy.js';
 export type { AiState } from './ai/chase-policy.js';
 export { resolvePlanePlaneCollisions } from './systems/plane-collision.js';
 export type { PlaneCollisionEvent } from './systems/plane-collision.js';
+export * from './systems/arena-waves.js';

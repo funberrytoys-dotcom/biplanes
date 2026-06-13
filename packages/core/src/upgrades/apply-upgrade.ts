@@ -4,6 +4,10 @@ import type { UpgradeId } from './upgrade-pool.js';
 export function applyUpgrade(state: WorldState, id: UpgradeId): WorldState {
   let damageMultiplier = state.damageMultiplier;
   let fireRateMultiplier = state.fireRateMultiplier;
+  let boostHeatMultiplier = state.boostHeatMultiplier;
+  let boostCoolingMultiplier = state.boostCoolingMultiplier;
+  let boostPowerMultiplier = state.boostPowerMultiplier;
+  let collisionDamageMultiplier = state.collisionDamageMultiplier;
   let hasDrone = state.hasDrone;
   let hasHomingRockets = state.hasHomingRockets;
   let hasFlameTrail = state.hasFlameTrail;
@@ -39,9 +43,41 @@ export function applyUpgrade(state: WorldState, id: UpgradeId): WorldState {
     case 'flame_trail':
       hasFlameTrail = true;
       break;
+    case 'tracer_belt':
+      fireRateMultiplier *= 1.15;
+      break;
+    case 'cluster_bomb':
+      damageMultiplier *= 1.15;
+      break;
+    case 'coolant_injector':
+      boostHeatMultiplier *= 0.72;
+      boostCoolingMultiplier *= 1.45;
+      break;
+    case 'boost_supercharger':
+      boostPowerMultiplier *= 1.18;
+      break;
+    case 'reinforced_struts': {
+      collisionDamageMultiplier *= 0.68;
+      const newMax = player.maxHp * 1.18;
+      player = { ...player, maxHp: newMax, hp: Math.max(player.hp, newMax) };
+      break;
+    }
     case 'gatling_evolution':
       damageMultiplier *= 1.5;
       fireRateMultiplier *= 2.0;
+      break;
+    case 'fire_screen':
+      hasFlameTrail = true;
+      damageMultiplier *= 1.25;
+      break;
+    case 'chico_wing':
+      hasDrone = true;
+      xpMagnetRange = xpMagnetRange * 1.6;
+      break;
+    case 'redline_engine':
+      boostHeatMultiplier *= 0.82;
+      boostCoolingMultiplier *= 1.25;
+      boostPowerMultiplier *= 1.25;
       break;
   }
 
@@ -50,6 +86,10 @@ export function applyUpgrade(state: WorldState, id: UpgradeId): WorldState {
     player,
     damageMultiplier,
     fireRateMultiplier,
+    boostHeatMultiplier,
+    boostCoolingMultiplier,
+    boostPowerMultiplier,
+    collisionDamageMultiplier,
     hasDrone,
     hasHomingRockets,
     hasFlameTrail,
@@ -59,4 +99,3 @@ export function applyUpgrade(state: WorldState, id: UpgradeId): WorldState {
     pendingLevelUp: false,
   };
 }
-

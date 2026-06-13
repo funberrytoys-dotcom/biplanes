@@ -32,7 +32,7 @@ function makeLaunchPlane(): Plane {
 }
 
 describe('mission one launch', () => {
-  it('does not destroy the player immediately after carrier launch', () => {
+  it('keeps the player alive after carrier launch while gas is held', () => {
     let state = createWorldState(1, makeLaunchPlane());
     const caravanStart = getMissionOneCaravanStart();
     state = {
@@ -51,7 +51,7 @@ describe('mission one launch', () => {
     };
 
     for (let i = 0; i < Math.round(5 / TICK_DT); i++) {
-      state = tick(state, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+      state = tick(state, { rotate: 0, fire: false, bomb: false, throttleDelta: 1, eject: false, jump: false });
     }
 
     expect(state.player.alive).toBe(true);

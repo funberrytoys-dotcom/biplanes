@@ -84,9 +84,9 @@ export function createPlaneBody(faction: 'player' | 'enemy'): PlaneBodyHandle {
   const engineNode = new Graphics();
   // Draw 4 shiny engine cylinder caps with highlights (outer rim, inner metal, specular dot)
   const drawCylinder = (x: number, y: number) => {
-    engineNode.circle(x, y, 3.5).fill(outlineColor);
-    engineNode.circle(x, y, 2.5).fill(metalColor);
-    engineNode.circle(x - 0.8, y - 0.8, 0.6).fill(0xffffff); // Specular highlight
+    engineNode.circle(x, y, 3.5).fill({ color: outlineColor });
+    engineNode.circle(x, y, 2.5).fill({ color: metalColor });
+    engineNode.circle(x - 0.8, y - 0.8, 0.6).fill({ color: 0xffffff }); // Specular highlight
   };
   drawCylinder(13, -6);
   drawCylinder(13, 6);
@@ -108,7 +108,7 @@ export function createPlaneBody(faction: 'player' | 'enemy'): PlaneBodyHandle {
       .lineTo(-12, 4)                              // lower tail taper
       .lineTo(12, 6)                               // belly
       .closePath()
-      .fill(primaryColor)
+      .fill({ color: primaryColor })
       .stroke({ color: outlineColor, width: 1.8 });
 
   // Fuselage canopy glass / decorative stripes with premium reflective look
@@ -117,7 +117,7 @@ export function createPlaneBody(faction: 'player' | 'enemy'): PlaneBodyHandle {
     .lineTo(8, -6)
     .bezierCurveTo(6, -2, 2, -2, 0, -5)
     .closePath()
-    .fill(isPlayer ? 0x33bfe5 : 0xd63031); // Sleek cyan / Crimson red base
+    .fill({ color: isPlayer ? 0x33bfe5 : 0xd63031 }); // Sleek cyan / Crimson red base
 
   // Canopy gloss / reflections (diagonal shiny white stripes)
   const canopyGlare = new Graphics()
@@ -178,12 +178,12 @@ export function createPlaneBody(faction: 'player' | 'enemy'): PlaneBodyHandle {
   // 4. Draw Biplane Wings with wire struts and premium gradients
   const wingTop = new Graphics()
     .roundRect(-10, -18, 22, 5, 2.5)
-    .fill(secondaryColor)
+    .fill({ color: secondaryColor })
     .stroke({ color: outlineColor, width: 1.5 });
 
   const wingBot = new Graphics()
     .roundRect(-10, 13, 22, 5, 2.5)
-    .fill(secondaryColor)
+    .fill({ color: secondaryColor })
     .stroke({ color: outlineColor, width: 1.5 });
 
   // Wire struts connecting top and bottom wings visually
@@ -209,14 +209,14 @@ export function createPlaneBody(faction: 'player' | 'enemy'): PlaneBodyHandle {
 
   const blades = new Graphics();
   // Nose spinner cap
-  blades.circle(noseX, 0, 3.5).fill(0xd3d3d3).stroke({ color: outlineColor, width: 1.2 });
+  blades.circle(noseX, 0, 3.5).fill({ color: 0xd3d3d3 }).stroke({ color: outlineColor, width: 1.2 });
   // Dynamic blades structure (starts pointing up/down)
   blades.moveTo(noseX, 0)
         .lineTo(noseX - 1.2, -26).lineTo(noseX + 1.2, -26)
         .lineTo(noseX, 0)
         .lineTo(noseX - 1.2, 26).lineTo(noseX + 1.2, 26)
         .closePath()
-        .fill(0xc47a2c)
+        .fill({ color: 0xc47a2c })
         .stroke({ color: outlineColor, width: 1 });
 
   // Pivot propeller blades at the nose spinner center

@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { tick } from './tick.js';
 import { createWorldState } from './world-state.js';
+import type { WorldState } from './world-state.js';
 import { findPilot } from '../entities/pilot.js';
 import {
   PLANE_INITIAL_HP,
   FIRE_THRESHOLD,
   FIRE_BURN_RATE,
+  WORLD_WIDTH,
 } from '@biplanes/shared';
 
 function makePlayerFlying(hp = PLANE_INITIAL_HP) {
@@ -70,6 +72,27 @@ describe('eject + pilot lifecycle', () => {
     }
     expect(s2.player.state).toBe('crashed');
     expect(findPilot(s2.pilots, 'player')).toBeDefined();
+  });
+
+  it('lands the ejected pilot on the current arena ground instead of the small-map cloud layer', () => {
+    const worldHeight = 3240;
+    let s: WorldState = {
+      ...createWorldState(42, makePlayerFlying()),
+      worldWidth: WORLD_WIDTH * 5,
+      worldHeight,
+    };
+    s = tick(s, EJECT_CMD);
+
+    for (let i = 0; i < 2300; i++) {
+      s = tick(s, NO_OP);
+      const pilot = findPilot(s.pilots, 'player');
+      if (pilot?.state === 'walking') break;
+    }
+
+    const pilot = findPilot(s.pilots, 'player');
+    expect(pilot).toBeDefined();
+    expect(pilot!.state).toBe('walking');
+    expect(pilot!.position.y).toBe(worldHeight - 90);
   });
 });
 

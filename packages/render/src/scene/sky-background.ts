@@ -1,9 +1,7 @@
 import { Container, Graphics, Sprite, TilingSprite, Texture, Text, TextStyle } from 'pixi.js';
 import {
-  GROUND_Y,
   CEILING_Y,
   PLAYER_HANGAR_X,
-  ENEMY_HANGAR_X,
 } from '@biplanes/shared';
 
 export type SkyThemeId = 'noon' | 'sunset' | 'twilight' | 'night';
@@ -11,6 +9,10 @@ export type SkyThemeId = 'noon' | 'sunset' | 'twilight' | 'night';
 export interface SkyBackgroundHandle {
   container: Container;
   update: (dt: number, timeSec: number, playerX: number, playerY: number, lightningActive?: boolean) => void;
+}
+
+export interface SkyBackgroundOptions {
+  mode?: 'classic' | 'layeredArena';
 }
 
 interface ThemeConfig {
@@ -119,6 +121,52 @@ const SKY_IMAGE_BY_THEME: Record<SkyThemeId, string> = {
   night: '/assets/biplanes/sky_night.jpg',
 };
 
+interface ArenaLayerSprite {
+  sprite: Sprite;
+  baseX: number;
+  baseY: number;
+  driftX: number;
+  driftY: number;
+  speed: number;
+  phase: number;
+  parallaxX: number;
+  parallaxY: number;
+}
+
+const ARENA_CIRRUS_URLS = [
+  '/assets/biplanes/arena/day/cirrus/cloud_cirrus_01.png',
+  '/assets/biplanes/arena/day/cirrus/cloud_cirrus_02.png',
+  '/assets/biplanes/arena/day/cirrus/cloud_cirrus_03.png',
+  '/assets/biplanes/arena/day/cirrus/cloud_cirrus_05.png',
+  '/assets/biplanes/arena/day/cirrus/cloud_cirrus_07.png',
+];
+
+const ARENA_CLOUD_URLS = [
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_01.png',
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_02.png',
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_04.png',
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_05.png',
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_08.png',
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_11.png',
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_13.png',
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_14.png',
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_18.png',
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_20.png',
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_22.png',
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_23.png',
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_25.png',
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_27.png',
+];
+
+const ARENA_ISLAND_URLS = [
+  '/assets/biplanes/arena/day/islands/island_silhouette_02.png',
+  '/assets/biplanes/arena/day/islands/island_silhouette_03.png',
+  '/assets/biplanes/arena/day/islands/island_silhouette_04.png',
+  '/assets/biplanes/arena/day/islands/island_silhouette_05.png',
+  '/assets/biplanes/arena/day/islands/island_silhouette_06.png',
+  '/assets/biplanes/arena/day/islands/island_silhouette_07.png',
+];
+
 function colorToRgb(color: number) {
   return {
     r: (color >> 16) & 255,
@@ -153,6 +201,167 @@ function makeStorySkySoftener(width: number, height: number, cfg: ThemeConfig): 
   sprite.height = height;
   sprite.alpha = 0.86;
   return sprite;
+}
+
+function ditherCanvas(ctx: CanvasRenderingContext2D, width: number, height: number, amount = 1.2) {
+  const image = ctx.getImageData(0, 0, width, height);
+  const data = image.data;
+  for (let i = 0; i < data.length; i += 4) {
+    const n = (((i * 1103515245 + 12345) >>> 16) & 255) / 255 - 0.5;
+    const delta = n * amount;
+    data[i] = Math.max(0, Math.min(255, data[i]! + delta));
+    data[i + 1] = Math.max(0, Math.min(255, data[i + 1]! + delta));
+    data[i + 2] = Math.max(0, Math.min(255, data[i + 2]! + delta));
+  }
+  ctx.putImageData(image, 0, 0);
+}
+
+function makeArenaBaseSkyGradient(width: number, height: number): Sprite | null {
+  if (typeof document === 'undefined') return null;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = 128;
+  canvas.height = Math.max(2048, Math.ceil(height));
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return null;
+
+  const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+  gradient.addColorStop(0, '#0b4cae');
+  gradient.addColorStop(0.22, '#248ad4');
+  gradient.addColorStop(0.46, '#8bd0f4');
+  gradient.addColorStop(0.68, '#cfe8f4');
+  gradient.addColorStop(0.84, '#e5f2f8');
+  gradient.addColorStop(1, '#f2fbff');
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ditherCanvas(ctx, canvas.width, canvas.height, 1.4);
+  ditherCanvas(ctx, canvas.width, canvas.height, 0.8);
+
+  const sprite = new Sprite(Texture.from(canvas));
+  sprite.width = width;
+  sprite.height = height;
+  return sprite;
+}
+
+function addArenaLayerSprite(
+  container: Container,
+  list: ArenaLayerSprite[],
+  url: string,
+  width: number,
+  x: number,
+  y: number,
+  alpha: number,
+  parallaxX: number,
+  parallaxY: number,
+  driftX = 8,
+  driftY = 5,
+  speed = 0.1,
+  flipX = false,
+) {
+  const sprite = Sprite.from(url);
+  sprite.anchor.set(0.5);
+  sprite.width = width;
+  sprite.scale.y = Math.abs(sprite.scale.x);
+  if (flipX) sprite.scale.x *= -1;
+  sprite.x = x;
+  sprite.y = y;
+  sprite.alpha = alpha;
+  container.addChild(sprite);
+  list.push({
+    sprite,
+    baseX: x,
+    baseY: y,
+    driftX,
+    driftY,
+    speed,
+    phase: (x * 0.013 + y * 0.021) % (Math.PI * 2),
+    parallaxX,
+    parallaxY,
+  });
+}
+
+function createLayeredArenaDecor(width: number, height: number): { container: Container; sprites: ArenaLayerSprite[] } {
+  const container = new Container();
+  const sprites: ArenaLayerSprite[] = [];
+
+  const baseGradient = makeArenaBaseSkyGradient(width, height);
+  if (baseGradient) container.addChild(baseGradient);
+
+  const cirrusY = [height * 0.12, height * 0.18, height * 0.24, height * 0.30];
+  for (let i = 0; i < 12; i++) {
+    addArenaLayerSprite(
+      container,
+      sprites,
+      ARENA_CIRRUS_URLS[i % ARENA_CIRRUS_URLS.length]!,
+      860 + (i % 3) * 160,
+      width * (0.08 + i * 0.078),
+      cirrusY[i % cirrusY.length]! + ((i % 2) * 34),
+      0.22 + (i % 3) * 0.04,
+      0.018,
+      0.008,
+      10,
+      5,
+      0.035 + i * 0.003,
+      i % 2 === 0,
+    );
+  }
+
+  const islandYs = [height * 0.43, height * 0.47, height * 0.52, height * 0.56];
+  for (let i = 0; i < 11; i++) {
+    addArenaLayerSprite(
+      container,
+      sprites,
+      ARENA_ISLAND_URLS[i % ARENA_ISLAND_URLS.length]!,
+      300 + (i % 4) * 70,
+      width * (0.06 + i * 0.09),
+      islandYs[i % islandYs.length]!,
+      0.18 + (i % 3) * 0.035,
+      0.035,
+      0.018,
+      12,
+      9,
+      0.06 + i * 0.004,
+      i % 2 === 1,
+    );
+  }
+
+  for (let i = 0; i < 12; i++) {
+    addArenaLayerSprite(
+      container,
+      sprites,
+      ARENA_CLOUD_URLS[i % ARENA_CLOUD_URLS.length]!,
+      410 + (i % 5) * 82,
+      width * (0.035 + i * 0.081),
+      height * (0.43 + (i % 5) * 0.045),
+      0.18 + (i % 4) * 0.035,
+      0.045,
+      0.018,
+      12,
+      8,
+      0.055 + i * 0.003,
+      i % 2 === 0,
+    );
+  }
+
+  for (let i = 0; i < 7; i++) {
+    addArenaLayerSprite(
+      container,
+      sprites,
+      ARENA_CLOUD_URLS[(i + 2) % ARENA_CLOUD_URLS.length]!,
+      570 + (i % 4) * 105,
+      width * (0.08 + i * 0.135),
+      height * (0.56 + (i % 3) * 0.045),
+      0.26 + (i % 3) * 0.045,
+      0.065,
+      0.028,
+      16,
+      10,
+      0.07 + i * 0.004,
+      i % 2 === 1,
+    );
+  }
+
+  return { container, sprites };
 }
 
 interface ScenicAssetConfig {
@@ -310,53 +519,217 @@ const SCENIC_ASSETS: ScenicAssetConfig[] = [
 function drawHangar(
   c: Container,
   hangarX: number,
+  groundY: number,
   opts: {
     wallColor: number;
     roofColor: number;
     label: string;
     labelColor: number;
+    faction: 'player' | 'enemy';
   },
 ): void {
-  const phW = 150;
-  const phH = 95;
-  const phTop = GROUND_Y - phH;
+  const phW = opts.faction === 'player' ? 174 : 166;
+  const phH = opts.faction === 'player' ? 106 : 100;
+  const phTop = groundY - phH;
   const phLeft = hangarX - phW / 2;
-  
+  const trimColor = opts.faction === 'player' ? 0xa87838 : 0x2a2a2a;
+  const doorColor = opts.faction === 'player' ? 0x2c1a10 : 0x08090d;
+  const roofRidgeColor = opts.faction === 'player' ? 0xb85a32 : 0x2e1517;
+
+  const shadow = new Graphics()
+    .ellipse(hangarX, groundY + 4, phW * 0.58, 13)
+    .fill({ color: 0x090604, alpha: 0.42 });
+
   const wall = new Graphics()
-    .rect(phLeft, phTop, phW, phH)
+    .rect(phLeft, phTop + 4, phW, phH - 4)
     .fill(opts.wallColor)
-    .stroke({ color: 0x000000, width: 2 });
-    
-  // Door
-  const doorW = 56;
-  const doorH = 62;
+    .rect(phLeft + 8, phTop + 15, phW - 16, 5)
+    .fill({ color: 0xffffff, alpha: 0.08 })
+    .stroke({ color: 0x120b08, width: 2.5 });
+
+  for (let i = 1; i < 8; i++) {
+    const x = phLeft + i * (phW / 8);
+    wall
+      .moveTo(x, phTop + 9)
+      .lineTo(x, groundY - 4)
+      .stroke({ color: 0x140d0a, width: 1, alpha: 0.35 });
+  }
+
+  const doorW = opts.faction === 'player' ? 70 : 64;
+  const doorH = 66;
+  const doorX = phLeft + (phW - doorW) / 2;
   const door = new Graphics()
-    .rect(phLeft + (phW - doorW) / 2, GROUND_Y - doorH, doorW, doorH)
-    .fill(0x13100c)
-    .stroke({ color: 0x3a332a, width: 2 });
-    
-  // Roof triangle
+    .rect(doorX, groundY - doorH, doorW, doorH)
+    .fill(doorColor)
+    .rect(doorX + doorW / 2 - 2, groundY - doorH + 4, 4, doorH - 8)
+    .fill(0x0b0806)
+    .stroke({ color: trimColor, width: 2 });
+
+  for (let y = groundY - doorH + 12; y < groundY - 8; y += 12) {
+    door
+      .moveTo(doorX + 5, y)
+      .lineTo(doorX + doorW - 5, y)
+      .stroke({ color: trimColor, width: 1, alpha: 0.55 });
+  }
+
   const roof = new Graphics()
-    .moveTo(phLeft - 10, phTop)
-    .lineTo(phLeft + phW / 2, phTop - 32)
-    .lineTo(phLeft + phW + 10, phTop)
+    .moveTo(phLeft - 16, phTop + 7)
+    .lineTo(phLeft + phW / 2, phTop - 39)
+    .lineTo(phLeft + phW + 16, phTop + 7)
     .closePath()
     .fill(opts.roofColor)
-    .stroke({ color: 0x000000, width: 2 });
-    
-  c.addChild(wall, roof, door);
+    .moveTo(phLeft - 2, phTop + 1)
+    .lineTo(phLeft + phW / 2, phTop - 28)
+    .lineTo(phLeft + phW + 2, phTop + 1)
+    .stroke({ color: roofRidgeColor, width: 5, alpha: 0.68 })
+    .stroke({ color: 0x080504, width: 2.5 });
+
+  for (let i = 0; i < 7; i++) {
+    const t = (i + 1) / 8;
+    const leftX = phLeft - 10 + t * (phW / 2);
+    const rightX = phLeft + phW + 10 - t * (phW / 2);
+    const y = phTop + 5 - t * 34;
+    roof
+      .moveTo(leftX, y)
+      .lineTo(rightX, y)
+      .stroke({ color: 0x1a0f0b, width: 1, alpha: 0.35 });
+  }
+
+  const rivets = new Graphics();
+  for (let i = 0; i < 9; i++) {
+    const x = phLeft + 14 + i * ((phW - 28) / 8);
+    rivets.circle(x, phTop + 28, 1.7).fill({ color: 0x160e09, alpha: 0.75 });
+    rivets.circle(x, groundY - 14, 1.5).fill({ color: 0x160e09, alpha: 0.72 });
+  }
+
+  const props = new Graphics();
+  if (opts.faction === 'player') {
+    props
+      .rect(phLeft - 26, groundY - 19, 18, 15).fill(0x5a3a28).stroke({ color: 0x20100a, width: 1 })
+      .rect(phLeft - 45, groundY - 13, 15, 9).fill(0x4a2b1a).stroke({ color: 0x20100a, width: 1 })
+      .ellipse(phLeft + phW + 23, groundY - 7, 9, 6).fill(0x2b2b2b).stroke({ color: 0x0a0a0a, width: 1 })
+      .ellipse(phLeft + phW + 41, groundY - 7, 9, 6).fill(0x3a332a).stroke({ color: 0x0a0a0a, width: 1 });
+  } else {
+    props
+      .rect(phLeft - 36, groundY - 22, 22, 18).fill(0x1a1a1d).stroke({ color: 0x050505, width: 1 })
+      .ellipse(phLeft + phW + 23, groundY - 8, 10, 7).fill(0x24100f).stroke({ color: 0x050505, width: 1 })
+      .rect(phLeft + phW + 34, groundY - 28, 5, 24).fill(0x1a1a1d)
+      .rect(phLeft + phW + 30, groundY - 30, 13, 5).fill(0x7a1616);
+  }
+
+  c.addChild(shadow, wall, roof, door, rivets, props);
 
   const labelStyle = new TextStyle({
     fontFamily: 'monospace',
-    fontSize: 36,
+    fontSize: opts.faction === 'player' ? 36 : 34,
     fill: opts.labelColor,
     fontWeight: 'bold',
-    stroke: { color: 0x000000, width: 3 },
+    stroke: { color: 0x000000, width: 4 },
   });
   const label = new Text({ text: opts.label, style: labelStyle });
   label.x = hangarX - label.width / 2;
-  label.y = phTop + 6;
+  label.y = phTop + 17;
   c.addChild(label);
+}
+
+function drawRunway(c: Container, width: number, height: number, groundY: number, cfg: ThemeConfig, themeId: SkyThemeId): Graphics[] {
+  const runwayLights: Graphics[] = [];
+  const groundH = height - groundY;
+  const runwayY = groundY + groundH * 0.62;
+  const runwayTop = groundY + 13;
+  const runwayH = Math.max(46, groundH - 21);
+
+  const earth = new Graphics()
+    .rect(0, groundY, width, groundH)
+    .fill(cfg.groundColor)
+    .rect(0, groundY, width, 8)
+    .fill(cfg.grassColor)
+    .stroke({ color: 0x090604, width: 2 });
+  c.addChild(earth);
+
+  const runway = new Graphics()
+    .moveTo(0, runwayTop + 10)
+    .lineTo(width, runwayTop)
+    .lineTo(width, runwayTop + runwayH)
+    .lineTo(0, runwayTop + runwayH + 9)
+    .closePath()
+    .fill(0xa85a2a)
+    .stroke({ color: 0x2a160c, width: 2.5 });
+  c.addChild(runway);
+
+  const scorches = new Graphics();
+  for (let i = 0; i < 14; i++) {
+    const x = (i * 173) % width;
+    const y = runwayTop + 16 + (i % 4) * 10;
+    scorches.ellipse(x, y, 28 + (i % 3) * 13, 4 + (i % 2) * 2).fill({ color: 0x1b100a, alpha: 0.13 + (i % 3) * 0.04 });
+  }
+  c.addChild(scorches);
+
+  const edgeBoards = new Graphics();
+  for (let x = -20; x < width + 40; x += 58) {
+    edgeBoards
+      .rect(x, runwayTop - 3, 34, 5).fill({ color: 0x5a3a28, alpha: 0.8 })
+      .rect(x + 17, runwayTop + runwayH + 3, 34, 5).fill({ color: 0x5a3a28, alpha: 0.72 });
+  }
+  c.addChild(edgeBoards);
+
+  if (themeId === 'night') {
+    const edgeGuide = new Graphics()
+      .rect(0, runwayY - 15, width, 1.5)
+      .rect(0, runwayY + 15, width, 1.5)
+      .fill({ color: 0x117766, alpha: 0.25 });
+    c.addChild(edgeGuide);
+  }
+
+  for (let x = 22; x < width - 20; x += 98) {
+    const seg = new Graphics()
+      .rect(x, runwayY - 3, 58, 6)
+      .fill({ color: cfg.runwayDashColor, alpha: cfg.runwayDashAlpha });
+    c.addChild(seg);
+  }
+
+  const tireMarks = new Graphics();
+  for (let x = 10; x < width - 10; x += 180) {
+    tireMarks
+      .moveTo(x, runwayY + 14)
+      .bezierCurveTo(x + 45, runwayY + 10, x + 91, runwayY + 20, x + 135, runwayY + 11)
+      .stroke({ color: 0x1a0f08, width: 2, alpha: 0.22 });
+  }
+  c.addChild(tireMarks);
+
+  const lightCount = 16;
+  const lightSpacing = width / (lightCount - 1);
+  for (let i = 0; i < lightCount; i++) {
+    const rx = i * lightSpacing;
+    let color = 0xffdf55;
+    if (i <= 1) color = 0x27ae60;
+    else if (i >= lightCount - 2) color = 0xc0392b;
+
+    const bulb = new Graphics()
+      .circle(0, 0, 6).fill({ color, alpha: 0.16 })
+      .circle(0, 0, 2.4).fill(color);
+    bulb.x = rx;
+    bulb.y = runwayTop + 2;
+    c.addChild(bulb);
+    runwayLights.push(bulb);
+  }
+
+  return runwayLights;
+}
+
+function drawBackgroundHangar(c: Container, x: number, groundY: number, w: number, h: number, cfg: ThemeConfig): void {
+  const top = groundY - h;
+  const body = new Graphics()
+    .rect(x, top + 5, w, h - 5)
+    .fill({ color: cfg.islandMidColor, alpha: 0.48 })
+    .stroke({ color: 0x080808, width: 1.5, alpha: 0.55 });
+  const roof = new Graphics()
+    .moveTo(x - 10, top + 5)
+    .lineTo(x + w * 0.5, top - 20)
+    .lineTo(x + w + 10, top + 5)
+    .closePath()
+    .fill({ color: cfg.islandFarColor, alpha: 0.52 });
+  c.addChild(body, roof);
 }
 
 export function createSkyBackground(
@@ -364,25 +737,37 @@ export function createSkyBackground(
   height: number,
   themeId: SkyThemeId = 'noon',
   hideGround: boolean = false,
+  imageUrl?: string,
+  options: SkyBackgroundOptions = {},
 ): SkyBackgroundHandle {
   const c = new Container();
   const cfg = THEMES[themeId];
+  const groundY = height - 90;
+  const isLayeredArena = options.mode === 'layeredArena';
 
   // 1. Sky Gradient Layers
   const skyTop = new Graphics().rect(0, 0, width, height * 0.35).fill(cfg.skyTop);
   const skyMid = new Graphics().rect(0, height * 0.35, width, height * 0.35).fill(cfg.skyMid);
-  const skyLow = new Graphics().rect(0, height * 0.7, width, GROUND_Y - height * 0.7).fill(cfg.skyLow);
+  const skyLow = new Graphics().rect(0, height * 0.7, width, groundY - height * 0.7).fill(cfg.skyLow);
   c.addChild(skyTop, skyMid, skyLow);
 
-  const skyImage = new TilingSprite({
-    texture: Texture.from(SKY_IMAGE_BY_THEME[themeId]),
-    width: width,
-    height: height,
-  });
-  c.addChild(skyImage);
+  const tiledSky = isLayeredArena || imageUrl ? null : new TilingSprite({
+      texture: Texture.from(SKY_IMAGE_BY_THEME[themeId]),
+      width: width,
+      height: height,
+    });
+  const skyImage = imageUrl ? Sprite.from(imageUrl) : tiledSky;
+  if (skyImage && imageUrl) {
+    skyImage.width = width;
+    skyImage.height = height;
+  }
+  if (skyImage) c.addChild(skyImage);
 
   const storySkySoftener = hideGround ? makeStorySkySoftener(width, height, cfg) : null;
   if (storySkySoftener) c.addChild(storySkySoftener);
+
+  const layeredArena = isLayeredArena ? createLayeredArenaDecor(width, height) : null;
+  if (layeredArena) c.addChild(layeredArena.container);
 
   // Faint ceiling hint
   const ceiling = new Graphics()
@@ -415,10 +800,11 @@ export function createSkyBackground(
     }
   }
 
+  const enableBackdropDecor = false;
   const scenicContainer = new Container();
-  scenicContainer.visible = !hideGround;
+  scenicContainer.visible = !hideGround && enableBackdropDecor;
   c.addChild(scenicContainer);
-  const scenicSprites = SCENIC_ASSETS.map((asset) => {
+  const scenicSprites = (enableBackdropDecor ? SCENIC_ASSETS : []).map((asset) => {
     const sprite = Sprite.from(asset.url);
     const lightsG = new Graphics();
     const beamG = new Graphics();
@@ -444,11 +830,11 @@ export function createSkyBackground(
 
   const battleContainer = new Container();
   battleContainer.alpha = themeId === 'night' ? 0.7 : 0.58;
-  battleContainer.visible = !hideGround;
+  battleContainer.visible = !hideGround && enableBackdropDecor;
   c.addChild(battleContainer);
   const battleBeamContainer = new Container();
   battleContainer.addChild(battleBeamContainer);
-  const battleGroups: BattleGroup[] = [
+  const battleGroups: BattleGroup[] = enableBackdropDecor ? [
     {
       ship: Sprite.from('/assets/biplanes/enemy_airship_2.png'),
       beam: new Graphics(),
@@ -473,7 +859,7 @@ export function createSkyBackground(
       flipX: true,
       dots: [],
     },
-  ];
+  ] : [];
 
   for (let i = 0; i < battleGroups.length; i++) {
     const group = battleGroups[i]!;
@@ -606,7 +992,7 @@ export function createSkyBackground(
   } else if (enableProceduralRays) {
     // Night Ambush sweeping searchlight beams
     const searchlightCount = 2;
-    const slPositions = [PLAYER_HANGAR_X + 120, ENEMY_HANGAR_X - 120];
+    const slPositions = [PLAYER_HANGAR_X + 120, width - PLAYER_HANGAR_X - 120];
     
     for (let i = 0; i < searchlightCount; i++) {
       const g = new Graphics();
@@ -715,58 +1101,7 @@ export function createSkyBackground(
   let towerBeacon: Graphics | null = null;
 
   if (!hideGround) {
-    // 7. Ground Strip
-    const groundStrip = new Graphics()
-      .rect(0, GROUND_Y, width, height - GROUND_Y)
-      .fill(cfg.groundColor)
-      .stroke({ color: 0x000000, width: 2 });
-    c.addChild(groundStrip);
-
-    const grass = new Graphics()
-      .rect(0, GROUND_Y, width, 8)
-      .fill(cfg.grassColor)
-      .stroke({ color: 0x000000, width: 1.5 });
-    c.addChild(grass);
-
-    // 8. Runway Dashes
-    const runwayY = GROUND_Y + (height - GROUND_Y) * 0.6;
-    const dashLen = 60;
-    const dashGap = 40;
-    
-    // Neon edge guides for runway in Night Ambush
-    if (themeId === 'night') {
-      const edgeGuide = new Graphics()
-        .rect(0, runwayY - 8, width, 1.5)
-        .rect(0, runwayY + 8, width, 1.5)
-        .fill({ color: 0x117766, alpha: 0.25 });
-      c.addChild(edgeGuide);
-    }
-
-    for (let x = 20; x < width - 20; x += dashLen + dashGap) {
-      const seg = new Graphics()
-        .rect(x, runwayY - 2, dashLen, 4)
-        .fill({ color: cfg.runwayDashColor, alpha: cfg.runwayDashAlpha });
-      c.addChild(seg);
-    }
-
-    const lightCount = 12;
-    const lightSpacing = width / (lightCount - 1);
-    for (let i = 0; i < lightCount; i++) {
-      const rx = i * lightSpacing;
-      const ry = GROUND_Y + 1;
-      // Alternate green landing entry, yellow centers, red end
-      let color = 0xffdf55; // Warm yellow
-      if (i <= 1) color = 0x27ae60; // Green entry
-      else if (i >= lightCount - 2) color = 0xc0392b; // Red stop
-      
-      const bulb = new Graphics()
-        .circle(0, 0, 3)
-        .fill(color);
-      bulb.x = rx;
-      bulb.y = ry;
-      c.addChild(bulb);
-      runwayLights.push(bulb);
-    }
+    runwayLights.push(...drawRunway(c, width, height, groundY, cfg, themeId));
 
     // 9. Background silhouette buildings
     const hangarSpots = [
@@ -774,32 +1109,26 @@ export function createSkyBackground(
       { x: width * 0.62, w: 130, h: 58 },
     ];
     for (const h of hangarSpots) {
-      const top = GROUND_Y - h.h;
-      const body = new Graphics().rect(h.x, top, h.w, h.h).fill(cfg.islandMidColor);
-      const roof = new Graphics()
-        .moveTo(h.x - 6, top)
-        .lineTo(h.x + h.w / 2, top - 22)
-        .lineTo(h.x + h.w + 6, top)
-        .closePath()
-        .fill(cfg.islandFarColor);
-      c.addChild(body, roof);
+      drawBackgroundHangar(c, h.x, groundY, h.w, h.h, cfg);
     }
 
     // 10. Core Hangar Silhouettes
     // Player hangar — warm red/orange, white "H".
-    drawHangar(c, PLAYER_HANGAR_X, {
+    drawHangar(c, PLAYER_HANGAR_X, groundY, {
       wallColor: cfg.hangarWallColor,
       roofColor: cfg.hangarRoofColor,
       label: 'H',
       labelColor: 0xffffff,
+      faction: 'player',
     });
 
     // Enemy hangar — cold steel blue with darker roof and red "X".
-    drawHangar(c, ENEMY_HANGAR_X, {
+    drawHangar(c, width - PLAYER_HANGAR_X, groundY, {
       wallColor: cfg.enemyHangarWallColor,
       roofColor: cfg.enemyHangarRoofColor,
       label: 'X',
       labelColor: 0xff4040,
+      faction: 'enemy',
     });
 
     // 11. Control tower with blinking red beacon
@@ -807,21 +1136,21 @@ export function createSkyBackground(
     const towerH = 110;
     
     const tower = new Graphics()
-      .rect(towerX, GROUND_Y - towerH, 36, towerH)
+      .rect(towerX, groundY - towerH, 36, towerH)
       .fill(cfg.islandMidColor);
       
     const cabin = new Graphics()
-      .rect(towerX - 8, GROUND_Y - towerH - 24, 52, 24)
+      .rect(towerX - 8, groundY - towerH - 24, 52, 24)
       .fill(cfg.islandFarColor);
       
     const antenna = new Graphics()
-      .rect(towerX + 16, GROUND_Y - towerH - 50, 4, 28)
+      .rect(towerX + 16, groundY - towerH - 50, 4, 28)
       .fill(0x05050a);
       
     c.addChild(tower, cabin, antenna);
 
     towerBeacon = new Graphics()
-      .circle(towerX + 18, GROUND_Y - towerH - 50, 4)
+      .circle(towerX + 18, groundY - towerH - 50, 4)
       .fill(0xff2222);
     c.addChild(towerBeacon);
   }
@@ -847,35 +1176,53 @@ export function createSkyBackground(
     container: c,
     update(dt: number, timeSec: number, playerX: number, playerY: number, lightningActive?: boolean) {
       // 1. Position and tile the seamless sky TilingSprite
-      skyImage.x = playerX - width / 2;
-      if (storySkySoftener) storySkySoftener.x = skyImage.x;
+      const skyX = hideGround ? playerX - width / 2 : 0;
+      if (skyImage) {
+        skyImage.x = skyX;
+        if (storySkySoftener) storySkySoftener.x = skyImage.x;
+        if (tiledSky) {
       
       // Adapt tile scale once the texture is loaded. Fit Y to the full height
       // (so the horizon/sun aren't cropped) and cover the full sprite width on X
       // — a non-panoramic (e.g. square) sky would otherwise repeat and show a
       // vertical tiling seam mid-screen. The 1.02 gives a hair of overscan so
       // the wrap sits just past the right edge.
-      if (skyImage.texture.width > 1) {
-        const scaleY = height / skyImage.texture.height;
-        const scaleX = Math.max(scaleY, (width * 1.02) / skyImage.texture.width);
+      if (tiledSky.texture.width > 1) {
+        const scaleY = height / tiledSky.texture.height;
+        const scaleX = Math.max(scaleY, (width * 1.02) / tiledSky.texture.width);
         if (
-          Math.abs(skyImage.tileScale.x - scaleX) > 0.001
-          || Math.abs(skyImage.tileScale.y - scaleY) > 0.001
+          Math.abs(tiledSky.tileScale.x - scaleX) > 0.001
+          || Math.abs(tiledSky.tileScale.y - scaleY) > 0.001
         ) {
-          skyImage.tileScale.set(scaleX, scaleY);
+          tiledSky.tileScale.set(scaleX, scaleY);
         }
       }
 
       // Smooth horizontal parallax scrolling for the tiled sky
       if (hideGround) {
-        skyImage.tilePosition.x = 0;
+        tiledSky.tilePosition.x = 0;
       } else {
         const skyParallaxFactor = 0.03; // Very slow scrolling for distant sky elements
-        skyImage.tilePosition.x = -playerX * (1 - skyParallaxFactor);
+        tiledSky.tilePosition.x = -playerX * skyParallaxFactor;
+      }
+        }
+      } else if (storySkySoftener) {
+        storySkySoftener.x = skyX;
       }
 
       // Keep the faint ceiling hint centered relative to the camera viewport
-      ceiling.x = playerX - width / 2;
+      ceiling.x = hideGround ? playerX - width / 2 : 0;
+
+      if (layeredArena) {
+        const arenaShiftX = playerX - width / 2;
+        const arenaShiftY = playerY - height / 2;
+        for (const item of layeredArena.sprites) {
+          const drift = Math.sin(timeSec * item.speed + item.phase);
+          const slowDrift = Math.sin(timeSec * item.speed * 0.63 + item.phase * 1.7);
+          item.sprite.x = item.baseX - arenaShiftX * item.parallaxX + drift * item.driftX;
+          item.sprite.y = item.baseY - arenaShiftY * item.parallaxY + slowDrift * item.driftY;
+        }
+      }
 
       // Slow continuous clouds drift
       for (const cloud of clouds) {
@@ -1123,7 +1470,7 @@ export function createSkyBackground(
           const ray = rays[i];
           if (!ray) continue;
           const originX = ray.baseAngle; // stored coordinate
-          const originY = GROUND_Y;
+          const originY = groundY;
           
           ray.g.clear();
           

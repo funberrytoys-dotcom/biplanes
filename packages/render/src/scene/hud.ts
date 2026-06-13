@@ -1,19 +1,216 @@
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import type { WorldState } from '@biplanes/core';
 import { findPilot } from '@biplanes/core';
+import { formatHudReadout, type HudStatus } from './hud-readout.js';
+import { getHudChromeLayout } from './hud-layout.js';
 import {
+  GROUND_Y,
+  LEVEL_UP_THRESHOLDS,
   PLAYER_HANGAR_X,
+  WORLD_WIDTH,
 } from '@biplanes/shared';
-import { createCockpitPanel } from './cockpit-panel.js';
 
+const G_MAX_REF = 950;      // max speed for gauge scale
 const G_STALL_LINE = 620;   // stall warning threshold
 
 export function createHud(width: number, height: number) {
   const c = new Container();
 
-  // Приборная панель собирается из арт-ассетов в отдельном модуле.
-  const panel = createCockpitPanel(width, height);
-  c.addChild(panel.container);
+  // 1. Steel-Plated Dashboard Plate (Glassmorphism + Copper Trim)
+  const dashboard = new Container();
+  c.addChild(dashboard);
+
+  const dashPanel = new Graphics()
+    .roundRect(15, 15, 335, 165, 14)
+    .fill({ color: 0x0d121d, alpha: 0.82 })
+    .stroke({ color: 0x8b5a2b, width: 2 }); // Copper border
+  
+  // Dashboard inner shadow/glow edge
+  const dashBezel = new Graphics()
+    .roundRect(17, 17, 331, 161, 12)
+    .stroke({ color: 0x3d4a66, width: 1.5, alpha: 0.5 });
+  
+  dashboard.addChild(dashPanel, dashBezel);
+
+  // 2. Circular HP (Engine Oil Pressure) Gauge
+  const HP_CX = 65;
+  const HP_CY = 75;
+  const GAUGE_R = 36;
+  const SWEEP_START = Math.PI * 0.75; // 135 degrees
+  const SWEEP_LEN = Math.PI * 1.5;   // 270 degrees sweep
+
+  const hpGauge = new Graphics();
+  dashboard.addChild(hpGauge);
+  const hpGaugeLabel = new Text({
+    text: 'OIL',
+    style: new TextStyle({ fontFamily: 'monospace', fontSize: 8, fill: 0x8890a0, fontWeight: 'bold' }),
+  });
+  hpGaugeLabel.x = HP_CX - hpGaugeLabel.width / 2;
+  hpGaugeLabel.y = HP_CY + 14;
+  dashboard.addChild(hpGaugeLabel);
+
+  // 3. Circular Speed (RPM / Wind Speed) Gauge
+  const SPD_CX = 155;
+  const SPD_CY = 75;
+
+  const spdGauge = new Graphics();
+  dashboard.addChild(spdGauge);
+  const spdGaugeLabel = new Text({
+    text: 'RPM',
+    style: new TextStyle({ fontFamily: 'monospace', fontSize: 8, fill: 0x8890a0, fontWeight: 'bold' }),
+  });
+  spdGaugeLabel.x = SPD_CX - spdGaugeLabel.width / 2;
+  spdGaugeLabel.y = SPD_CY + 14;
+  dashboard.addChild(spdGaugeLabel);
+
+  // 4. Needles Nodes
+  const hpNeedle = new Graphics();
+  const spdNeedle = new Graphics();
+  dashboard.addChild(hpNeedle, spdNeedle);
+
+  // 5. Vertical Mechanical Throttle Slot & Slider Lever
+  const THR_X = 248;
+  const THR_Y = 28;
+  const THR_W = 12;
+  const THR_H = 92;
+
+  const thrSlot = new Graphics()
+    .roundRect(THR_X, THR_Y, THR_W, THR_H, 6)
+    .fill(0x05080f)
+    .stroke({ color: 0x5a5f69, width: 1.5 });
+  
+  // Tick lines next to the throttle slot
+  const thrTicks = new Graphics();
+  for (let k = 0; k <= 4; k++) {
+    const ty = THR_Y + (THR_H * k) / 4;
+    thrTicks.moveTo(THR_X - 5, ty).lineTo(THR_X - 1, ty).stroke({ color: 0x5a5f69, width: 1.2 });
+  }
+  
+  const thrLever = new Graphics(); // Red slider lever knob
+  dashboard.addChild(thrSlot, thrTicks, thrLever);
+
+  const thrLabelStyle = new TextStyle({
+    fontFamily: 'monospace',
+    fontSize: 10,
+    fill: 0xa0a5b5,
+    fontWeight: 'bold',
+  });
+  const thrLabel = new Text({ text: 'THR', style: thrLabelStyle });
+  thrLabel.x = THR_X - 4;
+  thrLabel.y = THR_Y + THR_H + 4;
+  dashboard.addChild(thrLabel);
+
+  const BST_X = 292;
+  const BST_Y = THR_Y;
+  const BST_W = 12;
+  const BST_H = THR_H;
+  const bstSlot = new Graphics()
+    .roundRect(BST_X, BST_Y, BST_W, BST_H, 6)
+    .fill(0x05080f)
+    .stroke({ color: 0x5a5f69, width: 1.5 });
+  const bstTicks = new Graphics();
+  for (let k = 0; k <= 4; k++) {
+    const ty = BST_Y + (BST_H * k) / 4;
+    bstTicks.moveTo(BST_X + BST_W + 1, ty).lineTo(BST_X + BST_W + 5, ty).stroke({ color: 0x5a5f69, width: 1.2 });
+  }
+  const bstLever = new Graphics();
+  const bstLabel = new Text({ text: 'BST', style: thrLabelStyle });
+  bstLabel.x = BST_X - 4;
+  bstLabel.y = BST_Y + BST_H + 4;
+  dashboard.addChild(bstSlot, bstTicks, bstLever, bstLabel);
+
+  // 6. Nixie Tube Level and XP Progress Slot at the bottom
+  const NIXIE_X = 28;
+  const NIXIE_Y = 128;
+  const NIXIE_W = 210;
+  const NIXIE_H = 40;
+
+  const nixieSlot = new Graphics()
+    .roundRect(NIXIE_X, NIXIE_Y, NIXIE_W, NIXIE_H, 8)
+    .fill(0x1a0d05) // Dark copper-brown glow slot
+    .stroke({ color: 0x8b5a2b, width: 1.8 });
+  
+  const nixieBezel = new Graphics()
+    .roundRect(NIXIE_X + 1, NIXIE_Y + 1, NIXIE_W - 2, NIXIE_H - 2, 7)
+    .stroke({ color: 0xff7700, width: 1, alpha: 0.25 }); // Orange internal shadow glow
+  
+  dashboard.addChild(nixieSlot, nixieBezel);
+
+  // Nixie digits text
+  const nixieStyle = new TextStyle({
+    fontFamily: 'monospace',
+    fontSize: 20,
+    fontWeight: 'bold',
+    fill: 0xff8c19, // Glowing Amber/Neon Orange
+    stroke: { color: 0x3d1000, width: 2 },
+  });
+  const nixieText = new Text({ text: 'LVL 01', style: nixieStyle });
+  nixieText.x = NIXIE_X + 12;
+  nixieText.y = NIXIE_Y + 7;
+  
+  // Nixie XP Progress Bar inside the Nixie Tube
+  const xpBg = new Graphics().rect(NIXIE_X + 96, NIXIE_Y + 18, 102, 6).fill(0x2d1a0f);
+  const xpFill = new Graphics().rect(NIXIE_X + 96, NIXIE_Y + 18, 0, 6).fill(0xffa500);
+  const xpBorder = new Graphics().rect(NIXIE_X + 95, NIXIE_Y + 17, 104, 8).stroke({ color: 0x8b5a2b, width: 1 });
+  dashboard.addChild(nixieText, xpBg, xpFill, xpBorder);
+
+  // 12. Mechanical Warning Lamp "STALL / ENGINE" (Phase 5.3)
+  const stallHousing = new Graphics()
+    .circle(110, 42, 7.5).fill(0x424652).stroke({ color: 0x000000, width: 1.2 }) // bezel
+    .circle(110, 42, 5).fill(0x220202); // dark red unlit bulb
+  dashboard.addChild(stallHousing);
+
+  const stallGlow = new Graphics();
+  dashboard.addChild(stallGlow);
+
+  const overheatHousing = new Graphics()
+    .circle(286, 42, 7.5).fill(0x424652).stroke({ color: 0x000000, width: 1.2 })
+    .circle(286, 42, 5).fill(0x220202);
+  const overheatGlow = new Graphics();
+  dashboard.addChild(overheatHousing, overheatGlow);
+
+  // 13. Glass Dome Reflection Overlay on the Dashboard (Phase 5.1)
+  const glassG = new Graphics()
+    .roundRect(15, 15, 335, 165, 14)
+    .fill({ color: 0xffffff, alpha: 0.05 }) // subtle glass tint
+    // diagonal glare stripes
+    .moveTo(15, 15)
+    .lineTo(130, 15)
+    .lineTo(15, 130)
+    .closePath()
+    .moveTo(85, 15)
+    .lineTo(240, 15)
+    .lineTo(15, 240)
+    .closePath()
+    .fill({ color: 0xffffff, alpha: 0.04 })
+    // shiny white highlight outline
+    .roundRect(16, 16, 333, 163, 13)
+    .stroke({ color: 0xffffff, width: 1, alpha: 0.14 });
+  glassG.blendMode = 'add';
+  dashboard.addChild(glassG);
+
+  // 14. Horizonal CRT Scanline grid (Phase 5.2)
+  const crtBack = new Graphics()
+    .roundRect(15, 186, 335, 82, 8)
+    .fill({ color: 0x07101a, alpha: 0.58 })
+    .stroke({ color: 0x8b5a2b, width: 1.2, alpha: 0.5 });
+  const crtScanlines = new Graphics();
+  for (let y = 190; y < 264; y += 4) {
+    crtScanlines.moveTo(18, y).lineTo(346, y).stroke({ color: 0x000000, width: 1, alpha: 0.2 });
+  }
+
+  // 7. Phosphorescent CRT Monitor Terminal Readout (Below dashboard)
+  const textStyle = new TextStyle({
+    fontFamily: 'monospace',
+    fontSize: 12,
+    fontWeight: 'bold',
+    fill: 0xc8ffb0,
+    stroke: { color: 0x001108, width: 2 },
+  });
+  const text = new Text({ text: '', style: textStyle });
+  text.x = 20;
+  text.y = 192;
+  c.addChild(crtBack, text, crtScanlines);
 
   // Center overlay
   const overlayStyle = new TextStyle({
@@ -55,8 +252,20 @@ export function createHud(width: number, height: number) {
   let compactHud = false;
 
   function layoutHud(w: number, h: number) {
-    compactHud = w < 900 || h < 520;
-    panel.resize(w, h);
+    const chromeLayout = getHudChromeLayout(w, h);
+    compactHud = chromeLayout.compact;
+
+    dashboard.scale.set(chromeLayout.dashboardScale);
+    text.style.fontSize = chromeLayout.readoutFontSize;
+    text.x = chromeLayout.readoutX + 5;
+    text.y = chromeLayout.readoutY + 6;
+    crtBack.clear()
+      .roundRect(chromeLayout.readoutX, chromeLayout.readoutY, chromeLayout.readoutWidth, chromeLayout.readoutHeight, 8)
+      .fill({ color: 0x07101a, alpha: 0.58 })
+      .stroke({ color: 0x8b5a2b, width: 1.2, alpha: 0.5 });
+    crtBack.visible = chromeLayout.readoutVisible;
+    text.visible = chromeLayout.readoutVisible;
+    crtScanlines.visible = chromeLayout.readoutVisible;
 
     ramNotice.style.fontSize = compactHud ? 24 : 32;
     ramNotice.x = (w - ramNotice.width) / 2;
@@ -147,7 +356,8 @@ export function createHud(width: number, height: number) {
     for (let i = 0; i < enemyArrowLayer.children.length; i++) {
       const g = enemyArrowLayer.children[i] as Graphics;
       if (i < maxArrows) {
-        drawEdgeArrow(g, targets[i]!.x, targets[i]!.y, 0xff3030);
+        const spread = (i - (maxArrows - 1) / 2) * 24;
+        drawEdgeArrow(g, targets[i]!.x, targets[i]!.y + spread, 0xff3030);
       } else {
         g.visible = false;
       }
@@ -187,18 +397,147 @@ export function createHud(width: number, height: number) {
     container: c,
     update(s: WorldState) {
       pulseT += 0.15;
-      panel.update(s);
+      const timeSec = s.timeSec;
 
+      // 1. Render Oil Pressure HP Gauge Backing & Ticks
+      const hpPct = Math.max(0, s.player.hp / s.player.maxHp);
+      const isHpCritical = hpPct <= 0.25;
+      // Red flash on critical HP
+      const hpBacking = isHpCritical && Math.floor(timeSec * 5) % 2 === 0 ? 0x4a0505 : 0x070b12;
+      
+      hpGauge.clear();
+      // Outer rim and backplate
+      hpGauge.circle(HP_CX, HP_CY, GAUGE_R)
+             .fill(hpBacking)
+             .stroke({ color: 0x5a5f69, width: 2.2 });
+      
+      // Draw HP tick markings
+      const hpTickCount = 9;
+      for (let i = 0; i < hpTickCount; i++) {
+        const angle = SWEEP_START + (i / (hpTickCount - 1)) * SWEEP_LEN;
+        const tickLength = i % 2 === 0 ? 6 : 4;
+        const startR = GAUGE_R - 2;
+        const endR = GAUGE_R - 2 - tickLength;
+        const isRedZone = i >= hpTickCount - 3;
+        const color = isRedZone ? 0xe74c3c : 0xa0a5b5;
+        
+        hpGauge.moveTo(HP_CX + Math.cos(angle) * startR, HP_CY + Math.sin(angle) * startR)
+               .lineTo(HP_CX + Math.cos(angle) * endR, HP_CY + Math.sin(angle) * endR)
+               .stroke({ color, width: 1.5 });
+      }
+      
+      // HP Label
+      hpGauge.circle(HP_CX, HP_CY + 18, 5).fill(0x05070a);
+
+      // 2. Render RPM Speed Gauge Backing & Ticks
       const g = s.player.kinematic.g;
+      const speedPct = Math.max(0, Math.min(1, g / G_MAX_REF));
       const stalling = g < G_STALL_LINE && s.player.state === 'flying';
-      const throttle = s.player.kinematic.throttleLevel ?? 0;
+      const spdBacking = stalling && Math.floor(timeSec * 5) % 2 === 0 ? 0x4a2a05 : 0x070b12;
+
+      spdGauge.clear();
+      spdGauge.circle(SPD_CX, SPD_CY, GAUGE_R)
+              .fill(spdBacking)
+              .stroke({ color: 0x5a5f69, width: 2.2 });
+      
+      // Draw Speed tick markings
+      const spdTickCount = 11;
+      for (let i = 0; i < spdTickCount; i++) {
+        const angle = SWEEP_START + (i / (spdTickCount - 1)) * SWEEP_LEN;
+        const tickLength = i % 2 === 0 ? 6 : 4;
+        const startR = GAUGE_R - 2;
+        const endR = GAUGE_R - 2 - tickLength;
+        const isStallZone = i < 3;
+        const color = isStallZone ? 0xe74c3c : 0xa0a5b5;
+        
+        spdGauge.moveTo(SPD_CX + Math.cos(angle) * startR, SPD_CY + Math.sin(angle) * startR)
+               .lineTo(SPD_CX + Math.cos(angle) * endR, SPD_CY + Math.sin(angle) * endR)
+               .stroke({ color, width: 1.5 });
+      }
+      
+      // Speed Label
+      spdGauge.circle(SPD_CX, SPD_CY + 18, 5).fill(0x05070a);
+
+      // 3. Render Needles with physical behavior (trembling on stall/low-HP)
+      hpNeedle.clear();
+      const hpAngle = SWEEP_START + hpPct * SWEEP_LEN;
+      // Trembling oil pressure needle at low HP
+      const hpTremble = isHpCritical ? (Math.random() - 0.5) * 0.08 : 0;
+      const hpNeedleLength = GAUGE_R - 6;
+      hpNeedle.moveTo(HP_CX, HP_CY)
+              .lineTo(HP_CX + Math.cos(hpAngle + hpTremble) * hpNeedleLength, HP_CY + Math.sin(hpAngle + hpTremble) * hpNeedleLength)
+              .stroke({ color: 0xe74c3c, width: 2.2 });
+      hpNeedle.circle(HP_CX, HP_CY, 4.5).fill(0x8b5a2b); // Copper needle cap
+
+      spdNeedle.clear();
+      const spdAngle = SWEEP_START + speedPct * SWEEP_LEN;
+      // Tremble needle aggressively when stalling!
+      const spdTremble = stalling ? (Math.random() - 0.5) * 0.16 : 0;
+      const spdNeedleLength = GAUGE_R - 6;
+      spdNeedle.moveTo(SPD_CX, SPD_CY)
+              .lineTo(SPD_CX + Math.cos(spdAngle + spdTremble) * spdNeedleLength, SPD_CY + Math.sin(spdAngle + spdTremble) * spdNeedleLength)
+              .stroke({ color: 0x66d9ef, width: 2.2 });
+      spdNeedle.circle(SPD_CX, SPD_CY, 4.5).fill(0x8b5a2b); // Copper needle cap
+
+      // 4. Render Throttle Slider Lever Knob
+      const throttle = s.player.kinematic.throttleLevel ?? 0.0;
+      const boostActive = s.player.boostActive === true;
+      const boostHeat = Math.max(0, Math.min(1, s.player.boostHeat ?? 0));
+      thrLever.clear();
+      const knobY = THR_Y + THR_H * (1 - throttle);
+      // Rectangular red mechanical knob with black center pin
+      thrLever.roundRect(THR_X - 4, knobY - 5, THR_W + 8, 10, 3)
+              .fill(0xc0392b)
+              .stroke({ color: 0x000000, width: 1.2 })
+              .rect(THR_X - 1, knobY - 1, THR_W + 2, 2)
+              .fill(0xffffff);
+
+      bstLever.clear();
+      const boostY = BST_Y + BST_H * (1 - boostHeat);
+      const boostColor = boostHeat >= 0.85 ? 0xe74c3c : boostActive ? 0xffc24a : 0x697080;
+      bstLever.roundRect(BST_X - 4, boostY - 5, BST_W + 8, 10, 3)
+              .fill(boostColor)
+              .stroke({ color: 0x000000, width: 1.2 })
+              .rect(BST_X - 1, boostY - 1, BST_W + 2, 2)
+              .fill(0xffffff);
+
+      // 5. Update Nixie tube display
+      const displayLvl = s.level < 10 ? `0${s.level}` : `${s.level}`;
+      nixieText.text = `LVL ${displayLvl}`;
+      
+      const prevThreshold = s.level >= 2 ? LEVEL_UP_THRESHOLDS[s.level - 2] ?? 0 : 0;
+      const nextThreshold = LEVEL_UP_THRESHOLDS[s.level - 1] ?? Math.max(s.xpCollected, 1);
+      const xpPct = nextThreshold <= prevThreshold
+        ? 1
+        : Math.max(0, Math.min(1, (s.xpCollected - prevThreshold) / (nextThreshold - prevThreshold)));
+      
+      xpFill.clear().rect(NIXIE_X + 96, NIXIE_Y + 18, 102 * xpPct, 6).fill(s.pendingLevelUp ? 0xffffff : 0xff8c19);
+
+      // 5. Stall emergency warning light (Phase 5.3)
+      stallGlow.clear();
+      if (stalling) {
+        const flashState = Math.floor(timeSec * 7) % 2 === 0;
+        if (flashState) {
+          stallGlow.circle(110, 42, 5.2).fill(0xff0033);
+          stallGlow.circle(110, 42, 16).fill({ color: 0xff0033, alpha: 0.32 }); // glows additively
+        }
+      }
+
+      overheatGlow.clear();
+      const overheating = boostHeat >= 0.85;
+      if (overheating && Math.floor(timeSec * 7) % 2 === 0) {
+        overheatGlow.circle(286, 42, 5.2).fill(0xff0033);
+        overheatGlow.circle(286, 42, 17).fill({ color: 0xff0033, alpha: 0.38 });
+      }
 
       // Caravan off-screen tracking logic
       let showCaravanArrow = false;
       let caravanArrowDir: 1 | -1 = 1;
+      let caravanDist = 0;
       if (s.caravan && s.caravan.active && s.player.state === 'flying' && s.player.alive) {
         const dx = s.caravan.position.x - s.player.kinematic.position.x;
-        if (Math.abs(dx) > 900) {
+        caravanDist = Math.abs(dx);
+        if (caravanDist > 900) {
           showCaravanArrow = true;
           caravanArrowDir = dx > 0 ? 1 : -1;
         }
@@ -206,6 +545,74 @@ export function createHud(width: number, height: number) {
 
       if (showCaravanArrow) {
         drawArrow(caravanArrowDir, width, height);
+      }
+
+      // 6. CRT readouts below Dashboard (with scanlines & phosphor micro-flicker - Phase 5.2)
+      text.alpha = 0.93 + 0.07 * Math.random();
+      const enemyAlive = s.enemies.filter(e => e.state !== 'crashed').length;
+      const h = s.player.kinematic.heading;
+      const inverted = s.player.state === 'flying' && Math.abs(h) > Math.PI / 2 + 0.4 && Math.abs(h) < Math.PI - 0.4;
+      const hasBomb = s.appliedUpgradeIds.includes('heavy_bomb')
+        || s.appliedUpgradeIds.includes('cluster_bomb')
+        || s.appliedUpgradeIds.includes('fire_screen');
+      const weaponTags = [
+        'MG',
+        s.hasHeavyCannon ? 'CANNON' : null,
+        hasBomb ? `BOMB${(s.player.bombCooldown ?? 0) > 0 ? ' RELOAD' : ' READY'}` : null,
+        s.hasHomingRockets ? 'ROCKETS' : null,
+        s.hasDrone ? 'WINGMAN' : null,
+      ].filter(Boolean).join('  |  ');
+      
+      const worldGroundY = (s.worldHeight ?? GROUND_Y + 90) - 90;
+      const altitudeFt = Math.round(worldGroundY - s.player.kinematic.position.y);
+      const heatPct = Math.round(boostHeat * 100);
+      const hudStatus: HudStatus = overheating
+        ? 'overheat'
+        : stalling
+          ? 'stall'
+          : s.caravan && s.caravan.active && s.caravan.hp < s.caravan.maxHp * 0.3
+            ? 'caravan-critical'
+            : inverted
+              ? 'inverted'
+              : 'stable';
+
+      if (s.caravan && s.caravan.active) {
+        const caravanHpPct = Math.round(s.caravan.hp / s.caravan.maxHp * 100);
+        // Calculate progress dynamically based on scroll world boundaries if world is wide
+        const isWide = s.worldWidth && s.worldWidth > 2000;
+        const progressPct = isWide
+          ? Math.round((s.caravan.position.x - 1200) / 9000 * 100)
+          : Math.round((s.caravan.position.x - WORLD_WIDTH * 0.16) / (WORLD_WIDTH * 0.6) * 100);
+        
+        text.text = formatHudReadout({
+          mode: 'escort',
+          level: s.level,
+          timeSec,
+          enemyAlive,
+          playerScore: s.playerScore,
+          enemyScore: s.enemyScore,
+          caravanHpPct,
+          progressPct: Math.min(100, Math.max(0, progressPct)),
+          altitudeFt,
+          weaponTags: weaponTags ? weaponTags.split('  |  ') : [],
+          boostActive,
+          boostHeatPct: heatPct,
+          status: hudStatus,
+        });
+      } else {
+        text.text = formatHudReadout({
+          mode: 'arena',
+          level: s.level,
+          timeSec,
+          enemyAlive,
+          playerScore: s.playerScore,
+          enemyScore: s.enemyScore,
+          altitudeFt,
+          weaponTags: weaponTags ? weaponTags.split('  |  ') : [],
+          boostActive,
+          boostHeatPct: heatPct,
+          status: hudStatus,
+        });
       }
 
       // 7. Announcements / overlay logic

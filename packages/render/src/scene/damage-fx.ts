@@ -225,6 +225,38 @@ export class DamageFx {
     }
   }
 
+  addDirectionalSparks(
+    position: { x: number; y: number },
+    direction: { x: number; y: number },
+    count: number = 10,
+    intensity: number = 1,
+  ) {
+    const palette = [0xffffff, 0xfff6a8, 0xffc34a, 0xff6a22];
+    const len = Math.hypot(direction.x, direction.y) || 1;
+    const baseA = Math.atan2(direction.y / len, direction.x / len);
+    for (let i = 0; i < count; i++) {
+      const radius = (1.4 + Math.random() * 2.2) * Math.min(1.7, intensity);
+      const color = palette[(Math.random() * palette.length) | 0]!;
+      const g = this.acquire(color, radius, 'spark');
+      g.x = position.x + (Math.random() - 0.5) * 6;
+      g.y = position.y + (Math.random() - 0.5) * 6;
+      g.scale.set(1);
+      const spread = (Math.random() - 0.5) * Math.PI * 0.9;
+      const ang = baseA + spread;
+      const sp = (150 + Math.random() * 260) * intensity;
+      this.active.push({
+        g,
+        vx: Math.cos(ang) * sp,
+        vy: Math.sin(ang) * sp - 25,
+        life: 0.18 + Math.random() * 0.24,
+        maxLife: 0.42,
+        baseAlpha: 1,
+        baseRadius: radius,
+        type: 'spark',
+      });
+    }
+  }
+
   addWindTrail(position: { x: number; y: number }) {
     const radius = 1.2 + Math.random() * 2.2;
     const color = 0xffffff;
@@ -272,8 +304,8 @@ export class DamageFx {
     });
   }
 
-  addImpactFlash(position: { x: number; y: number }) {
-    const g = this.acquire(0xffffff, 8, 'spark'); // routes through glow container via type=spark
+  addImpactFlash(position: { x: number; y: number }, radius: number = 8) {
+    const g = this.acquire(0xffffff, radius, 'spark'); // routes through glow container via type=spark
     g.x = position.x;
     g.y = position.y;
     g.scale.set(1);
@@ -284,7 +316,7 @@ export class DamageFx {
       life: 0.06,
       maxLife: 0.06,
       baseAlpha: 1.0,
-      baseRadius: 8,
+      baseRadius: radius,
       type: 'spark',
     });
   }
@@ -351,7 +383,7 @@ export class DamageFx {
   addExplosion(position: { x: number; y: number }) {
     // 1. White core flash
     {
-      const g = this.acquire(0xffffff, 28, 'spark');
+      const g = this.acquire(0xffffff, 36, 'spark');
       g.x = position.x;
       g.y = position.y;
       g.scale.set(1);
@@ -362,7 +394,7 @@ export class DamageFx {
         life: 0.08,
         maxLife: 0.08,
         baseAlpha: 1,
-        baseRadius: 28,
+        baseRadius: 36,
         type: 'spark',
       });
     }
@@ -372,22 +404,22 @@ export class DamageFx {
     this.pendingShockwaves.push({ remainingTime: 0.08, pos: { x: position.x, y: position.y } });
 
     // 3. Fire bursts
-    for (let i = 0; i < 22; i++) {
-      const radius = 6 + Math.random() * 10;
-      const palette = [0xff4400, 0xff8800, 0xffcc00, 0xffffff];
+    for (let i = 0; i < 34; i++) {
+      const radius = 7 + Math.random() * 13;
+      const palette = [0xff3300, 0xff6600, 0xff9c18, 0xffd36a, 0xffffff];
       const color = palette[(Math.random() * palette.length) | 0]!;
       const g = this.acquire(color, radius, 'fire');
       g.x = position.x;
       g.y = position.y;
       g.scale.set(1);
       const ang = Math.random() * Math.PI * 2;
-      const sp = 80 + Math.random() * 220;
+      const sp = 100 + Math.random() * 280;
       this.active.push({
         g,
         vx: Math.cos(ang) * sp,
         vy: Math.sin(ang) * sp,
-        life: 0.45 + Math.random() * 0.35,
-        maxLife: 0.8,
+        life: 0.5 + Math.random() * 0.42,
+        maxLife: 0.92,
         baseAlpha: 1.0,
         baseRadius: radius,
         type: 'fire',
@@ -395,34 +427,34 @@ export class DamageFx {
     }
 
     // 4. Smoke
-    for (let i = 0; i < 14; i++) {
-      const radius = 8 + Math.random() * 12;
-      const color = 0x333333;
+    for (let i = 0; i < 24; i++) {
+      const radius = 10 + Math.random() * 18;
+      const color = Math.random() < 0.55 ? 0x23262d : 0x3a332c;
       const g = this.acquire(color, radius, 'smoke');
       g.x = position.x;
       g.y = position.y;
       g.scale.set(1);
       const ang = Math.random() * Math.PI * 2;
-      const sp = 30 + Math.random() * 80;
+      const sp = 35 + Math.random() * 110;
       this.active.push({
         g,
         vx: Math.cos(ang) * sp,
         vy: Math.sin(ang) * sp - 20,
-        life: 0.6 + Math.random() * 0.4,
-        maxLife: 1.0,
-        baseAlpha: 0.55,
+        life: 0.9 + Math.random() * 0.65,
+        maxLife: 1.55,
+        baseAlpha: 0.66,
         baseRadius: radius,
         type: 'smoke',
       });
     }
 
     // 5. Small chunks
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 13; i++) {
       const g = this.acquire(0x8a6a3a, 0, 'chunk');
       g.x = position.x;
       g.y = position.y;
       const ang = Math.random() * Math.PI * 2;
-      const sp = 140 + Math.random() * 200;
+      const sp = 150 + Math.random() * 280;
       g.rotation = Math.random() * Math.PI * 2;
       this.active.push({
         g,

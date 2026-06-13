@@ -1,6 +1,6 @@
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
-
-export type MenuAction = 'story' | 'arena' | 'multiplayer' | 'settings' | 'exit';
+import { getStartScreenLayout } from './start-screen-layout.js';
+import { getStartMenuOptions, type MenuAction } from './start-menu-options.js';
 
 export function createStartScreen(width: number, height: number, onPick: (action: MenuAction) => void) {
   const c = new Container();
@@ -60,21 +60,20 @@ export function createStartScreen(width: number, height: number, onPick: (action
   });
   statusPanel.addChild(statusBg, statusText);
 
-  const buttonDefs: { action: MenuAction; label: string; note: string; enabled: boolean }[] = [
-    { action: 'story', label: 'ОДИНОЧНАЯ ИГРА', note: 'Уровень 1: Караван в тумане. Защити дирижабли СОВ на подлете к маяку.', enabled: true },
-    { action: 'arena', label: 'АРЕНА', note: 'Рабочий режим: 10 побед, улучшения, быстрый вылет.', enabled: true },
-    { action: 'multiplayer', label: 'МУЛЬТИПЛЕЕР', note: 'Будущий режим воздушных дуэлей на карте.', enabled: false },
-    { action: 'settings', label: 'НАСТРОЙКИ', note: 'Настройки пока в разработке. Управление: W, A/D, Space, Shift.', enabled: false },
-    { action: 'exit', label: 'ВЫХОД', note: 'В браузерной версии выход закрывается вкладкой.', enabled: false },
-  ];
-
+  const buttonDefs = getStartMenuOptions();
   const buttons: Container[] = [];
   let statusLife = 0;
+  let statusWidth = 560;
+  let statusHeight = 84;
+
+  function centerStatusText() {
+    statusText.x = (statusWidth - statusText.width) / 2;
+    statusText.y = (statusHeight - statusText.height) / 2;
+  }
 
   function setStatus(text: string, life = 2.8) {
     statusText.text = text;
-    statusText.x = (560 - statusText.width) / 2;
-    statusText.y = (84 - statusText.height) / 2;
+    centerStatusText();
     statusPanel.visible = true;
     statusPanel.alpha = 1;
     statusLife = life;
@@ -142,9 +141,10 @@ export function createStartScreen(width: number, height: number, onPick: (action
       .rect(0, 0, w, h)
       .fill({ color: 0x000000, alpha: 0.08 });
 
-    const panelX = Math.max(44, Math.min(w * 0.08, 120));
-    panel.x = panelX;
-    panel.y = Math.max(48, h * 0.12);
+    const screenLayout = getStartScreenLayout(w, h, buttons.length);
+    panel.x = screenLayout.panelX;
+    panel.y = screenLayout.panelY;
+    panel.scale.set(screenLayout.panelScale);
 
     title.x = 0;
     title.y = 0;
@@ -153,21 +153,21 @@ export function createStartScreen(width: number, height: number, onPick: (action
     tagline.x = 7;
     tagline.y = 112;
 
-    const buttonStartY = 190;
     buttons.forEach((btn, i) => {
-      btn.x = 187;
-      btn.y = buttonStartY + i * 68;
+      btn.x = screenLayout.buttonX;
+      btn.y = screenLayout.buttonStartY + i * screenLayout.buttonGap;
     });
 
-    statusPanel.x = Math.max(32, Math.min(w - 592, panelX));
-    statusPanel.y = h - 122;
+    statusWidth = screenLayout.statusWidth;
+    statusHeight = screenLayout.statusHeight;
+    statusPanel.x = screenLayout.statusX;
+    statusPanel.y = screenLayout.statusY;
     statusBg.clear()
-      .roundRect(0, 0, 560, 84, 12)
+      .roundRect(0, 0, statusWidth, statusHeight, 12)
       .fill({ color: 0x060b13, alpha: 0.68 })
       .stroke({ color: 0xffb44a, width: 1.5, alpha: 0.5 });
-    statusText.style.wordWrapWidth = 520;
-    statusText.x = (560 - statusText.width) / 2;
-    statusText.y = (84 - statusText.height) / 2;
+    statusText.style.wordWrapWidth = screenLayout.statusWordWrapWidth;
+    centerStatusText();
   }
   layout(width, height);
   statusPanel.visible = false;
@@ -176,7 +176,7 @@ export function createStartScreen(width: number, height: number, onPick: (action
     container: c,
     show() {
       c.visible = true;
-      setStatus('Выбери режим. Готовы Арена и первый сюжетный вылет: Караван в тумане.', 3.2);
+      setStatus('Начни с первого вылета: взлети, защити караван, выбери первый апгрейд и дотяни до маяка.', 3.2);
     },
     hide() { c.visible = false; },
     update(dt: number) {

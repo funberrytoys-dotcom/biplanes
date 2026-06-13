@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { tick } from './tick.js';
 import { createWorldState, type WorldState } from './world-state.js';
-import { TICK_DT, PLANE_INITIAL_HP, XP_PER_KILL_LIGHT, DYING_DURATION_SEC } from '@biplanes/shared';
+import { TICK_DT, PLANE_INITIAL_HP, XP_PER_KILL_LIGHT, DYING_DURATION_SEC, BOOST_OVERHEAT_SEC, NO_THROTTLE_STALL_SEC } from '@biplanes/shared';
 
 function makePlayer() {
   return {
@@ -35,6 +35,116 @@ describe('world tick', () => {
     const s = createWorldState(42, makePlayer());
     const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
     expect(after.player.kinematic.position.x).toBeGreaterThan(500);
+  });
+
+  it('boost increases the player plane speed target during world ticks', () => {
+    const base = createWorldState(42, {
+      ...makePlayer(),
+      kinematic: { ...makePlayer().kinematic, g: 700, throttleLevel: 1 },
+    });
+
+    const normal = tick(base, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+    const boosted = tick(base, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false, boost: true });
+
+    expect(boosted.player.kinematic.g).toBeGreaterThan(normal.player.kinematic.g);
+    expect(boosted.player.boostActive).toBe(true);
+  });
+
+  it('kills the player in a death spin after sustained boost overheat', () => {
+    let s = createWorldState(42, makePlayer());
+    for (let i = 0; i < Math.ceil(BOOST_OVERHEAT_SEC / TICK_DT) + 2; i++) {
+      s = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false, boost: true });
+    }
+
+    expect(s.player.state).toBe('dying');
+    expect(s.player.alive).toBe(false);
+    expect(s.player.hp).toBe(0);
+  });
+
+  it('can ignite the player engine instead of immediately killing it on boost overheat', () => {
+    const s = createWorldState(7, {
+      ...makePlayer(),
+      boostHeat: 0.999,
+    });
+
+    const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false, boost: true });
+
+    expect(after.player.state).toBe('flying');
+    expect(after.player.alive).toBe(true);
+    expect(after.player.hp / after.player.maxHp).toBeLessThanOrEqual(0.25);
+    expect(after.player.boostHeat).toBeLessThan(1);
+  });
+
+  it('can choke the player engine into a death spin on boost overheat', () => {
+    const s = createWorldState(1, {
+      ...makePlayer(),
+      boostHeat: 0.999,
+    });
+
+    const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false, boost: true });
+
+    expect(after.player.state).toBe('dying');
+    expect(after.player.alive).toBe(false);
+    expect(after.player.hp).toBe(0);
+  });
+
+  it('kills the player in a death spin after three seconds with no throttle in the lower map', () => {
+    let s: WorldState = {
+      ...createWorldState(42, {
+      ...makePlayer(),
+      kinematic: { ...makePlayer().kinematic, position: { x: 500, y: 2300 }, throttleLevel: 0, throttleOn: false, throttle: false },
+      }),
+      worldHeight: 4000,
+    };
+    for (let i = 0; i < Math.ceil(NO_THROTTLE_STALL_SEC / TICK_DT) + 2; i++) {
+      s = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+    }
+
+    expect(s.player.state).toBe('dying');
+    expect(s.player.alive).toBe(false);
+    expect(s.player.hp).toBe(0);
+  });
+
+  it('lets the player recover from no-throttle flight in the upper map', () => {
+    let s: WorldState = {
+      ...createWorldState(42, {
+        ...makePlayer(),
+        kinematic: {
+          ...makePlayer().kinematic,
+          position: { x: 500, y: 220 },
+          velocity: { x: 820, y: 0 },
+          g: 820,
+          throttleLevel: 0,
+          throttleOn: false,
+          throttle: false,
+        },
+      }),
+      worldHeight: 4000,
+    };
+    for (let i = 0; i < Math.ceil(NO_THROTTLE_STALL_SEC / TICK_DT) + 2; i++) {
+      s = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+    }
+
+    expect(s.player.state).toBe('flying');
+    expect(s.player.alive).toBe(true);
+  });
+
+  it('does not kill the player just because the gas command is released while throttle is already high', () => {
+    let s: WorldState = {
+      ...createWorldState(42, {
+        ...makePlayer(),
+        kinematic: { ...makePlayer().kinematic, throttleLevel: 1, throttleOn: true, throttle: true },
+      }),
+      worldHeight: 4000,
+    };
+
+    for (let i = 0; i < Math.ceil(NO_THROTTLE_STALL_SEC / TICK_DT) + 2; i++) {
+      s = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+    }
+
+    expect(s.player.state).toBe('flying');
+    expect(s.player.alive).toBe(true);
+    expect(s.player.hp).toBeGreaterThan(0);
   });
 
   it('is deterministic for same input', () => {
@@ -78,8 +188,8 @@ describe('world tick', () => {
     const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
 
     expect(after.xpCollected).toBe(XP_PER_KILL_LIGHT);
-    expect(after.level).toBe(1);
-    expect(after.pendingLevelUp).toBe(false);
+    expect(after.level).toBe(2);
+    expect(after.pendingLevelUp).toBe(true);
   });
 
   it('bombs fall with gravity and explode on plane impact', () => {
@@ -114,6 +224,19 @@ describe('world tick', () => {
     expect(after.bombs).toHaveLength(0); // exploded
     expect(after.enemies[0]!.hp).toBeLessThan(100);
     expect(after.explosionEvents).toHaveLength(1);
+  });
+
+  it('cluster bomb upgrade also enables dropping visible bombs', () => {
+    const player = makePlayer();
+    const s = {
+      ...createWorldState(42, player),
+      appliedUpgradeIds: ['cluster_bomb'],
+    };
+
+    const after = tick(s, { rotate: 0, fire: false, bomb: true, throttleDelta: 0, eject: false, jump: false });
+
+    expect(after.bombs).toHaveLength(1);
+    expect(after.bombs[0]!.ownerFaction).toBe('player');
   });
 
   it('rockets steer toward closest enemy and explode', () => {
@@ -234,6 +357,7 @@ describe('world tick', () => {
     let s2 = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
     // Verify dying
     expect(s2.enemies[0]!.state).toBe('dying');
+    s2 = { ...s2, pendingLevelUp: false };
     // Advance until dying timer elapses
     const ticksNeeded = Math.ceil(DYING_DURATION_SEC / TICK_DT) + 2;
     for (let i = 0; i < ticksNeeded; i++) {
@@ -265,6 +389,42 @@ describe('world tick', () => {
     const b = tick(s2, cmd);
     expect(a.enemies[0]).toEqual(b.enemies[0]);
     expect(a.player).toEqual(b.player);
+  });
+
+  it('scores both sides when player and enemy die in the same ram', () => {
+    const player = {
+      ...makePlayer(),
+      hp: 1,
+      kinematic: {
+        ...makePlayer().kinematic,
+        position: { x: 500, y: 500 },
+        velocity: { x: 0, y: 0 },
+        heading: 0,
+        g: 0,
+        throttleLevel: 0,
+      },
+    };
+    const enemy = {
+      ...makePlayer(),
+      id: 2,
+      faction: 'enemy' as const,
+      hp: 1,
+      kinematic: {
+        ...makePlayer().kinematic,
+        position: { x: 500, y: 500 },
+        velocity: { x: 0, y: 0 },
+        heading: Math.PI,
+        g: 0,
+        facing: -1 as const,
+        throttleLevel: 0,
+      },
+    };
+    const s = { ...createWorldState(42, player), enemies: [enemy] };
+
+    const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+
+    expect(after.playerScore).toBe(1);
+    expect(after.enemyScore).toBe(1);
   });
 
   it('flame trail deals damage to enemy plane behind tail', () => {
@@ -303,7 +463,7 @@ describe('world tick', () => {
     };
     const s = {
       ...createWorldState(42, player),
-      playerScore: 9,
+      playerScore: 14,
       enemies: [enemy],
       bullets: [{
         id: 100,
@@ -319,21 +479,22 @@ describe('world tick', () => {
 
     const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
 
-    expect(after.playerScore).toBe(10);
+    expect(after.playerScore).toBe(15);
     expect(after.gameOver).toBe(true);
   });
 
-  it('spawns only one enemy plane per tick even when target pressure is higher', () => {
+  it('spawns the current arena wave in the air', () => {
     const s = {
       ...createWorldState(42, makePlayer()),
       difficulty: 'hard' as const,
       timeSec: 100,
+      playerScore: 9,
       enemies: [],
     };
 
     const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
 
-    expect(after.enemies.filter(e => e.state === 'taxi')).toHaveLength(1);
+    expect(after.enemies.filter(e => e.state === 'flying')).toHaveLength(5);
   });
 
   it('does not spawn another enemy while one is still taking off', () => {

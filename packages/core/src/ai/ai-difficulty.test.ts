@@ -209,6 +209,16 @@ describe('ai difficulty params', () => {
     expect(cmd.fire).toBe(true);
   });
 
+  it('medium AI cuts throttle when too close head-on to avoid ramming', () => {
+    const ai = settled(91);
+    const enemy = makePlane(500, 500, 0, { g: 700, throttleLevel: 1.0, facing: 1 });
+    const target = makePlane(690, 500, Math.PI, { g: 650, throttleLevel: 1.0, facing: -1 });
+    const { cmd } = aiCommand(enemy, target, DIFFICULTIES.medium, ai, 30, 1 / 60, 3.0, true);
+
+    expect(cmd.throttleDelta).toBe(-1);
+    expect(cmd.fire).toBe(true);
+  });
+
   // ============================================================
   // New tests: burst fire, pursuit pressure, evasion strength
   // ============================================================
@@ -264,21 +274,22 @@ describe('ai difficulty params', () => {
     expect(cmd.fire).toBe(true);
   });
 
-  it('hard presses the attack (higher throttle) when aligned at firing range in the tail', () => {
+  it('hard presses the attack (higher throttle) when aligned at safe firing range in the tail', () => {
     // Enemy in tail sector, aligned, target at ~250px (>= overshoot 200, < range)
     // and the enemy is currently slow → it should throttle UP to close & keep guns on.
     const ai = settled(88);
     const enemy = makePlane(500, 450, 0, { g: 500, throttleLevel: 0.4, facing: 1 });
-    const target = makePlane(750, 450, 0, { g: 600, throttleLevel: 0.7, facing: 1 });
+    const target = makePlane(840, 450, 0, { g: 600, throttleLevel: 0.7, facing: 1 });
     const { cmd } = aiCommand(enemy, target, DIFFICULTIES.hard, ai, 30, 1 / 60, 3.0, true);
     // pressAttackThrottle (0.8) > current 0.4 → throttle up.
     expect(cmd.throttleDelta).toBe(1);
   });
 
-  it('hard uses a tighter tail standoff than the legacy 230px default', () => {
+  it('medium and hard keep a safer tail standoff to avoid ramming', () => {
     // Pure parameter guard so the owner-tunable knobs do not silently regress.
-    expect(DIFFICULTIES.hard.tailStandoffPx).toBeLessThan(230);
-    expect(DIFFICULTIES.medium.tailStandoffPx).toBeLessThan(230);
+    expect(DIFFICULTIES.hard.tailStandoffPx).toBeGreaterThanOrEqual(280);
+    expect(DIFFICULTIES.medium.tailStandoffPx).toBeGreaterThanOrEqual(240);
+    expect(DIFFICULTIES.hard.overshootDistancePx).toBeGreaterThanOrEqual(260);
     expect(DIFFICULTIES.hard.evasionStrengthRad).toBeGreaterThan(
       DIFFICULTIES.easy.evasionStrengthRad,
     );

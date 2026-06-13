@@ -5,12 +5,135 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <title>Biplanes Prototype</title>
   <style>
-    html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #0a1428; touch-action: none; }
-    #game { width: 100vw; height: 100vh; }
+    :root {
+      color-scheme: dark;
+      --phone-w: min(96vw, 1180px);
+      --phone-h: min(86vh, calc(var(--phone-w) * 0.486));
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0a1428;
+      touch-action: none;
+    }
+
+    body {
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    #device-shell {
+      width: 100vw;
+      height: 100vh;
+    }
+
+    #device-screen,
+    #game {
+      width: 100%;
+      height: 100%;
+    }
+
+    #device-screen {
+      position: relative;
+      overflow: hidden;
+      background: #07111f;
+    }
+
+    body.device-preview {
+      background:
+        radial-gradient(circle at 20% 10%, rgba(76, 146, 255, 0.18), transparent 34%),
+        radial-gradient(circle at 78% 85%, rgba(255, 158, 64, 0.12), transparent 32%),
+        #070b14;
+    }
+
+    body.device-preview #device-shell {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      width: var(--phone-w);
+      height: var(--phone-h);
+      max-height: 86vh;
+      transform: translate(-50%, -50%);
+      box-sizing: border-box;
+      padding: clamp(12px, 1.25vw, 20px);
+      border-radius: clamp(34px, 4.8vw, 70px);
+      background:
+        linear-gradient(145deg, #202633 0%, #05070b 44%, #2d3442 100%);
+      box-shadow:
+        0 26px 80px rgba(0, 0, 0, 0.56),
+        inset 0 0 0 2px rgba(255, 255, 255, 0.12),
+        inset 0 0 0 7px rgba(0, 0, 0, 0.52);
+    }
+
+    body.device-preview #device-screen {
+      border-radius: clamp(24px, 3.7vw, 54px);
+      box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+        inset 0 0 32px rgba(0, 0, 0, 0.34);
+    }
+
+    body.device-preview #device-screen::before {
+      content: "";
+      position: absolute;
+      left: clamp(8px, 1.2vw, 18px);
+      top: 50%;
+      z-index: 10;
+      width: clamp(26px, 3vw, 48px);
+      height: clamp(92px, 11vw, 148px);
+      transform: translateY(-50%);
+      border-radius: 999px;
+      background:
+        radial-gradient(circle at 50% 22%, #222936 0 13%, transparent 14%),
+        radial-gradient(circle at 50% 72%, #0d1018 0 18%, transparent 19%),
+        #05060a;
+      box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+        0 0 20px rgba(0, 0, 0, 0.32);
+      pointer-events: none;
+    }
+
+    body.device-preview #device-screen::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 9;
+      border-radius: inherit;
+      box-shadow:
+        inset clamp(24px, 5vw, 70px) 0 clamp(22px, 4vw, 52px) rgba(0, 0, 0, 0.2),
+        inset 0 0 0 clamp(3px, 0.6vw, 8px) rgba(0, 0, 0, 0.16);
+      pointer-events: none;
+    }
+
+    body.device-preview #game {
+      position: absolute;
+      inset: 0;
+    }
+
+    body.device-preview::after {
+      content: "";
+      position: fixed;
+      left: 50%;
+      top: calc(50% + var(--phone-h) / 2 + 18px);
+      width: calc(var(--phone-w) * 0.82);
+      height: 24px;
+      transform: translateX(-50%);
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.32);
+      filter: blur(16px);
+      pointer-events: none;
+    }
   </style>
 </head>
 <body>
-  <div id="game"></div>
+  <div id="device-shell">
+    <div id="device-screen">
+      <div id="game"></div>
+    </div>
+  </div>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

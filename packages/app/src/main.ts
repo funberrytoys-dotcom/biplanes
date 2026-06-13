@@ -3,8 +3,11 @@ import {
   TICK_DT,
   PLANE_INITIAL_HP,
   ENEMY_INITIAL_HP_LIGHT,
+  ENEMY_INITIAL_HP_HEAVY,
+  G_MAX_LEVEL,
   WORLD_WIDTH,
   WORLD_HEIGHT,
+  PLAYER_SCORE_TO_WIN,
   RUNWAY_X,
   RUNWAY_Y,
   LOW_HP_VIGNETTE_THRESHOLD,
@@ -20,18 +23,23 @@ import {
   applyUpgrade,
   createRng,
   rollUpgradeChoices,
+  ARENA_FINAL_BOSS_SCORE,
   type WorldState,
   type Plane,
   type Difficulty,
   type UpgradeId,
+  isStalling,
+  findPilot,
 } from '@biplanes/core';
 import {
   createPixiApp,
   createSkyBackground,
   createCloudField,
+  createCloudSea,
   createPlaneSprite,
   createPilotSprite,
   BulletPool,
+  BombPool,
   createCamera,
   createHud,
   createRenderClock,
@@ -43,9 +51,13 @@ import {
   createLightning,
   createLensFlare,
   createDistantSilhouettes,
+  createCloudVolume,
+  createArenaWeather,
+  resolveGunfeelShot,
   GroundFx,
   type SkyThemeId,
   type SkyBackgroundHandle,
+  type CloudVolumePlane,
 } from '@biplanes/render';
 import {
   createKeyboardController,
@@ -55,8 +67,9 @@ import { createStartScreen } from './screens/start-screen.js';
 import { createLevelUpScreen } from './screens/level-up-screen.js';
 import { createDeathScreen } from './screens/death-screen.js';
 import { createDialogueOverlay, createRadioPopup, type DialogueLine } from './campaign/dialogue-overlay.js';
+import { getMissionUiLayout } from './campaign/mission-ui-layout.js';
 import { createMissionOneScene } from './campaign/mission-one-scene.js';
-import { createMissionOneController, type MissionOnePhase } from './campaign/mission-one-controller.js';
+import { createMissionOneController } from './campaign/mission-one-controller.js';
 import { getMissionOneBossPlan, getMissionOneWavePlan, type MissionOneEnemyRole } from './campaign/mission-one-encounters.js';
 import { resolveMissionOneFrameGate } from './campaign/mission-one-frame-gate.js';
 import { getMissionOneEscortFocus } from './campaign/mission-one-camera.js';
@@ -67,14 +80,70 @@ import {
   getMissionOneCaravanStart,
   getMissionOneEnemySpawnX,
 } from './campaign/mission-one-layout.js';
-import { getMissionOneObjectiveText } from './campaign/mission-one-objectives.js';
+import { resolveFirstSortieGuidance, shouldShowFirstUpgradeBriefing } from './campaign/first-sortie-guidance.js';
 import { resolveMissionOneOutcome } from './campaign/mission-one-rules.js';
+import {
+  arenaDifficultyForRound,
+  arenaEnemyCountForRound,
+  arenaEnemyHpMultiplierForRound,
+  resolveArenaDuelFlow,
+  shouldSpawnArenaFinalBoss,
+  type ArenaRoundPhase,
+} from './arena-director.js';
+import { ARENA_BACKGROUND_URLS, ARENA_LOCATION_THEMES } from './arena-locations.js';
+import {
+  resolveArenaCameraFocus,
+  resolveArenaPlayerRunwayStart,
+  shouldStartArenaDuelAfterTakeoff,
+} from './arena-camera.js';
+import { getGunfeelLabShotAt } from './gunfeel-lab.js';
+import { resolveFlightLabCue, resolveFlightLabSpawn } from './flight-lab.js';
+import { createGameAudio } from './audio/game-audio.js';
+import { shouldShowTouchGuide } from './mobile-touch-guide.js';
 
 const MENU_VIDEO_URL = '/assets/menu/main-menu-placeholder.mp4';
 const CHICO_PORTRAIT_URL = '/assets/campaign/portrait_chico.png';
 const ISLAND_BRYNN_FRAME_URLS = Array.from({ length: 50 }, (_, i) => `/assets/campaign/island_brynn/frame_${String(i + 1).padStart(4, '0')}.png`);
+const ARENA_WORLD_WIDTH = WORLD_WIDTH * 5;
+const ARENA_WORLD_HEIGHT = WORLD_HEIGHT * 3;
+const ARENA_TOTAL_STAGES = ARENA_LOCATION_THEMES.length;
+const SKY_TEST_WORLD_WIDTH = 2172 * 3;
+const SKY_TEST_WORLD_HEIGHT = 724 * 3;
+const CLOUD_VOLUME_WORLD_WIDTH = Math.max(ARENA_WORLD_WIDTH, SKY_TEST_WORLD_WIDTH);
+const CLOUD_VOLUME_WORLD_HEIGHT = Math.max(ARENA_WORLD_HEIGHT, SKY_TEST_WORLD_HEIGHT);
+const SKY_TEST_IMAGE_URL = '/assets/biplanes/arena/day/arena_day_generated_test.jpg';
+const SKY_TEST_LAYER_ASSET_URLS = [
+  '/assets/biplanes/arena/day/cirrus/cloud_cirrus_01.png',
+  '/assets/biplanes/arena/day/cirrus/cloud_cirrus_02.png',
+  '/assets/biplanes/arena/day/cirrus/cloud_cirrus_03.png',
+  '/assets/biplanes/arena/day/cirrus/cloud_cirrus_05.png',
+  '/assets/biplanes/arena/day/cirrus/cloud_cirrus_07.png',
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_01.png',
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_02.png',
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_04.png',
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_05.png',
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_08.png',
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_11.png',
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_13.png',
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_14.png',
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_18.png',
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_20.png',
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_22.png',
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_23.png',
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_25.png',
+  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_27.png',
+  '/assets/biplanes/arena/day/islands/island_silhouette_02.png',
+  '/assets/biplanes/arena/day/islands/island_silhouette_03.png',
+  '/assets/biplanes/arena/day/islands/island_silhouette_04.png',
+  '/assets/biplanes/arena/day/islands/island_silhouette_05.png',
+  '/assets/biplanes/arena/day/islands/island_silhouette_06.png',
+  '/assets/biplanes/arena/day/islands/island_silhouette_07.png',
+];
 
 const VISUAL_ASSET_URLS = [
+  SKY_TEST_IMAGE_URL,
+  ...Object.values(ARENA_BACKGROUND_URLS),
+  ...SKY_TEST_LAYER_ASSET_URLS,
   '/assets/biplanes/sky_noon.jpg',
   '/assets/biplanes/sky_sunset.jpg',
   '/assets/biplanes/sky_twilight.jpg',
@@ -212,6 +281,7 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
     right: new Graphics(),
     fire: new Graphics(),
     bomb: new Graphics(),
+    boost: new Graphics(),
   };
   const labelStyle = new TextStyle({
     fontFamily: 'monospace',
@@ -225,8 +295,12 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
     right: new Text({ text: 'TURN', style: labelStyle }),
     fire: new Text({ text: 'FIRE', style: labelStyle }),
     bomb: new Text({ text: 'BOMB', style: labelStyle }),
+    boost: new Text({ text: 'BOOST', style: labelStyle }),
   };
-  c.addChild(rings.left, rings.right, rings.fire, rings.bomb, labels.left, labels.right, labels.fire, labels.bomb);
+  c.addChild(
+    rings.left, rings.right, rings.fire, rings.bomb, rings.boost,
+    labels.left, labels.right, labels.fire, labels.bomb, labels.boost
+  );
   let active = false;
   let touchLikely = false;
 
@@ -244,8 +318,11 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
     label.y = y - label.height / 2;
   }
 
-  function layout(w: number, h: number) {
-    touchLikely = navigator.maxTouchPoints > 0 || w < 900;
+  function layout(w: number, _h: number) {
+    touchLikely = shouldShowTouchGuide({
+      width: w,
+      maxTouchPoints: navigator.maxTouchPoints,
+    });
     c.visible = active && touchLikely;
     if (!touchLikely) return;
     const z = touch.zones;
@@ -253,10 +330,12 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
     drawRing(rings.right, z.rotateCw.x, z.rotateCw.y, z.rotateCw.r, 0x33d6ff);
     drawRing(rings.fire, z.fire.x, z.fire.y, z.fire.r, 0xff8c19);
     drawRing(rings.bomb, z.bomb.x, z.bomb.y, z.bomb.r, 0xff4444);
+    drawRing(rings.boost, z.boost.x, z.boost.y, z.boost.r, 0xffd34a);
     placeLabel(labels.left, z.rotateCcw.x, z.rotateCcw.y);
     placeLabel(labels.right, z.rotateCw.x, z.rotateCw.y);
     placeLabel(labels.fire, z.fire.x, z.fire.y);
     placeLabel(labels.bomb, z.bomb.x, z.bomb.y);
+    placeLabel(labels.boost, z.boost.x, z.boost.y);
   }
 
   function setActive(nextActive: boolean) {
@@ -311,6 +390,175 @@ function makeCarrierLaunchPlayer(): Plane {
   };
 }
 
+function makeArenaRunwayPlayer(previous?: Plane): Plane {
+  const player = previous ?? makePlayer();
+  const runway = resolveArenaPlayerRunwayStart(ARENA_WORLD_WIDTH, ARENA_WORLD_HEIGHT);
+  return {
+    ...player,
+    kinematic: {
+      ...player.kinematic,
+      ...runway,
+    },
+    hp: player.maxHp,
+    weaponCooldown: 0,
+    alive: true,
+    state: 'taxi',
+    respawnTimer: 0,
+    boostHeat: 0,
+    boostActive: false,
+    noThrottleSec: 0,
+  };
+}
+
+function makeSkyTestPlayer(): Plane {
+  const player = makePlayer();
+  return {
+    ...player,
+    kinematic: {
+      ...player.kinematic,
+      position: { x: 260, y: SKY_TEST_WORLD_HEIGHT * 0.48 },
+      velocity: { x: G_MAX_LEVEL, y: 0 },
+      heading: 0,
+      g: G_MAX_LEVEL,
+      throttleOn: true,
+      throttle: true,
+      throttleLevel: 1.0,
+      facing: 1,
+    },
+    state: 'flying',
+  };
+}
+
+function makeGunfeelLabPlayer(): Plane {
+  const player = makeSkyTestPlayer();
+  return {
+    ...player,
+    kinematic: {
+      ...player.kinematic,
+      position: { x: SKY_TEST_WORLD_WIDTH * 0.38, y: SKY_TEST_WORLD_HEIGHT * 0.46 },
+      velocity: { x: 0, y: 0 },
+      heading: 0,
+      g: G_MAX_LEVEL,
+      throttleOn: true,
+      throttle: true,
+      throttleLevel: 1,
+    },
+  };
+}
+
+function makeFlightLabPlayer(): Plane {
+  const player = makePlayer();
+  return {
+    ...player,
+    kinematic: {
+      ...player.kinematic,
+      ...resolveFlightLabSpawn(SKY_TEST_WORLD_WIDTH, SKY_TEST_WORLD_HEIGHT),
+    },
+    state: 'flying',
+  };
+}
+
+function makeSkyTestBoss(id: number): Plane {
+  const hp = ENEMY_INITIAL_HP_LIGHT * 8;
+  return {
+    id,
+    faction: 'enemy',
+    kinematic: {
+      position: { x: SKY_TEST_WORLD_WIDTH - 760, y: SKY_TEST_WORLD_HEIGHT * 0.47 },
+      velocity: { x: -G_MAX_LEVEL * 0.9, y: 0 },
+      heading: Math.PI,
+      throttleOn: true,
+      g: G_MAX_LEVEL * 0.9,
+      facing: -1,
+      throttle: true,
+      throttleLevel: 0.95,
+    },
+    hp,
+    maxHp: hp,
+    weaponCooldown: 0.2,
+    alive: true,
+    state: 'flying',
+    respawnTimer: 0,
+    boostHeat: 0,
+    boostActive: false,
+    noThrottleSec: 0,
+  };
+}
+
+function makeArenaRoundEnemy(id: number, player: Plane, round: number, lane: number = 0): Plane {
+  const hp = Math.round(ENEMY_INITIAL_HP_LIGHT * arenaEnemyHpMultiplierForRound(round));
+  const speed = G_MAX_LEVEL * Math.min(1.12, 0.92 + round * 0.03);
+  const fromRight = player.kinematic.position.x < ARENA_WORLD_WIDTH * 0.55;
+  const heading = fromRight ? Math.PI : 0;
+  const x = fromRight
+    ? Math.min(ARENA_WORLD_WIDTH - 900, player.kinematic.position.x + 1350 + lane * 180)
+    : Math.max(900, player.kinematic.position.x - 1350 - lane * 180);
+  const laneOffset = (lane % 2 === 0 ? -1 : 1) * (220 + Math.floor(lane / 2) * 160);
+  const y = Math.max(360, Math.min(ARENA_WORLD_HEIGHT - 560, player.kinematic.position.y + laneOffset));
+  return {
+    id,
+    faction: 'enemy',
+    kinematic: {
+      position: { x, y },
+      velocity: { x: Math.cos(heading) * speed, y: 0 },
+      heading,
+      throttleOn: true,
+      g: speed,
+      facing: fromRight ? -1 : 1,
+      throttle: true,
+      throttleLevel: Math.min(1, 0.94 + round * 0.018),
+    },
+    hp,
+    maxHp: hp,
+    weaponCooldown: Math.max(0.035, 0.34 - round * 0.026),
+    alive: true,
+    state: 'flying',
+    respawnTimer: 0,
+    boostHeat: 0,
+    boostActive: false,
+    noThrottleSec: 0,
+    aiRole: 'chase-player',
+  };
+}
+
+function makeArenaScarBoss(id: number, player: Plane, round: number): Plane {
+  const hp = Math.round(ENEMY_INITIAL_HP_HEAVY * arenaEnemyHpMultiplierForRound(round) * 3.2);
+  const fromRight = player.kinematic.position.x < ARENA_WORLD_WIDTH * 0.55;
+  const heading = fromRight ? Math.PI : 0;
+  const x = fromRight
+    ? Math.min(ARENA_WORLD_WIDTH - 1200, player.kinematic.position.x + 1800)
+    : Math.max(1200, player.kinematic.position.x - 1800);
+  const y = Math.max(420, Math.min(ARENA_WORLD_HEIGHT - 760, player.kinematic.position.y - 260));
+  const speed = G_MAX_LEVEL * 0.96;
+  return {
+    id,
+    faction: 'enemy',
+    kinematic: {
+      position: { x, y },
+      velocity: { x: Math.cos(heading) * speed, y: 0 },
+      heading,
+      throttleOn: true,
+      g: speed,
+      facing: fromRight ? -1 : 1,
+      throttle: true,
+      throttleLevel: 1,
+    },
+    hp,
+    maxHp: hp,
+    weaponCooldown: 0.05,
+    alive: true,
+    state: 'flying',
+    respawnTimer: 0,
+    boostHeat: 0,
+    boostActive: false,
+    noThrottleSec: 0,
+    aiRole: 'chase-player',
+    isBoss: true,
+    visualScale: 1.3,
+    bossName: 'ШРАМ',
+  };
+}
+
 // Launch-assist tuning. Plane spawns LEVEL (heading=0) at mid-screen so it
 // has equal room above and below. Without input it cruises horizontally and
 // will not drift into the world ceiling. Steering is fully the player's.
@@ -354,9 +602,17 @@ const URL_PARAMS = typeof window !== 'undefined'
   ? new URLSearchParams(window.location.search)
   : new URLSearchParams();
 const AUTO_STORY = URL_PARAMS.has('story');
+const AUTO_ARENA = URL_PARAMS.has('arena');
+const AUTO_SKY_TEST = URL_PARAMS.has('skytest');
+const AUTO_GUNFEEL_LAB = URL_PARAMS.has('gunfeelLab');
+const AUTO_FLIGHT_LAB = URL_PARAMS.has('flightLab');
+const AUTO_OIL_SHOT = URL_PARAMS.has('oilshot');
 const SKIP_BRIEFING = URL_PARAMS.has('skipBriefing');
 const DEBUG_HUD_ON_BOOT = URL_PARAMS.has('debug');
 const TIME_SKIP_SEC = Math.max(0, parseFloat(URL_PARAMS.get('t') ?? '0') || 0);
+const DEBUG_ARENA_SCORE = DEBUG_HUD_ON_BOOT
+  ? Math.max(0, Math.min(ARENA_FINAL_BOSS_SCORE, Math.floor(parseFloat(URL_PARAMS.get('arenaScore') ?? '0') || 0)))
+  : 0;
 
 export async function startGame(container: HTMLElement) {
   await Assets.load(VISUAL_ASSET_URLS);
@@ -381,15 +637,37 @@ export async function startGame(container: HTMLElement) {
 
   // Distant silhouettes — re-created per theme so the silhouette tint matches the sky.
   let silhouettes: ReturnType<typeof createDistantSilhouettes> | null = null;
-  let runMode: 'menu' | 'arena' | 'story' = 'menu';
+  let runMode: 'menu' | 'arena' | 'story' | 'skytest' | 'gunfeelLab' | 'flightLab' | 'oilshot' = 'menu';
 
   let sky: SkyBackgroundHandle;
-  function setSkyTheme(themeId: SkyThemeId) {
+  function setSkyTheme(themeId: SkyThemeId, imageUrl?: string) {
+    const worldW =
+      runMode === 'story' ? MISSION_ONE_WORLD_WIDTH :
+      runMode === 'arena' ? ARENA_WORLD_WIDTH :
+      runMode === 'flightLab' ? SKY_TEST_WORLD_WIDTH :
+      runMode === 'gunfeelLab' ? SKY_TEST_WORLD_WIDTH :
+      runMode === 'oilshot' ? SKY_TEST_WORLD_WIDTH :
+      runMode === 'skytest' ? SKY_TEST_WORLD_WIDTH :
+      WORLD_WIDTH;
+    const worldH =
+      runMode === 'arena' ? ARENA_WORLD_HEIGHT :
+      runMode === 'flightLab' ? SKY_TEST_WORLD_HEIGHT :
+      runMode === 'gunfeelLab' ? SKY_TEST_WORLD_HEIGHT :
+      runMode === 'oilshot' ? SKY_TEST_WORLD_HEIGHT :
+      runMode === 'skytest' ? SKY_TEST_WORLD_HEIGHT :
+      WORLD_HEIGHT;
     if (sky) {
       worldLayer.removeChild(sky.container);
       sky.container.destroy({ children: true });
     }
-    sky = createSkyBackground(WORLD_WIDTH, WORLD_HEIGHT, themeId, runMode === 'story');
+    sky = createSkyBackground(
+      worldW,
+      worldH,
+      themeId,
+      runMode === 'story' || runMode === 'skytest' || runMode === 'gunfeelLab' || runMode === 'flightLab' || runMode === 'oilshot',
+      (runMode === 'skytest' || runMode === 'gunfeelLab' || runMode === 'flightLab' || runMode === 'oilshot') ? SKY_TEST_IMAGE_URL : imageUrl,
+      (runMode === 'skytest' || runMode === 'arena' || runMode === 'gunfeelLab' || runMode === 'flightLab' || runMode === 'oilshot') ? { mode: 'layeredArena' } : undefined,
+    );
     worldLayer.addChildAt(sky.container, 0); // Keep sky behind all active elements
     lightning.setActive(themeId === 'twilight' || themeId === 'night');
     lensFlare.setActive(themeId === 'noon' || themeId === 'sunset');
@@ -404,7 +682,7 @@ export async function startGame(container: HTMLElement) {
       themeId === 'twilight' ? 0x170f30 :
       themeId === 'sunset' ? 0x561841 :
       0x224975; // noon
-    silhouettes = createDistantSilhouettes(WORLD_WIDTH, WORLD_HEIGHT, silhouetteColor);
+    silhouettes = createDistantSilhouettes(worldW, worldH, silhouetteColor);
     worldLayer.addChildAt(silhouettes.container, 1);
   }
 
@@ -428,17 +706,20 @@ export async function startGame(container: HTMLElement) {
 
   // Background clouds — behind the dogfight for depth. Subtle and high.
   const bgClouds = createCloudField({
-    count: 7,
-    yMin: 70,
-    yMax: 470,
-    widthMin: 170,
-    widthMax: 330,
-    alphaMin: 0.16,
-    alphaMax: 0.4,
-    speedMin: 6,
-    speedMax: 16,
+    count: 5,
+    yMin: 90,
+    yMax: 430,
+    widthMin: 180,
+    widthMax: 360,
+    alphaMin: 0.07,
+    alphaMax: 0.16,
+    speedMin: 3,
+    speedMax: 8,
   });
   worldLayer.addChild(bgClouds.container);
+
+  const skytestCloudVolume = createCloudVolume(CLOUD_VOLUME_WORLD_WIDTH, CLOUD_VOLUME_WORLD_HEIGHT);
+  worldLayer.addChild(skytestCloudVolume.backContainer);
 
   const bulletLayer = new Container();
   const planeLayer = new Container();
@@ -452,19 +733,44 @@ export async function startGame(container: HTMLElement) {
   // and be partially hidden. Denser and larger; includes the soft photoreal puff.
   const fgClouds = createCloudField({
     count: 4,
-    yMin: 160,
-    yMax: 620,
-    widthMin: 320,
-    widthMax: 560,
-    alphaMin: 0.38,
-    alphaMax: 0.7,
-    speedMin: 12,
-    speedMax: 26,
+    yMin: 210,
+    yMax: 650,
+    widthMin: 360,
+    widthMax: 680,
+    alphaMin: 0.1,
+    alphaMax: 0.24,
+    speedMin: 6,
+    speedMax: 13,
     useSoft: true,
   });
   worldLayer.addChild(fgClouds.container);
 
+  worldLayer.addChild(skytestCloudVolume.frontContainer);
+
+  const cloudSea = createCloudSea({
+    count: 22,
+    yTop: WORLD_HEIGHT * 0.74,
+    span: 2200,
+    widthMin: 440,
+    widthMax: 760,
+    alphaMin: 0.36,
+    alphaMax: 0.64,
+    driftSpeed: 8,
+  });
+  worldLayer.addChild(cloudSea.container);
+
+  function syncAtmosphereLayers() {
+    const showAtmosphere = runMode !== 'menu' && runMode !== 'skytest';
+    bgClouds.container.visible = showAtmosphere;
+    fgClouds.container.visible = showAtmosphere;
+    cloudSea.container.visible = showAtmosphere;
+    skytestCloudVolume.backContainer.visible = runMode === 'skytest' || runMode === 'arena' || runMode === 'gunfeelLab' || runMode === 'flightLab' || runMode === 'oilshot';
+    skytestCloudVolume.frontContainer.visible = runMode === 'skytest' || runMode === 'arena' || runMode === 'gunfeelLab' || runMode === 'flightLab' || runMode === 'oilshot';
+  }
+  syncAtmosphereLayers();
+
   const bullets = new BulletPool(bulletLayer);
+  const bombSprites = new BombPool(fxLayer);
   const damageFx = new DamageFx(fxLayer, glowLayer.container);
   const muzzleFlashes = new MuzzleFlashes(glowLayer.container);
   const tracers = new BulletTracers(glowLayer.container);
@@ -479,9 +785,67 @@ export async function startGame(container: HTMLElement) {
   const pilotSprites = new Map<number, ReturnType<typeof createPilotSprite>>();
 
   const camera = createCamera(worldLayer, app.screen.width, app.screen.height);
+  const audio = createGameAudio();
+
+  function emitGunfeelShotVfx(
+    x: number,
+    y: number,
+    heading: number,
+    ownerFaction: 'player' | 'enemy',
+    isHeavy: boolean = false,
+  ) {
+    audio.playGunshot(isHeavy, ownerFaction === 'player');
+    const shotFeel = resolveGunfeelShot({
+      ownerFaction,
+      headingRad: heading,
+      isHeavy,
+    });
+    muzzleFlashes.spawn(x, y, heading, {
+      scale: shotFeel.flashScale,
+      duration: shotFeel.flashDuration,
+    });
+    for (let i = 0; i < shotFeel.casingCount; i++) {
+      damageFx.addCasing({ x, y }, heading);
+    }
+    if (shotFeel.sparkCount > 0) {
+      damageFx.addSparks({ x, y }, shotFeel.sparkCount);
+    }
+    for (let i = 0; i < (isHeavy ? 5 : 3); i++) {
+      tracers.emit({
+        id: -1000 - i,
+        ownerId: ownerFaction === 'player' ? state.player.id : 0,
+        ownerFaction,
+        position: {
+          x: x + Math.cos(heading) * (i * 78),
+          y: y + Math.sin(heading) * (i * 78),
+        },
+        velocity: {
+          x: Math.cos(heading) * 1200,
+          y: Math.sin(heading) * 1200,
+        },
+        lifetime: 0.2,
+        damage: 0,
+        alive: true,
+        isHeavy,
+      }, {
+        scale: shotFeel.tracerScale,
+        duration: shotFeel.tracerDuration,
+      });
+    }
+    if (ownerFaction === 'player') {
+      const cameraFeel = runMode === 'arena' ? 0.35 : 1;
+      camera.shake(shotFeel.cameraShake * cameraFeel);
+      camera.punch(shotFeel.recoil.x, shotFeel.recoil.y, shotFeel.cameraPunch * cameraFeel);
+      camera.zoomPunch(1 + (shotFeel.zoomPunch - 1) * cameraFeel, shotFeel.flashDuration);
+      screenFx.flash(isHeavy ? 0xffb24a : 0xffd98a, isHeavy ? 0.08 : 0.045, shotFeel.flashDuration);
+    }
+  }
 
   const uiLayer = new Container();
   app.stage.addChild(uiLayer);
+  const arenaWeather = createArenaWeather(app.screen.width, app.screen.height);
+  arenaWeather.container.visible = false;
+  uiLayer.addChild(arenaWeather.container);
   uiLayer.addChild(screenFx.container);
 
   const hud = createHud(app.screen.width, app.screen.height);
@@ -520,11 +884,49 @@ export async function startGame(container: HTMLElement) {
   missionObjective.visible = false;
   uiLayer.addChild(missionObjective);
 
-  function layoutCaravanGauge(w: number, _h: number) {
-    caravanGauge.x = (w - 220) / 2;
-    caravanGauge.y = 88;
-    missionObjective.x = w / 2;
-    missionObjective.y = 118;
+  const arenaStatus = new Text({
+    text: '',
+    style: new TextStyle({
+      fontFamily: 'monospace',
+      fontSize: 18,
+      fontWeight: 'bold',
+      fill: 0xfff4dc,
+      stroke: { color: 0x05080e, width: 4 },
+      letterSpacing: 1,
+    }),
+  });
+  arenaStatus.visible = false;
+  uiLayer.addChild(arenaStatus);
+
+  const flightLabStatus = new Text({
+    text: '',
+    style: new TextStyle({
+      fontFamily: 'monospace',
+      fontSize: 24,
+      fill: 0xfff0b8,
+      fontWeight: 'bold',
+      stroke: { color: 0x0a1220, width: 5 },
+      align: 'center',
+    }),
+  });
+  flightLabStatus.visible = false;
+  uiLayer.addChild(flightLabStatus);
+
+  function layoutCaravanGauge(w: number, h: number) {
+    const missionLayout = getMissionUiLayout(w, h);
+    caravanGauge.x = missionLayout.caravanGaugeX;
+    caravanGauge.y = missionLayout.caravanGaugeY;
+    missionObjective.x = missionLayout.objectiveX;
+    missionObjective.y = missionLayout.objectiveY;
+    missionObjective.style.fontSize = missionLayout.objectiveFontSize;
+    if (arenaStatus.visible) {
+      arenaStatus.x = Math.max(12, (w - arenaStatus.width) / 2);
+      arenaStatus.y = 12;
+    }
+    if (flightLabStatus.visible) {
+      flightLabStatus.x = Math.max(12, (w - flightLabStatus.width) / 2);
+      flightLabStatus.y = 58;
+    }
   }
   function drawCaravanGauge(hp: number) {
     if (!caravanGauge.visible) return;
@@ -539,9 +941,9 @@ export async function startGame(container: HTMLElement) {
     caravanGaugeLabel.x = 0;
     caravanGaugeLabel.y = -18;
   }
-  function drawMissionObjective(phase: MissionOnePhase) {
+  function drawMissionObjective(text: string) {
     if (!missionObjective.visible) return;
-    missionObjective.text = getMissionOneObjectiveText(phase);
+    missionObjective.text = text;
     missionObjective.anchor.set(0.5, 0);
   }
   layoutCaravanGauge(app.screen.width, app.screen.height);
@@ -589,16 +991,26 @@ export async function startGame(container: HTMLElement) {
   let choicesShowing = false;
   let storyCompleted = false;
   let shownChicoFirstKillRadio = false;
+  let firstSortieFiredOnce = false;
+  let firstSortieWasStalling = false;
+  let firstSortieRecoveredFromStall = false;
+  let firstSortieUpgradeBriefingShown = false;
   const scriptedEnemyIds = new Set<number>();
   const missionOne = createMissionOneController();
 
   const dialogueOverlay = createDialogueOverlay(app.screen.width, app.screen.height);
   uiLayer.addChild(dialogueOverlay.container);
 
-  const radioPopup = createRadioPopup(app.screen.width);
+  const radioPopup = createRadioPopup(app.screen.width, app.screen.height);
   uiLayer.addChild(radioPopup.container);
 
   const startScreen = createStartScreen(app.screen.width, app.screen.height, (action) => {
+    audio.unlock();
+    audio.playUiSelect();
+    if (action === 'flightLab') {
+      startFlightLab();
+      return;
+    }
     if (action === 'arena') {
       startArena();
       return;
@@ -611,18 +1023,241 @@ export async function startGame(container: HTMLElement) {
   startScreen.show();
 
   const levelUpScreen = createLevelUpScreen(app.screen.width, app.screen.height, (id: string) => {
+    audio.playUpgradePick();
     state = applyUpgrade(state, id as UpgradeId);
     levelUpScreen.hide();
     choicesShowing = false;
+    updateArenaDirector();
   });
   uiLayer.addChild(levelUpScreen.container);
+
+  let arenaShownStage = 0;
+  let arenaRound = 1;
+  let arenaRoundPhase: ArenaRoundPhase = 'takeoff';
+  let arenaRoundStartScore = 0;
+  let arenaDuelEnemyId: number | null = null;
+  let arenaUpgradeDelaySec = 0;
+  let arenaVictoryFlightSec = 0;
+
+  function currentArenaStage() {
+    return Math.min(ARENA_TOTAL_STAGES, Math.max(1, arenaRound));
+  }
+
+  function updateArenaStatusText() {
+    if (runMode !== 'arena') {
+      arenaStatus.visible = false;
+      return;
+    }
+    const stage = currentArenaStage();
+    const location = ARENA_LOCATION_THEMES[Math.max(0, stage - 1)] ?? ARENA_LOCATION_THEMES[0]!;
+    const phaseText =
+      arenaRoundPhase === 'takeoff' ? 'ВЗЛЕТ' :
+      arenaRoundPhase === 'upgradeDelay' ? `ТРОФЕИ ${Math.max(0, 2 - arenaUpgradeDelaySec).toFixed(1)}С` :
+      arenaRoundPhase === 'victoryFlight' ? `ЧИСТЫЙ ПОЛЕТ ${Math.max(0, 3 - arenaVictoryFlightSec).toFixed(1)}С` :
+      arenaRoundPhase === 'upgrade' ? 'ДОРАБОТКА' :
+      state.enemies.some(e => e.isBoss && e.alive) ? 'ШРАМ' :
+      'БОЙ';
+    arenaStatus.text = `РАУНД ${arenaRound}  ${phaseText}  ЧИКО ${state.playerScore} : ${state.enemyScore} ВРАГ  ${location.name}`;
+    arenaStatus.x = Math.max(12, (app.screen.width - arenaStatus.width) / 2);
+    arenaStatus.y = 12;
+    arenaStatus.visible = true;
+  }
+
+  function setArenaStageTheme(stage: number) {
+    const location = ARENA_LOCATION_THEMES[Math.max(0, Math.min(ARENA_LOCATION_THEMES.length - 1, stage - 1))]!;
+    setSkyTheme(location.sky, location.background);
+    arenaWeather.setPreset(location.weather);
+    syncAtmosphereLayers();
+  }
+
+  function spawnArenaRoundEnemy() {
+    if (runMode !== 'arena' || arenaRoundPhase !== 'takeoff') return;
+    if (!state.player.alive || state.player.state !== 'flying') return;
+    if (!shouldStartArenaDuelAfterTakeoff({
+      playerY: state.player.kinematic.position.y,
+      playerG: state.player.kinematic.g,
+      playerState: state.player.state,
+      worldHeight: ARENA_WORLD_HEIGHT,
+    })) return;
+    if (arenaDuelEnemyId !== null) return;
+
+    arenaRoundPhase = 'duel';
+    arenaRoundStartScore = state.playerScore;
+    arenaUpgradeDelaySec = 0;
+    arenaVictoryFlightSec = 0;
+    state.disableAutoEnemySpawn = true;
+    state.difficulty = arenaDifficultyForRound(arenaRound);
+    const finalBossReady = shouldSpawnArenaFinalBoss({
+      playerScore: state.playerScore,
+      finalBossScore: ARENA_FINAL_BOSS_SCORE,
+      bossAlreadySpawned: state.enemies.some(e => e.isBoss),
+      gameOver: state.gameOver,
+      pendingLevelUp: state.pendingLevelUp,
+      choicesShowing,
+    });
+    const enemies = finalBossReady
+      ? [makeArenaScarBoss(state.nextEntityId, state.player, arenaRound)]
+      : Array.from({ length: arenaEnemyCountForRound(arenaRound) }, (_, lane) =>
+        makeArenaRoundEnemy(state.nextEntityId + lane, state.player, arenaRound, lane)
+      );
+    arenaDuelEnemyId = enemies[0]?.id ?? null;
+    state.nextEntityId += enemies.length;
+    state.enemies = enemies;
+    state.pilots = state.pilots.filter(p => p.faction !== 'enemy');
+    state.enemyAiStates.clear();
+    state.prevEnemyHp.clear();
+    screenFx.flash(0xffd27a, 0.24, 0.18);
+  }
+
+  function resetArenaPlayerForNextTakeoff() {
+    arenaRoundPhase = 'takeoff';
+    arenaRoundStartScore = state.playerScore;
+    arenaDuelEnemyId = null;
+    arenaUpgradeDelaySec = 0;
+    arenaVictoryFlightSec = 0;
+    state = {
+      ...state,
+      difficulty: arenaDifficultyForRound(arenaRound),
+      disableAutoEnemySpawn: true,
+      pendingLevelUp: false,
+      gameOver: false,
+      player: makeArenaRunwayPlayer(state.player),
+      enemies: [],
+      bullets: [],
+      bombs: [],
+      rockets: [],
+      pilots: state.pilots.filter(p => p.faction !== 'enemy'),
+      enemyAiStates: new Map(),
+      prevEnemyHp: new Map(),
+    };
+    bullets.sync([]);
+    bombSprites.sync([]);
+    tracers.update(10);
+    groundFx.clear();
+    screenFx.disableDeathTint();
+    screenFx.setVignette(0);
+    setArenaStageTheme(currentArenaStage());
+    const focus = resolveArenaCameraFocus({
+      playerX: state.player.kinematic.position.x,
+      playerY: state.player.kinematic.position.y,
+      facing: state.player.kinematic.facing,
+    });
+    camera.setFocus(focus.x, focus.y, focus.zoom);
+    camera.snap();
+  }
+
+  function showArenaRoundUpgrade() {
+    const rng = createRng((state.rngState ^ (arenaRound * 0x9e3779b9) ^ state.tickCount) >>> 0);
+    const choices = rollUpgradeChoices(state.appliedUpgradeIds, rng);
+    arenaRoundPhase = 'upgrade';
+    state = { ...state, pendingLevelUp: false };
+    if (choices.length > 0) {
+      choicesShowing = true;
+      levelUpScreen.show(choices);
+    } else {
+      choicesShowing = false;
+    }
+  }
+
+  function updateArenaDirector() {
+    if (runMode !== 'arena') {
+      arenaStatus.visible = false;
+      return;
+    }
+
+    state = { ...state, disableAutoEnemySpawn: true, pendingLevelUp: false };
+
+    const stage = currentArenaStage();
+    if (stage !== arenaShownStage) {
+      arenaShownStage = stage;
+      setArenaStageTheme(stage);
+      if (stage > 1) {
+        screenFx.flash(0xffd27a, 0.28, 0.2);
+      }
+    }
+
+    if (state.gameOver && state.player.alive && state.playerScore < PLAYER_SCORE_TO_WIN) {
+      state = { ...state, gameOver: false };
+    }
+
+    spawnArenaRoundEnemy();
+
+    const aliveEnemies = state.enemies.filter(e => e.alive && e.state !== 'crashed').length;
+    const playerPilotActive = findPilot(state.pilots, 'player') !== undefined;
+    if (
+      arenaRoundPhase === 'upgradeDelay'
+      && state.player.alive
+      && state.player.state === 'flying'
+      && aliveEnemies === 0
+      && !playerPilotActive
+    ) {
+      arenaUpgradeDelaySec += TICK_DT;
+    }
+    if (
+      arenaRoundPhase === 'victoryFlight'
+      && state.player.alive
+      && state.player.state === 'flying'
+      && aliveEnemies === 0
+      && !playerPilotActive
+    ) {
+      arenaVictoryFlightSec += TICK_DT;
+    }
+    const flow = resolveArenaDuelFlow({
+      phase: arenaRoundPhase,
+      round: arenaRound,
+      previousScore: arenaRoundStartScore,
+      currentScore: state.playerScore,
+      enemyAliveCount: aliveEnemies,
+      playerPilotActive,
+      choicesShowing,
+      gameOver: state.gameOver,
+      upgradeDelaySec: arenaUpgradeDelaySec,
+      requiredUpgradeDelaySec: 2,
+      victoryFlightSec: arenaVictoryFlightSec,
+      requiredVictoryFlightSec: 3,
+    });
+
+    if (flow.shouldStartVictoryFlight) {
+      if (flow.phase === 'upgradeDelay') {
+        arenaUpgradeDelaySec = 0;
+      } else {
+        arenaVictoryFlightSec = 0;
+      }
+      audio.playUpgradeOpen();
+      screenFx.flash(0xb8f0ff, 0.18, 0.16);
+    }
+
+    arenaRoundPhase = flow.phase;
+    arenaRound = flow.round;
+
+    if (flow.shouldShowUpgrade) {
+      showArenaRoundUpgrade();
+    } else if (flow.shouldLaunchNextRound) {
+      resetArenaPlayerForNextTakeoff();
+    }
+
+    updateArenaStatusText();
+  }
 
   function openLevelUpChoices() {
     if (!state.pendingLevelUp || choicesShowing) return;
     const rng = createRng((state.rngState ^ (state.level * 0x9e3779b9) ^ state.tickCount) >>> 0);
     const choices = rollUpgradeChoices(state.appliedUpgradeIds, rng);
     if (choices.length > 0) {
+      if (shouldShowFirstUpgradeBriefing({
+        runMode,
+        pendingLevelUp: state.pendingLevelUp,
+        choicesShowing,
+        alreadyShown: firstSortieUpgradeBriefingShown,
+      })) {
+        firstSortieUpgradeBriefingShown = true;
+        radioPopup.show({
+          speaker: 'Мира',
+          text: 'Первый трофей! Выбери доработку: сейчас начинается твой билд.',
+        }, 3.2);
+      }
       choicesShowing = true;
+      audio.playUpgradeOpen();
       levelUpScreen.show(choices);
     } else {
       state = { ...state, pendingLevelUp: false };
@@ -648,6 +1283,7 @@ export async function startGame(container: HTMLElement) {
       rotate: (k.rotate || t.rotate) as -1 | 0 | 1,
       fire: k.fire || t.fire,
       bomb: k.bomb || t.bomb,
+      boost: k.boost || t.boost,
       throttleDelta: (k.throttleDelta || t.throttleDelta) as -1 | 0 | 1,
       eject: k.eject || t.eject,
       jump: k.jump || t.jump,
@@ -664,7 +1300,9 @@ export async function startGame(container: HTMLElement) {
     prevPlayerState = state.player.state;
     prevTickCount = state.tickCount;
     prevPlayerHp = state.player.hp;
+    prevExplosionEventCount = state.explosionEvents.length;
     bullets.sync([]);
+    bombSprites.sync([]);
     groundFx.clear();
     screenFx.setVignette(0);
     screenFx.disableDeathTint();
@@ -672,27 +1310,207 @@ export async function startGame(container: HTMLElement) {
     deathScreen.hide();
     radioPopup.hide();
     dialogueOverlay.hide();
+    hud.hideEnemyArrows();
+    arenaStatus.visible = false;
+    flightLabStatus.visible = false;
     shownChicoFirstKillRadio = false;
+    gunfeelLabShotWasActive = false;
   }
 
   function startArena() {
     runMode = 'arena';
+    arenaShownStage = 0;
+    arenaRound = Math.max(1, DEBUG_ARENA_SCORE + 1);
+    arenaRoundPhase = 'takeoff';
+    arenaRoundStartScore = DEBUG_ARENA_SCORE;
+    arenaDuelEnemyId = null;
+    arenaUpgradeDelaySec = 0;
+    arenaVictoryFlightSec = 0;
     storyCompleted = false;
     scriptedEnemyIds.clear();
     missionOne.reset();
     storyScene.reset();
-    resetRunState('medium' as Difficulty);
-    rollSkyTheme();
+    resetRunState(arenaDifficultyForRound(arenaRound) as Difficulty, makeArenaRunwayPlayer());
+    state.worldWidth = ARENA_WORLD_WIDTH;
+    state.worldHeight = ARENA_WORLD_HEIGHT;
+    state.disableAutoEnemySpawn = true;
+    if (DEBUG_ARENA_SCORE > 0) {
+      state = {
+        ...state,
+        playerScore: DEBUG_ARENA_SCORE,
+        xpCollected: DEBUG_ARENA_SCORE * 5,
+        level: Math.min(PLAYER_SCORE_TO_WIN, DEBUG_ARENA_SCORE + 1),
+        pendingLevelUp: false,
+      };
+    }
+    setArenaStageTheme(currentArenaStage());
+    syncAtmosphereLayers();
+    camera.setWorldSize(ARENA_WORLD_WIDTH, ARENA_WORLD_HEIGHT);
+    layoutWorld();
+    {
+      const focus = resolveArenaCameraFocus({
+        playerX: state.player.kinematic.position.x,
+        playerY: state.player.kinematic.position.y,
+        facing: state.player.kinematic.facing,
+      });
+      camera.setFocus(focus.x, focus.y, focus.zoom);
+    }
+    camera.snap();
     startScreen.hide();
     menuBackdrop.hide();
     worldLayer.visible = true;
+    arenaWeather.container.visible = true;
     hud.container.visible = true;
+    hud.hideEnemyArrows();
+    debugText.visible = false;
+    updateArenaDirector();
     gameRunning = true;
+  }
+
+  function startSkyTest() {
+    runMode = 'skytest';
+    storyCompleted = false;
+    scriptedEnemyIds.clear();
+    missionOne.reset();
+    storyScene.reset();
+    resetRunState('hard' as Difficulty, makeSkyTestPlayer());
+    state.worldWidth = SKY_TEST_WORLD_WIDTH;
+    state.worldHeight = SKY_TEST_WORLD_HEIGHT;
+    state.softFloor = true;
+    state.disableAutoEnemySpawn = true;
+    state.enemies = [makeSkyTestBoss(state.nextEntityId)];
+    state.nextEntityId += 1;
+    state.appliedUpgradeIds = ['damage_plus_25', 'fire_rate_plus_25'];
+    state.damageMultiplier = 1.25;
+    state.fireRateMultiplier = 1.25;
+    setSkyTheme('noon');
+    syncAtmosphereLayers();
+    camera.setWorldSize(SKY_TEST_WORLD_WIDTH, SKY_TEST_WORLD_HEIGHT);
+    layoutWorld();
+    camera.setFocus(state.player.kinematic.position.x + 220, state.player.kinematic.position.y - 60, 1.0);
+    camera.snap();
+    startScreen.hide();
+    menuBackdrop.hide();
+    worldLayer.visible = true;
+    arenaWeather.container.visible = false;
+    hud.container.visible = true;
+    hud.hideEnemyArrows();
+    debugText.visible = false;
+    gameRunning = true;
+  }
+
+  function startGunfeelLab() {
+    runMode = 'gunfeelLab';
+    storyCompleted = false;
+    scriptedEnemyIds.clear();
+    missionOne.reset();
+    storyScene.reset();
+    resetRunState('hard' as Difficulty, makeGunfeelLabPlayer());
+    state.worldWidth = SKY_TEST_WORLD_WIDTH;
+    state.worldHeight = SKY_TEST_WORLD_HEIGHT;
+    state.softFloor = true;
+    state.disableAutoEnemySpawn = true;
+    state.enemies = [];
+    state.bullets = [];
+    state.appliedUpgradeIds = ['damage_plus_25', 'fire_rate_plus_25'];
+    state.damageMultiplier = 1.25;
+    state.fireRateMultiplier = 1.25;
+    setSkyTheme('noon');
+    syncAtmosphereLayers();
+    camera.setWorldSize(SKY_TEST_WORLD_WIDTH, SKY_TEST_WORLD_HEIGHT);
+    layoutWorld();
+    camera.setFocus(state.player.kinematic.position.x + 260, state.player.kinematic.position.y - 50, 1.08);
+    camera.snap();
+    startScreen.hide();
+    menuBackdrop.hide();
+    worldLayer.visible = true;
+    arenaWeather.container.visible = false;
+    hud.container.visible = false;
+    hud.hideEnemyArrows();
+    debugText.visible = false;
+    gameRunning = true;
+  }
+
+  function startFlightLab() {
+    runMode = 'flightLab';
+    storyCompleted = false;
+    scriptedEnemyIds.clear();
+    missionOne.reset();
+    storyScene.reset();
+    resetRunState('easy' as Difficulty, makeFlightLabPlayer());
+    state.worldWidth = SKY_TEST_WORLD_WIDTH;
+    state.worldHeight = SKY_TEST_WORLD_HEIGHT;
+    state.softFloor = true;
+    state.disableAutoEnemySpawn = true;
+    state.enemies = [];
+    state.bullets = [];
+    state.appliedUpgradeIds = ['damage_plus_25'];
+    state.damageMultiplier = 1.25;
+    state.fireRateMultiplier = 1;
+    flightLabRecoveredFromStall = false;
+    flightLabWasStalling = false;
+    flightLabFiredAfterRecovery = false;
+    setSkyTheme('noon');
+    syncAtmosphereLayers();
+    camera.setWorldSize(SKY_TEST_WORLD_WIDTH, SKY_TEST_WORLD_HEIGHT);
+    layoutWorld();
+    camera.setFocus(state.player.kinematic.position.x + 220, state.player.kinematic.position.y - 60, 1.0);
+    camera.snap();
+    startScreen.hide();
+    menuBackdrop.hide();
+    worldLayer.visible = true;
+    arenaWeather.container.visible = false;
+    hud.container.visible = true;
+    hud.hideEnemyArrows();
+    flightLabStatus.visible = true;
+    debugText.visible = false;
+    gameRunning = true;
+  }
+
+  function startOilShot() {
+    runMode = 'oilshot';
+    storyCompleted = false;
+    scriptedEnemyIds.clear();
+    missionOne.reset();
+    storyScene.reset();
+    resetRunState('hard' as Difficulty, makeGunfeelLabPlayer());
+    state.worldWidth = SKY_TEST_WORLD_WIDTH;
+    state.worldHeight = SKY_TEST_WORLD_HEIGHT;
+    state.softFloor = true;
+    state.disableAutoEnemySpawn = true;
+    state.enemies = [];
+    state.bullets = [];
+    state.player.hp = state.player.maxHp * 0.38;
+    state.appliedUpgradeIds = ['damage_plus_25', 'fire_rate_plus_25'];
+    state.damageMultiplier = 1.25;
+    state.fireRateMultiplier = 1.25;
+    setSkyTheme('noon');
+    syncAtmosphereLayers();
+    camera.setWorldSize(SKY_TEST_WORLD_WIDTH, SKY_TEST_WORLD_HEIGHT);
+    layoutWorld();
+    camera.setFocus(state.player.kinematic.position.x + 260, state.player.kinematic.position.y - 50, 1.08);
+    camera.snap();
+    startScreen.hide();
+    menuBackdrop.hide();
+    worldLayer.visible = true;
+    arenaWeather.container.visible = false;
+    hud.container.visible = false;
+    hud.hideEnemyArrows();
+    debugText.visible = false;
+    gameRunning = true;
+    screenFx.triggerHitGlitch();
+    screenFx.triggerOilSplatter();
+    screenFx.triggerOilSplatter();
+    screenFx.flash(0x2b1208, 0.16, 0.28);
   }
 
   function startStoryMissionOne() {
     runMode = 'story';
     storyCompleted = false;
+    firstSortieFiredOnce = false;
+    firstSortieWasStalling = false;
+    firstSortieRecoveredFromStall = false;
+    firstSortieUpgradeBriefingShown = false;
     scriptedEnemyIds.clear();
     missionOne.reset();
     storyScene.reset();
@@ -702,7 +1520,7 @@ export async function startGame(container: HTMLElement) {
     state.worldWidth = MISSION_ONE_WORLD_WIDTH;
     // Campaign has no lethal ground — the bottom turns the plane back like the ceiling.
     state.softFloor = true;
-    camera.setWorldWidth(MISSION_ONE_WORLD_WIDTH);
+    camera.setWorldSize(MISSION_ONE_WORLD_WIDTH, WORLD_HEIGHT);
     layoutWorld();
     // Start the camera already framed close on the carrier launch (no zoom-in pop).
     camera.setFocus(state.player.kinematic.position.x + 90, WORLD_HEIGHT * 0.52, 1.55);
@@ -720,14 +1538,28 @@ export async function startGame(container: HTMLElement) {
     };
 
     setSkyTheme('twilight');
+    syncAtmosphereLayers();
     startScreen.hide();
     menuBackdrop.hide();
     worldLayer.visible = true;
+    arenaWeather.container.visible = false;
     hud.container.visible = true;
     caravanGauge.visible = true;
     missionObjective.visible = true;
     drawCaravanGauge(1);
-    drawMissionObjective(missionOne.phase);
+    drawMissionObjective(resolveFirstSortieGuidance({
+      phase: missionOne.phase,
+      timeSec: missionOne.timeSec,
+      playerStalling: false,
+      recoveredFromStall: false,
+      firedOnce: false,
+      playerScore: state.playerScore,
+      pendingLevelUp: state.pendingLevelUp,
+      choicesShowing,
+      boostActive: state.player.boostActive ?? false,
+      boostHeat: state.player.boostHeat ?? 0,
+      noThrottleSec: state.player.noThrottleSec ?? 0,
+    }));
     const onReady = () => {
       gameRunning = true;
       if (TIME_SKIP_SEC > 0) {
@@ -814,14 +1646,79 @@ export async function startGame(container: HTMLElement) {
   let prevPlayerState = state.player.state;
   let prevTickCount = state.tickCount;
   let prevPlayerHp = state.player.hp;
+  let prevExplosionEventCount = state.explosionEvents.length;
+  let gunfeelLabShotWasActive = false;
+  let flightLabWasStalling = false;
+  let flightLabRecoveredFromStall = false;
+  let flightLabFiredAfterRecovery = false;
+  let lastPublishedDebugState = '';
+  let arenaThunderTimer = 3.5;
+  function publishDebugState() {
+    if (!DEBUG_HUD_ON_BOOT) return;
+    const arenaStage = runMode === 'arena' ? currentArenaStage() : 0;
+    const arenaLocation = runMode === 'arena'
+      ? ARENA_LOCATION_THEMES[Math.max(0, arenaStage - 1)] ?? ARENA_LOCATION_THEMES[0]!
+      : null;
+    const snapshot = {
+      runMode,
+      gameRunning,
+      playerScore: state.playerScore,
+      level: state.level,
+      pendingLevelUp: state.pendingLevelUp,
+      gameOver: state.gameOver,
+      enemyCount: state.enemies.filter(e => e.alive && e.state !== 'crashed').length,
+      arenaRound,
+      arenaRoundPhase,
+      arenaDuelEnemyId,
+      arenaStage,
+      arenaLocationName: arenaLocation?.name ?? null,
+      arenaWeather: arenaLocation?.weather ?? null,
+    };
+    (globalThis as unknown as { __biplanesDebugState?: unknown }).__biplanesDebugState = snapshot;
+    const serialized = JSON.stringify(snapshot);
+    if (serialized !== lastPublishedDebugState) {
+      lastPublishedDebugState = serialized;
+      console.log(`[biplanes-debug] ${serialized}`);
+    }
+  }
+
   app.ticker.add((ticker) => {
     const realDt = ticker.deltaMS / 1000;
     const dt = clock.tick(realDt);
     renderTimeSec += dt;
 
     lightning.update(dt);
-    bgClouds.update(dt);
-    fgClouds.update(dt);
+    const cloudFocusX = runMode === 'story' ? camera.currentFocusX : state.player.kinematic.position.x;
+    if (bgClouds.container.visible) bgClouds.update(dt, cloudFocusX);
+    if (fgClouds.container.visible) fgClouds.update(dt, cloudFocusX);
+    if (cloudSea.container.visible) {
+      cloudSea.update(dt, cloudFocusX);
+    }
+    if ((runMode === 'skytest' || runMode === 'arena' || runMode === 'gunfeelLab' || runMode === 'flightLab' || runMode === 'oilshot') && skytestCloudVolume.backContainer.visible) {
+      const cloudPlanes: CloudVolumePlane[] = [
+        {
+          x: state.player.kinematic.position.x,
+          y: state.player.kinematic.position.y,
+          vx: state.player.kinematic.velocity.x,
+          vy: state.player.kinematic.velocity.y,
+          active: state.player.alive,
+        },
+        ...state.enemies.map((enemy) => ({
+          x: enemy.kinematic.position.x,
+          y: enemy.kinematic.position.y,
+          vx: enemy.kinematic.velocity.x,
+          vy: enemy.kinematic.velocity.y,
+          active: enemy.alive && enemy.state !== 'crashed',
+        })),
+      ];
+      skytestCloudVolume.update(
+        dt,
+        renderTimeSec,
+        state.player.kinematic.position.x,
+        state.player.kinematic.position.y,
+        cloudPlanes,
+      );
+    }
     // 1. Update Sky Background animations (clouds, beacons, searchlights, lightning rim-light, leaves)
     if (sky) {
       const px = runMode === 'story' ? camera.currentFocusX : (state.player ? state.player.kinematic.position.x : RUNWAY_X);
@@ -836,18 +1733,46 @@ export async function startGame(container: HTMLElement) {
     levelUpScreen.update(dt);
     deathScreen.update(dt);
     radioPopup.update(dt);
-    touchGuide.setActive(gameRunning && !choicesShowing && !state.gameOver);
+    touchGuide.setActive(runMode !== 'skytest' && runMode !== 'gunfeelLab' && runMode !== 'oilshot' && gameRunning && !choicesShowing && !state.gameOver);
+    publishDebugState();
 
-    if (!gameRunning) return;
-    const frameGate = resolveMissionOneFrameGate({
-      choicesShowing,
-      pendingLevelUp: state.pendingLevelUp,
-    });
-    if (frameGate === 'open-upgrade') {
-      openLevelUpChoices();
+    if (!gameRunning) {
+      audio.updateFlight(dt, state, false, choicesShowing);
       return;
     }
-    if (frameGate === 'pause') return;
+    if (runMode === 'arena') {
+      const location = ARENA_LOCATION_THEMES[Math.max(0, currentArenaStage() - 1)] ?? ARENA_LOCATION_THEMES[0]!;
+      if (location.weather === 'thunder' || location.weather === 'storm') {
+        arenaThunderTimer -= dt;
+        if (arenaThunderTimer <= 0) {
+          audio.playThunder();
+          if (location.weather === 'thunder') {
+            screenFx.flash(0xdceeff, 0.12, 0.16);
+          }
+          arenaThunderTimer = 4.5 + Math.random() * 8.5;
+        }
+      } else {
+        arenaThunderTimer = 3.5;
+      }
+    }
+    if (runMode === 'arena') {
+      updateArenaDirector();
+    }
+    const frameGate = runMode === 'arena'
+      ? (choicesShowing ? 'pause' : 'tick')
+      : resolveMissionOneFrameGate({
+        choicesShowing,
+        pendingLevelUp: state.pendingLevelUp,
+      });
+    if (frameGate === 'open-upgrade') {
+      openLevelUpChoices();
+      audio.updateFlight(dt, state, gameRunning, true);
+      return;
+    }
+    if (frameGate === 'pause') {
+      audio.updateFlight(dt, state, gameRunning, choicesShowing);
+      return;
+    }
     acc += dt;
     if (acc > 0.2) {
       acc = 0.2; // Spiral of death prevention / clamp physics accumulator catch-up
@@ -898,6 +1823,31 @@ export async function startGame(container: HTMLElement) {
       if (state.pendingLevelUp || state.gameOver) break;
     }
 
+    if (runMode === 'story') {
+      const stallingNow = isStalling(state.player.kinematic);
+      if (inputCmd.fire) {
+        firstSortieFiredOnce = true;
+      }
+      if (stallingNow) {
+        firstSortieWasStalling = true;
+      }
+      if (firstSortieWasStalling && !stallingNow && state.player.kinematic.g > G_MAX_LEVEL * 0.62) {
+        firstSortieRecoveredFromStall = true;
+      }
+      drawMissionObjective(resolveFirstSortieGuidance({
+        phase: missionOne.phase,
+        timeSec: missionOne.timeSec,
+        playerStalling: stallingNow,
+        recoveredFromStall: firstSortieRecoveredFromStall,
+        firedOnce: firstSortieFiredOnce,
+        playerScore: state.playerScore,
+        pendingLevelUp: state.pendingLevelUp,
+        choicesShowing,
+        boostActive: state.player.boostActive ?? false,
+        boostHeat: state.player.boostHeat ?? 0,
+        noThrottleSec: state.player.noThrottleSec ?? 0,
+      }));
+    }
 
     if (runMode === 'story' && !storyCompleted) {
       state = {
@@ -960,7 +1910,19 @@ export async function startGame(container: HTMLElement) {
         }, 4.0);
       }
       drawCaravanGauge(caravanHpFraction);
-      drawMissionObjective(missionOne.phase);
+      drawMissionObjective(resolveFirstSortieGuidance({
+        phase: missionOne.phase,
+        timeSec: missionOne.timeSec,
+        playerStalling: isStalling(state.player.kinematic),
+        recoveredFromStall: firstSortieRecoveredFromStall,
+        firedOnce: firstSortieFiredOnce,
+        playerScore: state.playerScore,
+        pendingLevelUp: state.pendingLevelUp,
+        choicesShowing,
+        boostActive: state.player.boostActive ?? false,
+        boostHeat: state.player.boostHeat ?? 0,
+        noThrottleSec: state.player.noThrottleSec ?? 0,
+      }));
 
       // Boss marker — small red arrow + "ШРАМ" label hovering above Scar.
       if (missionOne.bossId !== null) {
@@ -1048,12 +2010,14 @@ export async function startGame(container: HTMLElement) {
       if (missionOutcome === 'caravan-lost' && !dialogueOverlay.container.visible) {
         storyCompleted = true;
         gameRunning = false;
+        audio.playDefeat();
         radioPopup.hide();
         camera.resetFocus();
         dialogueOverlay.show(STORY_FAILURE_CARAVAN_LINES, resetToMenu);
       } else if (missionOutcome === 'pilot-lost' && !dialogueOverlay.container.visible) {
         storyCompleted = true;
         gameRunning = false;
+        audio.playDefeat();
         radioPopup.hide();
         camera.resetFocus();
         dialogueOverlay.show(STORY_FAILURE_PILOT_LINES, resetToMenu);
@@ -1063,6 +2027,7 @@ export async function startGame(container: HTMLElement) {
         missionOne.markVictory();
         storyCompleted = true;
         gameRunning = false;
+        audio.playVictory();
         screenFx.flash(0xffe2a2, 0.55, 0.35);
         radioPopup.hide();
         camera.resetFocus();
@@ -1072,15 +2037,40 @@ export async function startGame(container: HTMLElement) {
       storyScene.update(dt, renderTimeSec, false, 0, 1, 'briefing', 0, false);
     }
 
+    if (runMode === 'arena') {
+      const boss = state.enemies.find(e => e.isBoss && e.alive && e.state !== 'crashed');
+      if (boss && boss.alive && boss.state !== 'crashed') {
+        bossMarker.visible = true;
+        bossMarker.x = boss.kinematic.position.x;
+        bossMarker.y = boss.kinematic.position.y - 70 + Math.sin(renderTimeSec * 4) * 3;
+      } else {
+        bossMarker.visible = false;
+      }
+    } else if (runMode !== 'story') {
+      bossMarker.visible = false;
+    }
+
     // Plane-vs-plane collision VFX (Phase 5).
     // Only react when a NEW game tick has produced new events. Without this guard,
     // render frames during slow-mo / hit-pause re-read the same events buffer and
     // re-trigger shake + hit-pause every frame — the screen "shakes forever".
     if (state.tickCount !== prevTickCount) {
+      if (state.explosionEvents.length > prevExplosionEventCount) {
+        for (const pos of state.explosionEvents.slice(prevExplosionEventCount)) {
+          damageFx.addExplosion(pos);
+          damageFx.addShockwave(pos);
+          audio.playExplosion();
+          camera.shake(runMode === 'arena' ? 16 : 12);
+          camera.zoomPunch(1.025, 0.18);
+          screenFx.flash(0xffb35c, 0.24, 0.18);
+        }
+        prevExplosionEventCount = state.explosionEvents.length;
+      }
       for (const ev of state.planeCollisionEvents) {
         damageFx.addSparks({ x: ev.posX, y: ev.posY }, 36);
         damageFx.addImpactFlash({ x: ev.posX, y: ev.posY });
         const anyDied = ev.aDied || ev.bDied;
+        audio.playImpact(anyDied);
         camera.shake(anyDied ? 14 : 8);
         clock.hitPause(anyDied ? HIT_PAUSE_FRAMES_RAM_KILL : HIT_PAUSE_FRAMES_RAM);
 
@@ -1095,9 +2085,57 @@ export async function startGame(container: HTMLElement) {
       prevTickCount = state.tickCount;
     }
 
-    openLevelUpChoices();
+    if (runMode === 'arena') {
+      updateArenaDirector();
+    } else {
+      openLevelUpChoices();
+      updateArenaDirector();
+    }
+
+    if (runMode === 'arena') {
+      const playerPilot = findPilot(state.pilots, 'player');
+      const focus = resolveArenaCameraFocus({
+        playerX: playerPilot?.position.x ?? state.player.kinematic.position.x,
+        playerY: playerPilot?.position.y ?? state.player.kinematic.position.y,
+        facing: playerPilot?.facing ?? state.player.kinematic.facing,
+      });
+      camera.setFocus(focus.x, focus.y, focus.zoom);
+    } else if (runMode === 'skytest' || runMode === 'gunfeelLab' || runMode === 'flightLab' || runMode === 'oilshot') {
+      camera.setFocus(
+        state.player.kinematic.position.x + state.player.kinematic.facing * 220,
+        state.player.kinematic.position.y - 60,
+        1.0
+      );
+    }
+
+    if (runMode === 'flightLab') {
+      const stallingNow = isStalling(state.player.kinematic);
+      if (stallingNow) {
+        flightLabWasStalling = true;
+      }
+      if (flightLabWasStalling && !stallingNow && state.player.kinematic.g > G_MAX_LEVEL * 0.62) {
+        flightLabRecoveredFromStall = true;
+      }
+      if (flightLabRecoveredFromStall && inputCmd.fire) {
+        flightLabFiredAfterRecovery = true;
+      }
+      flightLabStatus.text = resolveFlightLabCue({
+        planeState: state.player.state,
+        throttleLevel: state.player.kinematic.throttleLevel,
+        speed: state.player.kinematic.g,
+        isStalling: stallingNow,
+        recoveredFromStall: flightLabRecoveredFromStall,
+        firedAfterRecovery: flightLabFiredAfterRecovery,
+      });
+      flightLabStatus.x = Math.max(12, (app.screen.width - flightLabStatus.width) / 2);
+      flightLabStatus.y = 58;
+      flightLabStatus.visible = true;
+    } else {
+      flightLabStatus.visible = false;
+    }
 
     if (state.gameOver && !deathScreen.container.visible) {
+      audio.playDefeat();
       deathScreen.show(state);
     }
 
@@ -1107,7 +2145,9 @@ export async function startGame(container: HTMLElement) {
     if (state.level > prevLevel) {
       screenFx.flash(0xffc24a, 0.4, 0.22);
     }
-    if (prevPlayerAlive && !state.player.alive) {
+    const playerPilotActive = findPilot(state.pilots, 'player') !== undefined;
+    if (prevPlayerAlive && !state.player.alive && !playerPilotActive) {
+      audio.playExplosion();
       screenFx.flash(0xff5544, 0.5, 0.4);
       screenFx.enableDeathTint();
       clock.slowMo(SLOW_MO_SCALE, SLOW_MO_DURATION_SEC, SLOW_MO_RECOVERY_SEC);
@@ -1135,6 +2175,7 @@ export async function startGame(container: HTMLElement) {
     prevLevel = state.level;
     prevPlayerAlive = state.player.alive;
     prevPlayerState = state.player.state;
+    prevExplosionEventCount = state.explosionEvents.length;
 
     const hpFrac = state.player.hp / state.player.maxHp;
     const vignette = hpFrac <= LOW_HP_VIGNETTE_THRESHOLD
@@ -1142,13 +2183,26 @@ export async function startGame(container: HTMLElement) {
       : 0;
     screenFx.setVignette(vignette * 0.6);
 
+    if (runMode === 'gunfeelLab') {
+      const labShot = getGunfeelLabShotAt(renderTimeSec);
+      if (labShot.fire && !gunfeelLabShotWasActive) {
+        const heading = state.player.kinematic.heading;
+        const noseX = state.player.kinematic.position.x + Math.cos(heading) * 34;
+        const noseY = state.player.kinematic.position.y + Math.sin(heading) * 34;
+        emitGunfeelShotVfx(noseX, noseY, heading, 'player', labShot.heavy);
+        if (labShot.heavy) {
+          damageFx.addShockwave({ x: noseX + Math.cos(heading) * 24, y: noseY + Math.sin(heading) * 24 });
+        }
+      }
+      gunfeelLabShotWasActive = labShot.fire;
+    }
+
     const seenBulletIds = new Set<number>();
     for (const b of state.bullets) {
       seenBulletIds.add(b.id);
       if (!prevBulletIds.has(b.id)) {
         const heading = Math.atan2(b.velocity.y, b.velocity.x);
-        muzzleFlashes.spawn(b.position.x, b.position.y, heading);
-        damageFx.addCasing({ x: b.position.x, y: b.position.y }, heading);
+        emitGunfeelShotVfx(b.position.x, b.position.y, heading, b.ownerFaction, b.isHeavy);
       }
     }
     prevBulletIds = seenBulletIds;
@@ -1193,33 +2247,41 @@ export async function startGame(container: HTMLElement) {
       }
     }
 
-    // Off-screen arrow for any dying enemy (Task 4.6).
+    // Off-screen arrows for enemy planes outside the viewport.
     {
-      const dyingEnemy = state.enemies.find(e => e.state === 'dying');
-      if (dyingEnemy) {
-        const wx = dyingEnemy.kinematic.position.x;
-        const wy = dyingEnemy.kinematic.position.y;
-        const onScreen = wx >= 0 && wx <= WORLD_WIDTH && wy >= 0 && wy <= WORLD_HEIGHT;
-        if (!onScreen) {
-          const sx = worldLayer.x + wx * worldLayer.scale.x;
-          const sy = worldLayer.y + wy * worldLayer.scale.y;
-          hud.showDirArrow(sx, sy);
-        } else {
-          hud.hideDirArrow();
-        }
-      } else {
-        hud.hideDirArrow();
-      }
+      const offscreenEnemies = state.enemies
+        .filter(e => e.alive && e.state !== 'crashed')
+        .map(e => {
+          const sx = worldLayer.x + e.kinematic.position.x * worldLayer.scale.x;
+          const sy = worldLayer.y + e.kinematic.position.y * worldLayer.scale.y;
+          return { x: sx, y: sy };
+        })
+        .filter(p => p.x < 0 || p.x > app.screen.width || p.y < 0 || p.y > app.screen.height);
+      hud.showEnemyArrows(offscreenEnemies);
     }
 
     bullets.sync(state.bullets);
-    for (const b of state.bullets) tracers.emit(b);
+    bombSprites.sync(state.bombs);
+    for (const b of state.bullets) {
+      const heading = Math.atan2(b.velocity.y, b.velocity.x);
+      const shotFeel = resolveGunfeelShot({
+        ownerFaction: b.ownerFaction,
+        headingRad: heading,
+        isHeavy: b.isHeavy,
+      });
+      tracers.emit(b, {
+        scale: shotFeel.tracerScale,
+        duration: shotFeel.tracerDuration,
+      });
+    }
     tracers.update(dt);
     damageFx.update(dt);
     groundFx.update(dt, (x, y) => damageFx.addSmokeTrail({ x, y }, 1));
     muzzleFlashes.update(dt);
     screenFx.update(dt, renderTimeSec, worldLayer);
+    arenaWeather.update(dt, renderTimeSec);
     hud.update(state);
+    audio.updateFlight(dt, state, gameRunning, choicesShowing);
     camera.tickShake(dt);
 
     if (debugText.visible) {
@@ -1232,14 +2294,26 @@ export async function startGame(container: HTMLElement) {
           : '';
         debugText.text = `STORY  t=${mm}:${ss}  phase=${missionOne.phase}  ${car}  enemies=${state.enemies.length}${boss}  p.hp=${state.player.hp.toFixed(0)}  g=${state.player.kinematic.g.toFixed(0)}  st=${state.player.state}  h=${state.player.kinematic.heading.toFixed(2)}`;
       } else {
-        debugText.text = `ARENA  t=${state.timeSec.toFixed(1)}  enemies=${state.enemies.length}  hp=${state.player.hp.toFixed(0)}  score=${state.playerScore}`;
+        debugText.text = `${runMode.toUpperCase()}  t=${state.timeSec.toFixed(1)}  enemies=${state.enemies.length}  hp=${state.player.hp.toFixed(0)}  score=${state.playerScore}`;
       }
     }
+
+    publishDebugState();
   });
 
   function resetToMenu() {
     runMode = 'menu';
+    arenaRound = 1;
+    arenaRoundPhase = 'takeoff';
+    arenaRoundStartScore = 0;
+    arenaDuelEnemyId = null;
+    arenaUpgradeDelaySec = 0;
+    arenaVictoryFlightSec = 0;
     storyCompleted = false;
+    firstSortieFiredOnce = false;
+    firstSortieWasStalling = false;
+    firstSortieRecoveredFromStall = false;
+    firstSortieUpgradeBriefingShown = false;
     scriptedEnemyIds.clear();
     missionOne.reset();
     gameRunning = false;
@@ -1255,6 +2329,7 @@ export async function startGame(container: HTMLElement) {
     }
     pilotSprites.clear();
     bullets.sync([]);
+    bombSprites.sync([]);
     prevBulletIds = new Set();
     groundFx.clear();
     storyScene.reset();
@@ -1271,16 +2346,20 @@ export async function startGame(container: HTMLElement) {
     radioPopup.hide();
     dialogueOverlay.hide();
     worldLayer.visible = false;
+    arenaWeather.container.visible = false;
     hud.container.visible = false;
+    hud.hideEnemyArrows();
+    flightLabStatus.visible = false;
     caravanGauge.visible = false;
     missionObjective.visible = false;
     menuBackdrop.show();
     startScreen.show();
     shownChicoFirstKillRadio = false;
     camera.resetFocus();
-    camera.setWorldWidth(WORLD_WIDTH);
+    camera.setWorldSize(WORLD_WIDTH, WORLD_HEIGHT);
     layoutWorld();
     rollSkyTheme(); // Roll a new gorgeous environment style for the next run
+    syncAtmosphereLayers();
   }
 
   window.addEventListener('keydown', (e) => {
@@ -1293,8 +2372,18 @@ export async function startGame(container: HTMLElement) {
   });
 
   // Auto-start story mode if URL has ?story (used for screenshot verification).
-  if (AUTO_STORY) {
+  if (AUTO_OIL_SHOT) {
+    requestAnimationFrame(() => startOilShot());
+  } else if (AUTO_FLIGHT_LAB) {
+    requestAnimationFrame(() => startFlightLab());
+  } else if (AUTO_GUNFEEL_LAB) {
+    requestAnimationFrame(() => startGunfeelLab());
+  } else if (AUTO_SKY_TEST) {
+    requestAnimationFrame(() => startSkyTest());
+  } else if (AUTO_STORY) {
     requestAnimationFrame(() => startStoryMissionOne());
+  } else if (AUTO_ARENA) {
+    requestAnimationFrame(() => startArena());
   }
 
   const onResize = () => {
@@ -1303,6 +2392,7 @@ export async function startGame(container: HTMLElement) {
     layoutWorld();
     camera.setScreen(w, h);
     hud.resize(w, h);
+    arenaWeather.resize(w, h);
     screenFx.resize(w, h);
     touch.updateZones(w, h);
     touchGuide.layout(w, h);
@@ -1310,7 +2400,7 @@ export async function startGame(container: HTMLElement) {
     levelUpScreen.resize(w, h);
     deathScreen.resize(w, h);
     dialogueOverlay.resize(w, h);
-    radioPopup.resize(w);
+    radioPopup.resize(w, h);
     layoutCaravanGauge(w, h);
   };
   window.addEventListener('resize', onResize);

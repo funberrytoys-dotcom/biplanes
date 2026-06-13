@@ -49,4 +49,22 @@ describe('applyUpgrade', () => {
     const after = applyUpgrade(s, 'damage_plus_25');
     expect(after.pendingLevelUp).toBe(false);
   });
+
+  it('can build into an engine boost archetype', () => {
+    const s = createWorldState(42, makePlayer());
+    const cooled = applyUpgrade(s, 'coolant_injector');
+    const tuned = applyUpgrade(cooled, 'boost_supercharger');
+
+    expect(tuned.boostHeatMultiplier).toBeLessThan(1);
+    expect(tuned.boostCoolingMultiplier).toBeGreaterThan(1);
+    expect(tuned.boostPowerMultiplier).toBeGreaterThan(1);
+  });
+
+  it('can build into a survivable armored archetype', () => {
+    const s = createWorldState(42, makePlayer());
+    const after = applyUpgrade(s, 'reinforced_struts');
+
+    expect(after.collisionDamageMultiplier).toBeLessThan(1);
+    expect(after.player.maxHp).toBeGreaterThan(PLANE_INITIAL_HP);
+  });
 });

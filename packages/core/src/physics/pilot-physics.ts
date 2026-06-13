@@ -1,6 +1,6 @@
 import {
-  GROUND_Y,
   WORLD_WIDTH,
+  WORLD_HEIGHT,
   PARACHUTE_FALL_SPEED,
   PARACHUTE_DRIFT_SPEED,
   PILOT_WALK_SPEED,
@@ -9,7 +9,6 @@ import {
   PILOT_GRAVITY,
   PILOT_JUMP_COOLDOWN,
   PLAYER_HANGAR_X,
-  ENEMY_HANGAR_X,
 } from '@biplanes/shared';
 import type { Pilot, Faction } from '../entities/pilot.js';
 
@@ -19,15 +18,26 @@ export interface PilotInput {
 }
 
 /** X-coordinate of the hangar where this faction's pilot is safe. */
-export function ownHangarX(faction: Faction): number {
-  return faction === 'player' ? PLAYER_HANGAR_X : ENEMY_HANGAR_X;
+export function ownHangarX(faction: Faction, worldWidth: number = WORLD_WIDTH): number {
+  return faction === 'player' ? PLAYER_HANGAR_X : worldWidth - PLAYER_HANGAR_X;
+}
+
+function groundY(worldHeight: number = WORLD_HEIGHT): number {
+  return worldHeight - 90;
 }
 
 /**
  * Parachute descent. Gentle vertical fall; input adds horizontal drift.
  * Transitions to 'walking' when pilot reaches the ground.
  */
-export function stepPilotParachute(p: Pilot, input: PilotInput, dt: number, worldWidth: number = WORLD_WIDTH): Pilot {
+export function stepPilotParachute(
+  p: Pilot,
+  input: PilotInput,
+  dt: number,
+  worldWidth: number = WORLD_WIDTH,
+  worldHeight: number = WORLD_HEIGHT,
+): Pilot {
+  const ground = groundY(worldHeight);
   const vy = PARACHUTE_FALL_SPEED;
   const vx = input.rotate * PARACHUTE_DRIFT_SPEED;
 
@@ -39,9 +49,9 @@ export function stepPilotParachute(p: Pilot, input: PilotInput, dt: number, worl
   if (px >= worldWidth) px -= worldWidth;
 
   // Ground contact → switch to walking
-  if (py >= GROUND_Y) {
-    py = GROUND_Y;
-    const hangarX = ownHangarX(p.faction);
+  if (py >= ground) {
+    py = ground;
+    const hangarX = ownHangarX(p.faction, worldWidth);
     const facing: 1 | -1 = px > hangarX ? -1 : 1;
     return {
       ...p,
@@ -68,7 +78,14 @@ export function stepPilotParachute(p: Pilot, input: PilotInput, dt: number, worl
  * Transitions to 'safe' when within PILOT_HANGAR_ARRIVAL_DIST of own-faction hangar
  * (only valid when grounded — can't enter hangar mid-jump).
  */
-export function stepPilotWalking(p: Pilot, input: PilotInput, dt: number, worldWidth: number = WORLD_WIDTH): Pilot {
+export function stepPilotWalking(
+  p: Pilot,
+  input: PilotInput,
+  dt: number,
+  worldWidth: number = WORLD_WIDTH,
+  worldHeight: number = WORLD_HEIGHT,
+): Pilot {
+  const ground = groundY(worldHeight);
   // Horizontal motion strictly from input.
   let vx = 0;
   let facing = p.facing;
@@ -81,7 +98,7 @@ export function stepPilotWalking(p: Pilot, input: PilotInput, dt: number, worldW
   }
 
   // Vertical: jump trigger + gravity.
-  const grounded = p.position.y >= GROUND_Y - 0.5;
+  const grounded = p.position.y >= ground - 0.5;
   let vy = p.velocity.y;
   let jumpCd = Math.max(0, p.groundedJumpCooldown - dt);
 
@@ -100,8 +117,8 @@ export function stepPilotWalking(p: Pilot, input: PilotInput, dt: number, worldW
   let px = p.position.x + vx * dt;
   let py = p.position.y + vy * dt;
 
-  if (py >= GROUND_Y) {
-    py = GROUND_Y;
+  if (py >= ground) {
+    py = ground;
     if (vy > 0) vy = 0;
   }
 
@@ -110,8 +127,8 @@ export function stepPilotWalking(p: Pilot, input: PilotInput, dt: number, worldW
   if (px >= worldWidth) px -= worldWidth;
 
   // Arrival at own hangar — only when grounded.
-  const hangarX = ownHangarX(p.faction);
-  if (py >= GROUND_Y - 0.5 && Math.abs(px - hangarX) < PILOT_HANGAR_ARRIVAL_DIST) {
+  const hangarX = ownHangarX(p.faction, worldWidth);
+  if (py >= ground - 0.5 && Math.abs(px - hangarX) < PILOT_HANGAR_ARRIVAL_DIST) {
     return {
       ...p,
       position: { x: px, y: py },
@@ -135,11 +152,11 @@ export function stepPilotWalking(p: Pilot, input: PilotInput, dt: number, worldW
  * Dead pilot — lies on ground, ticks down deathTimer.
  * Caller is responsible for removing pilot when deathTimer ≤ 0.
  */
-export function stepPilotDead(p: Pilot, dt: number): Pilot {
+export function stepPilotDead(p: Pilot, dt: number, worldHeight: number = WORLD_HEIGHT): Pilot {
   return {
     ...p,
     velocity: { x: 0, y: 0 },
-    position: { x: p.position.x, y: GROUND_Y },
+    position: { x: p.position.x, y: groundY(worldHeight) },
     deathTimer: Math.max(0, p.deathTimer - dt),
   };
 }

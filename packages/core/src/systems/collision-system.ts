@@ -1,18 +1,11 @@
 import {
   PILOT_DEATH_DURATION,
-  GROUND_Y,
-  BOMB_EXPLOSION_RADIUS,
-  BOMB_DAMAGE,
-  ROCKET_EXPLOSION_RADIUS,
-  ROCKET_DAMAGE,
   DYING_DURATION_SEC,
   type Vec2,
 } from '@biplanes/shared';
 import type { Plane } from '../entities/plane.js';
 import type { Bullet } from '../entities/bullet.js';
 import type { Pilot } from '../entities/pilot.js';
-import type { Bomb } from '../entities/bomb.js';
-import type { Rocket } from '../entities/rocket.js';
 
 const PLANE_HIT_RADIUS = 22;
 const PILOT_HIT_RADIUS = 14;
