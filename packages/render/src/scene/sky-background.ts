@@ -281,12 +281,12 @@ function addArenaLayerSprite(
   });
 }
 
-function createLayeredArenaDecor(width: number, height: number): { container: Container; sprites: ArenaLayerSprite[] } {
+function createLayeredArenaDecor(width: number, height: number, includeBaseGradient = true): { container: Container; sprites: ArenaLayerSprite[] } {
   const container = new Container();
   const sprites: ArenaLayerSprite[] = [];
 
   const baseGradient = makeArenaBaseSkyGradient(width, height);
-  if (baseGradient) container.addChild(baseGradient);
+  if (baseGradient && includeBaseGradient) container.addChild(baseGradient);
 
   const cirrusY = [height * 0.12, height * 0.18, height * 0.24, height * 0.30];
   for (let i = 0; i < 12; i++) {
@@ -767,7 +767,7 @@ export function createSkyBackground(
   const storySkySoftener = hideGround ? makeStorySkySoftener(width, height, cfg) : null;
   if (storySkySoftener) c.addChild(storySkySoftener);
 
-  const layeredArena = isLayeredArena ? createLayeredArenaDecor(width, height) : null;
+  const layeredArena = isLayeredArena ? createLayeredArenaDecor(width, height, !imageUrl) : null;
   if (layeredArena) c.addChild(layeredArena.container);
 
   // Faint ceiling hint

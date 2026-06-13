@@ -27,13 +27,13 @@ export class BulletTracers {
     const duration = options.duration ?? 0.1;
     const color = bullet.ownerFaction === 'player' ? 0xffe88c : 0xff5a22;
     const heavy = bullet.isHeavy === true;
+    g.rect(-38, -3.1, 56, 6.2).fill({ color: 0x2a1208, alpha: heavy ? 0.52 : 0.44 });
     g.rect(-34, -2.0, 48, 4.0).fill({ color, alpha: heavy ? 0.9 : 0.78 });
     g.rect(-16, -0.9, 34, 1.8).fill({ color: 0xffffff, alpha: heavy ? 0.76 : 0.62 });
     g.circle(9, 0, heavy ? 4.6 : 3.4).fill({ color: 0xffffff, alpha: 0.86 });
     g.x = bullet.position.x;
     g.y = bullet.position.y;
     g.rotation = Math.atan2(bullet.velocity.y, bullet.velocity.x);
-    g.blendMode = 'add';
     g.scale.set(scale);
     this.container.addChild(g);
     this.active.push({ g, life: duration, maxLife: duration, scale });

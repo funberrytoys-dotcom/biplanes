@@ -8,6 +8,10 @@ describe('arena locations', () => {
     expect(ARENA_LOCATION_THEMES).toHaveLength(15);
   });
 
+  it('opens the arena with a high-contrast sunset backdrop for mobile readability', () => {
+    expect(ARENA_LOCATION_THEMES[0]?.background).toBe(ARENA_BACKGROUND_URLS.roseSunset);
+  });
+
   it('includes the requested time-of-day and weather moods', () => {
     const names = new Set(ARENA_LOCATION_THEMES.map(location => location.name));
     expect(names).toContain('ЯСНОЕ УТРО');

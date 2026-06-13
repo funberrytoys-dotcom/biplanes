@@ -14,11 +14,12 @@ export class BulletPool {
       if (!g) {
         g = this.pool.pop() ?? new Graphics();
         g.clear()
+          .rect(-8, -2.1, 14, 4.2)
+          .fill({ color: 0x2b1208, alpha: 0.72 })
           .rect(-7, -1.2, 12, 2.4)
-          .fill({ color: 0xfff0a8, alpha: 0.85 })
-          .circle(4, 0, 2.6)
-          .fill({ color: 0xffffff, alpha: 0.95 });
-        g.blendMode = 'add';
+          .fill({ color: 0xffd35c, alpha: 0.95 })
+          .circle(4, 0, 2.8)
+          .fill({ color: 0xffffff, alpha: 0.98 });
         this.container.addChild(g);
         this.active.set(b.id, g);
       }
