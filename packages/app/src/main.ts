@@ -87,6 +87,7 @@ import {
   arenaDifficultyForRound,
   arenaEnemyCountForRound,
   arenaEnemyHpMultiplierForRound,
+  countUnresolvedArenaEnemies,
   resolveArenaDuelFlow,
   shouldSpawnArenaFinalBoss,
   type ArenaRoundPhase,
@@ -1054,7 +1055,7 @@ export async function startGame(container: HTMLElement) {
     const location = ARENA_LOCATION_THEMES[Math.max(0, stage - 1)] ?? ARENA_LOCATION_THEMES[0]!;
     const phaseText =
       arenaRoundPhase === 'takeoff' ? 'ВЗЛЕТ' :
-      arenaRoundPhase === 'upgradeDelay' ? `ТРОФЕИ ${Math.max(0, 2 - arenaUpgradeDelaySec).toFixed(1)}С` :
+      arenaRoundPhase === 'upgradeDelay' ? `ТРОФЕИ ${Math.max(0, 3 - arenaUpgradeDelaySec).toFixed(1)}С` :
       arenaRoundPhase === 'victoryFlight' ? `ЧИСТЫЙ ПОЛЕТ ${Math.max(0, 3 - arenaVictoryFlightSec).toFixed(1)}С` :
       arenaRoundPhase === 'upgrade' ? 'ДОРАБОТКА' :
       state.enemies.some(e => e.isBoss && e.alive) ? 'ШРАМ' :
@@ -1161,7 +1162,7 @@ export async function startGame(container: HTMLElement) {
     }
   }
 
-  function updateArenaDirector() {
+  function updateArenaDirector(elapsedSec = TICK_DT) {
     if (runMode !== 'arena') {
       arenaStatus.visible = false;
       return;
@@ -1184,7 +1185,7 @@ export async function startGame(container: HTMLElement) {
 
     spawnArenaRoundEnemy();
 
-    const aliveEnemies = state.enemies.filter(e => e.alive && e.state !== 'crashed').length;
+    const aliveEnemies = countUnresolvedArenaEnemies(state.enemies);
     const playerPilotActive = findPilot(state.pilots, 'player') !== undefined;
     if (
       arenaRoundPhase === 'upgradeDelay'
@@ -1193,7 +1194,7 @@ export async function startGame(container: HTMLElement) {
       && aliveEnemies === 0
       && !playerPilotActive
     ) {
-      arenaUpgradeDelaySec += TICK_DT;
+      arenaUpgradeDelaySec += elapsedSec;
     }
     if (
       arenaRoundPhase === 'victoryFlight'
@@ -1202,7 +1203,7 @@ export async function startGame(container: HTMLElement) {
       && aliveEnemies === 0
       && !playerPilotActive
     ) {
-      arenaVictoryFlightSec += TICK_DT;
+      arenaVictoryFlightSec += elapsedSec;
     }
     const flow = resolveArenaDuelFlow({
       phase: arenaRoundPhase,
@@ -1214,7 +1215,7 @@ export async function startGame(container: HTMLElement) {
       choicesShowing,
       gameOver: state.gameOver,
       upgradeDelaySec: arenaUpgradeDelaySec,
-      requiredUpgradeDelaySec: 2,
+      requiredUpgradeDelaySec: 3,
       victoryFlightSec: arenaVictoryFlightSec,
       requiredVictoryFlightSec: 3,
     });
@@ -1765,9 +1766,6 @@ export async function startGame(container: HTMLElement) {
         arenaThunderTimer = 3.5;
       }
     }
-    if (runMode === 'arena') {
-      updateArenaDirector();
-    }
     const frameGate = runMode === 'arena'
       ? (choicesShowing ? 'pause' : 'tick')
       : resolveMissionOneFrameGate({
@@ -2096,7 +2094,7 @@ export async function startGame(container: HTMLElement) {
     }
 
     if (runMode === 'arena') {
-      updateArenaDirector();
+      updateArenaDirector(realDt);
     } else {
       openLevelUpChoices();
       updateArenaDirector();

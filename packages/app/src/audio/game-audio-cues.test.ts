@@ -33,6 +33,7 @@ describe('resolveFlightAudioMix', () => {
     const fast = resolveFlightAudioMix(input({ speed: 680, throttleLevel: 1 }));
 
     expect(fast.engineGain).toBeGreaterThan(idle.engineGain);
+    expect(fast.engineGain).toBeGreaterThanOrEqual(0.34);
     expect(fast.engineRate).toBeGreaterThan(idle.engineRate);
   });
 

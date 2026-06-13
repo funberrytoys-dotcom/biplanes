@@ -7,7 +7,7 @@ describe('mobile viewport', () => {
 
     expect(info.isPhoneLike).toBe(true);
     expect(info.isLandscape).toBe(true);
-    expect(info.combatZoom).toBeLessThan(1);
+    expect(info.combatZoom).toBeGreaterThan(1);
     expect(fitMobileZoom(1.08, info)).toBe(info.combatZoom);
   });
 

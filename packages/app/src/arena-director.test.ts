@@ -3,6 +3,7 @@ import {
   arenaDifficultyForRound,
   arenaEnemyCountForRound,
   arenaEnemyHpMultiplierForRound,
+  countUnresolvedArenaEnemies,
   resolveArenaDuelFlow,
   shouldHoldArenaAutoSpawnForFinalBoss,
   shouldSpawnArenaFinalBoss,
@@ -51,13 +52,22 @@ describe('arena duel round flow', () => {
       choicesShowing: false,
       gameOver: false,
       upgradeDelaySec: 0,
-      requiredUpgradeDelaySec: 2,
+      requiredUpgradeDelaySec: 3,
       victoryFlightSec: 0,
       requiredVictoryFlightSec: 3,
     };
   }
 
-  it('starts a two-second trophy delay after the enemies in a round are destroyed', () => {
+  it('keeps the round active while an enemy death animation is still exploding', () => {
+    const unresolved = countUnresolvedArenaEnemies([
+      { alive: false, state: 'dying' },
+      { alive: false, state: 'crashed' },
+    ]);
+
+    expect(unresolved).toBe(1);
+  });
+
+  it('starts a three-second trophy delay after the enemies in a round fully explode', () => {
     const next = resolveArenaDuelFlow({
       ...baseFlowState(),
     });
@@ -68,22 +78,22 @@ describe('arena duel round flow', () => {
     expect(next.shouldLaunchNextRound).toBe(false);
   });
 
-  it('does not open the build choice before the trophy delay is complete', () => {
+  it('does not open the build choice before the three-second trophy delay is complete', () => {
     const next = resolveArenaDuelFlow({
       ...baseFlowState(),
       phase: 'upgradeDelay',
-      upgradeDelaySec: 1.9,
+      upgradeDelaySec: 2.9,
     });
 
     expect(next.phase).toBe('upgradeDelay');
     expect(next.shouldShowUpgrade).toBe(false);
   });
 
-  it('opens the build choice after two seconds of clean flight over the cleared arena', () => {
+  it('opens the build choice after three seconds over the cleared arena', () => {
     const next = resolveArenaDuelFlow({
       ...baseFlowState(),
       phase: 'upgradeDelay',
-      upgradeDelaySec: 2,
+      upgradeDelaySec: 3,
     });
 
     expect(next.phase).toBe('upgrade');
@@ -91,7 +101,7 @@ describe('arena duel round flow', () => {
     expect(next.shouldLaunchNextRound).toBe(false);
   });
 
-  it('starts the mandatory clean flight only after the build choice is resolved', () => {
+  it('launches the next round immediately after the build choice is resolved', () => {
     const next = resolveArenaDuelFlow({
       ...baseFlowState(),
       phase: 'upgrade',
@@ -100,25 +110,11 @@ describe('arena duel round flow', () => {
       currentScore: 2,
     });
 
-    expect(next.phase).toBe('victoryFlight');
-    expect(next.shouldStartVictoryFlight).toBe(true);
+    expect(next.phase).toBe('takeoff');
+    expect(next.round).toBe(4);
+    expect(next.shouldStartVictoryFlight).toBe(false);
     expect(next.shouldShowUpgrade).toBe(false);
-    expect(next.shouldLaunchNextRound).toBe(false);
-  });
-
-  it('does not launch the next takeoff before the clean-flight timer is complete', () => {
-    const next = resolveArenaDuelFlow({
-      ...baseFlowState(),
-      phase: 'victoryFlight',
-      round: 3,
-      previousScore: 2,
-      currentScore: 2,
-      victoryFlightSec: 2.9,
-    });
-
-    expect(next.phase).toBe('victoryFlight');
-    expect(next.shouldShowUpgrade).toBe(false);
-    expect(next.shouldLaunchNextRound).toBe(false);
+    expect(next.shouldLaunchNextRound).toBe(true);
   });
 
   it('keeps the duel alive while the player pilot is still trying to reach the hangar', () => {
@@ -134,21 +130,6 @@ describe('arena duel round flow', () => {
     expect(next.phase).toBe('duel');
     expect(next.shouldShowUpgrade).toBe(false);
     expect(next.shouldLaunchNextRound).toBe(false);
-  });
-
-  it('launches the next round only after three seconds of clean flight', () => {
-    const next = resolveArenaDuelFlow({
-      ...baseFlowState(),
-      phase: 'victoryFlight',
-      round: 2,
-      previousScore: 2,
-      currentScore: 2,
-      victoryFlightSec: 3,
-    });
-
-    expect(next.phase).toBe('takeoff');
-    expect(next.round).toBe(3);
-    expect(next.shouldLaunchNextRound).toBe(true);
   });
 
   it('ramps enemy toughness without changing the player build', () => {

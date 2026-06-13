@@ -49,10 +49,10 @@ export function resolveFlightAudioMix(input: FlightAudioInput): FlightAudioMix {
   const diveK = clamp01((input.verticalVelocity - 260) / 520);
   const taxiLift = input.playerState === 'taxi' ? 0.06 : 0;
   const strain = input.boostHeat > 0.7 ? (input.boostHeat - 0.7) / 0.3 : 0;
-  const engineGain = 0.08 + taxiLift * 0.55 + throttle * 0.12 + speedK * 0.08 + strain * 0.03;
+  const engineGain = 0.14 + taxiLift * 0.55 + throttle * 0.14 + speedK * 0.1 + strain * 0.04;
   const engineRate = 0.78 + throttle * 0.12 + speedK * 0.1 + strain * 0.03;
-  const boostGain = input.boostActive ? 0.28 + strain * 0.08 : 0;
-  const diveGain = diveK * 0.48;
+  const boostGain = input.boostActive ? 0.36 + strain * 0.1 : 0;
+  const diveGain = diveK * 0.58;
   let warning: AudioWarning = null;
 
   if (input.stalling) {

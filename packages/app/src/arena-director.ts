@@ -32,6 +32,15 @@ export interface ArenaDuelFlowResult {
   shouldStartVictoryFlight: boolean;
 }
 
+export interface ArenaEnemyResolutionState {
+  alive: boolean;
+  state: string;
+}
+
+export function countUnresolvedArenaEnemies(enemies: readonly ArenaEnemyResolutionState[]) {
+  return enemies.filter(enemy => enemy.state !== 'crashed').length;
+}
+
 export function shouldSpawnArenaFinalBoss(state: FinalBossSpawnState) {
   return (
     state.playerScore >= state.finalBossScore &&
@@ -120,11 +129,11 @@ export function resolveArenaDuelFlow(state: ArenaDuelFlowState): ArenaDuelFlowRe
 
   if (state.phase === 'upgrade' && !state.choicesShowing) {
     return {
-      phase: 'victoryFlight',
-      round: state.round,
+      phase: 'takeoff',
+      round: state.round + 1,
       shouldShowUpgrade: false,
-      shouldLaunchNextRound: false,
-      shouldStartVictoryFlight: true,
+      shouldLaunchNextRound: true,
+      shouldStartVictoryFlight: false,
     };
   }
 
