@@ -47,7 +47,7 @@ import { resolveBulletPlaneHits, applyExplosionDamage } from '../systems/collisi
 import { resolvePlanePlaneCollisions } from '../systems/plane-collision.js';
 import { arenaTargetEnemyCount } from '../systems/arena-waves.js';
 import { aiCommand, aiCommandPilotTarget, createAiState } from '../ai/chase-policy.js';
-import { DIFFICULTIES } from '../ai/difficulty.js';
+import { DIFFICULTIES, aiParamsForRole } from '../ai/difficulty.js';
 import type { Plane } from '../entities/plane.js';
 import type { Pilot, Faction } from '../entities/pilot.js';
 import { findPilot } from '../entities/pilot.js';
@@ -490,7 +490,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
   }
 
   // Enemy AI + physics + weapons + fire-burn + ejection
-  const params = DIFFICULTIES[state.difficulty];
+  const baseParams = DIFFICULTIES[state.difficulty];
   const playerPilotForAi = findPilot(pilots, 'player');
   const ejectedThisTick: Pilot[] = [];
 
@@ -559,6 +559,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
       }
 
       // Priority target: ejected player pilot (it's the only target if player plane is down).
+      const params = aiParamsForRole(state.difficulty, role);
       const result = targetPilot
         ? aiCommandPilotTarget(e, targetPilot, params, aiState, prevHp, TICK_DT, state.timeSec, wasFlyingThisTick)
         : aiCommand(e, target, params, aiState, prevHp, TICK_DT, state.timeSec, wasFlyingThisTick, worldHeight);
@@ -591,8 +592,8 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
       const fakeForFire = { ...stepped, weaponCooldown: 0 };
       const result = firePlayerWeapon(
         fakeForFire, true, nextEntityId,
-        params.damageMultiplier,
-        params.fireRateMultiplier,
+        baseParams.damageMultiplier,
+        baseParams.fireRateMultiplier,
       );
       if (result.bullet) {
         newBulletList.push(result.bullet);
@@ -614,7 +615,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     ) {
       const roll = nextRandom(rngState);
       rngState = roll.rngState;
-      if (roll.value < params.ejectChancePerSec * TICK_DT) {
+      if (roll.value < baseParams.ejectChancePerSec * TICK_DT) {
         const ejectX = stepped.kinematic.position.x;
         const ejectY = stepped.kinematic.position.y;
         const newPilot = spawnPilot(nextEntityId, ejectX, ejectY, 'enemy');
@@ -1023,6 +1024,12 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     if (playerDied) enemyScore++;
   }
 
+  const bossWasAliveBefore = state.enemies.some(e => e.isBoss && e.alive);
+  const bossDestroyedThisTick = bossWasAliveBefore && enemies.some(e => e.isBoss && !e.alive);
+  if (bossDestroyedThisTick) {
+    playerScore = Math.max(playerScore, PLAYER_SCORE_TO_WIN);
+  }
+
   // Pilot lifecycle resolution
   const survivingPilots: Pilot[] = [];
   for (const pp of pilots) {
@@ -1082,7 +1089,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     ));
     enemies.push(spawnEnemy(
       nextEntityId,
-      params.hpMultiplier,
+      baseParams.hpMultiplier,
       worldWidth,
       worldHeight,
       player.kinematic.position,

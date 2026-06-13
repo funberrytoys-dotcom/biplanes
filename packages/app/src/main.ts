@@ -87,9 +87,11 @@ import {
   arenaDifficultyForRound,
   arenaEnemyCountForRound,
   arenaEnemyHpMultiplierForRound,
+  arenaEnemyRoleForRound,
+  arenaEnemyRoleTuning,
   countUnresolvedArenaEnemies,
   resolveArenaDuelFlow,
-  shouldSpawnArenaFinalBoss,
+  shouldSpawnArenaFinalBossForRound,
   type ArenaRoundPhase,
 } from './arena-director.js';
 import { ARENA_BACKGROUND_URLS, ARENA_LOCATION_THEMES } from './arena-locations.js';
@@ -489,8 +491,10 @@ function makeSkyTestBoss(id: number): Plane {
 }
 
 function makeArenaRoundEnemy(id: number, player: Plane, round: number, lane: number = 0): Plane {
-  const hp = Math.round(ENEMY_INITIAL_HP_LIGHT * arenaEnemyHpMultiplierForRound(round));
-  const speed = G_MAX_LEVEL * Math.min(1.12, 0.92 + round * 0.03);
+  const role = arenaEnemyRoleForRound(round, lane);
+  const roleTuning = arenaEnemyRoleTuning(role);
+  const hp = Math.round(ENEMY_INITIAL_HP_LIGHT * arenaEnemyHpMultiplierForRound(round) * roleTuning.hpScale);
+  const speed = G_MAX_LEVEL * Math.min(1.2, (0.92 + round * 0.03) * roleTuning.speedScale);
   const fromRight = player.kinematic.position.x < ARENA_WORLD_WIDTH * 0.55;
   const heading = fromRight ? Math.PI : 0;
   const x = fromRight
@@ -513,26 +517,28 @@ function makeArenaRoundEnemy(id: number, player: Plane, round: number, lane: num
     },
     hp,
     maxHp: hp,
-    weaponCooldown: Math.max(0.035, 0.34 - round * 0.026),
+    weaponCooldown: Math.max(0.03, (0.34 - round * 0.026) * roleTuning.weaponCooldownScale),
     alive: true,
     state: 'flying',
     respawnTimer: 0,
     boostHeat: 0,
     boostActive: false,
     noThrottleSec: 0,
-    aiRole: 'chase-player',
+    aiRole: role,
+    visualScale: roleTuning.visualScale,
   };
 }
 
 function makeArenaScarBoss(id: number, player: Plane, round: number): Plane {
-  const hp = Math.round(ENEMY_INITIAL_HP_HEAVY * arenaEnemyHpMultiplierForRound(round) * 3.2);
+  const roleTuning = arenaEnemyRoleTuning('boss');
+  const hp = Math.round(ENEMY_INITIAL_HP_HEAVY * arenaEnemyHpMultiplierForRound(round) * 3.2 * roleTuning.hpScale);
   const fromRight = player.kinematic.position.x < ARENA_WORLD_WIDTH * 0.55;
   const heading = fromRight ? Math.PI : 0;
   const x = fromRight
     ? Math.min(ARENA_WORLD_WIDTH - 1200, player.kinematic.position.x + 1800)
     : Math.max(1200, player.kinematic.position.x - 1800);
   const y = Math.max(420, Math.min(ARENA_WORLD_HEIGHT - 760, player.kinematic.position.y - 260));
-  const speed = G_MAX_LEVEL * 0.96;
+  const speed = G_MAX_LEVEL * 0.96 * roleTuning.speedScale;
   return {
     id,
     faction: 'enemy',
@@ -548,16 +554,16 @@ function makeArenaScarBoss(id: number, player: Plane, round: number): Plane {
     },
     hp,
     maxHp: hp,
-    weaponCooldown: 0.05,
+    weaponCooldown: 0.05 * roleTuning.weaponCooldownScale,
     alive: true,
     state: 'flying',
     respawnTimer: 0,
     boostHeat: 0,
     boostActive: false,
     noThrottleSec: 0,
-    aiRole: 'chase-player',
+    aiRole: 'boss',
     isBoss: true,
-    visualScale: 1.3,
+    visualScale: roleTuning.visualScale,
     bossName: 'ШРАМ',
   };
 }
@@ -1090,9 +1096,12 @@ export async function startGame(container: HTMLElement) {
     arenaVictoryFlightSec = 0;
     state.disableAutoEnemySpawn = true;
     state.difficulty = arenaDifficultyForRound(arenaRound);
-    const finalBossReady = shouldSpawnArenaFinalBoss({
+    const nextEnemyCount = arenaEnemyCountForRound(arenaRound);
+    const finalBossReady = shouldSpawnArenaFinalBossForRound({
       playerScore: state.playerScore,
       finalBossScore: ARENA_FINAL_BOSS_SCORE,
+      playerWinScore: PLAYER_SCORE_TO_WIN,
+      roundEnemyCount: nextEnemyCount,
       bossAlreadySpawned: state.enemies.some(e => e.isBoss),
       gameOver: state.gameOver,
       pendingLevelUp: state.pendingLevelUp,
@@ -1100,7 +1109,7 @@ export async function startGame(container: HTMLElement) {
     });
     const enemies = finalBossReady
       ? [makeArenaScarBoss(state.nextEntityId, state.player, arenaRound)]
-      : Array.from({ length: arenaEnemyCountForRound(arenaRound) }, (_, lane) =>
+      : Array.from({ length: nextEnemyCount }, (_, lane) =>
         makeArenaRoundEnemy(state.nextEntityId + lane, state.player, arenaRound, lane)
       );
     arenaDuelEnemyId = enemies[0]?.id ?? null;

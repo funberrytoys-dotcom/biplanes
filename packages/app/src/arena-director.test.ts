@@ -3,6 +3,10 @@ import {
   arenaDifficultyForRound,
   arenaEnemyCountForRound,
   arenaEnemyHpMultiplierForRound,
+  arenaEnemyRoleForRound,
+  arenaEnemyRoleTuning,
+  arenaRunRequiresFinalBoss,
+  shouldSpawnArenaFinalBossForRound,
   countUnresolvedArenaEnemies,
   resolveArenaDuelFlow,
   shouldHoldArenaAutoSpawnForFinalBoss,
@@ -140,5 +144,44 @@ describe('arena duel round flow', () => {
     expect(arenaDifficultyForRound(1)).toBe('easy');
     expect(arenaDifficultyForRound(4)).toBe('medium');
     expect(arenaDifficultyForRound(8)).toBe('hard');
+  });
+
+  it('ramps enemy roles from rookies into hunters and aces', () => {
+    expect(arenaEnemyRoleForRound(1, 0)).toBe('rookie');
+    expect(arenaEnemyRoleForRound(2, 0)).toBe('hunter');
+    expect(arenaEnemyRoleForRound(4, 1)).toBe('ace');
+    expect(arenaEnemyRoleForRound(9, 0)).toBe('ace');
+    expect(arenaEnemyRoleForRound(9, 0, true)).toBe('boss');
+  });
+
+  it('keeps role tuning readable instead of turning enemies into hp walls', () => {
+    const rookie = arenaEnemyRoleTuning('rookie');
+    const hunter = arenaEnemyRoleTuning('hunter');
+    const ace = arenaEnemyRoleTuning('ace');
+    const boss = arenaEnemyRoleTuning('boss');
+
+    expect(rookie.hpScale).toBeLessThan(hunter.hpScale);
+    expect(ace.weaponCooldownScale).toBeLessThan(hunter.weaponCooldownScale);
+    expect(ace.speedScale).toBeGreaterThan(hunter.speedScale);
+    expect(boss.visualScale).toBeGreaterThan(ace.visualScale);
+    expect(ace.hpScale).toBeLessThanOrEqual(1.18);
+  });
+
+  it('requires the final boss gate before the arena can be considered cleared', () => {
+    expect(arenaRunRequiresFinalBoss(13, 14)).toBe(false);
+    expect(arenaRunRequiresFinalBoss(14, 14)).toBe(true);
+  });
+
+  it('spawns the final boss before a normal wave can skip past the win score', () => {
+    expect(shouldSpawnArenaFinalBossForRound({
+      playerScore: 12,
+      finalBossScore: 14,
+      playerWinScore: 15,
+      roundEnemyCount: 4,
+      bossAlreadySpawned: false,
+      gameOver: false,
+      pendingLevelUp: false,
+      choicesShowing: false,
+    })).toBe(true);
   });
 });

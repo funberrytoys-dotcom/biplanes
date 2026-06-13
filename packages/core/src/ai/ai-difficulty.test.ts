@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { aiCommand, createAiState } from './chase-policy.js';
 import type { AiState } from './chase-policy.js';
-import { DIFFICULTIES } from './difficulty.js';
+import { DIFFICULTIES, aiParamsForRole } from './difficulty.js';
 import { G_STALL, GROUND_Y } from '@biplanes/shared';
 import type { Plane } from '../entities/plane.js';
 
@@ -316,5 +316,19 @@ describe('ai difficulty params', () => {
       return log.join(',');
     }
     expect(run(404)).toBe(run(404));
+  });
+
+  it('arena roles make enemies smarter without only inflating health', () => {
+    const rookie = aiParamsForRole('medium', 'rookie');
+    const hunter = aiParamsForRole('medium', 'hunter');
+    const ace = aiParamsForRole('medium', 'ace');
+    const boss = aiParamsForRole('hard', 'boss');
+
+    expect(rookie.positioningEnabled).toBe(false);
+    expect(hunter.positioningEnabled).toBe(true);
+    expect(ace.energyManagement).toBe(true);
+    expect(ace.reactionDelaySec).toBeLessThan(hunter.reactionDelaySec);
+    expect(ace.hpMultiplier).toBeLessThanOrEqual(hunter.hpMultiplier * 1.08);
+    expect(boss.fireRange).toBeGreaterThan(ace.fireRange);
   });
 });

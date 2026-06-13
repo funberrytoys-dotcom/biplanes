@@ -13,7 +13,7 @@ export type PlaneFaction = 'player' | 'enemy';
  */
 export type PlaneState = 'taxi' | 'flying' | 'crashed' | 'spawning' | 'dying';
 
-export type PlaneAiRole = 'chase-player' | 'attack-caravan';
+export type PlaneAiRole = 'chase-player' | 'attack-caravan' | 'rookie' | 'hunter' | 'ace' | 'boss';
 
 export interface Plane {
   id: EntityId;

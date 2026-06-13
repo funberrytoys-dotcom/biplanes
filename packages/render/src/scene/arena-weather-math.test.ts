@@ -37,4 +37,14 @@ describe('arenaWeatherConfig', () => {
     expect(blizzard.snowCount).toBeGreaterThan(arenaWeatherConfig('snow').snowCount);
     expect(blizzard.wind).toBeGreaterThan(arenaWeatherConfig('snow').wind);
   });
+
+  it('caps heavy weather particle density for mobile readability', () => {
+    const presets = ['rain', 'storm', 'thunder', 'snow', 'blizzard'] as const;
+
+    for (const preset of presets) {
+      const config = arenaWeatherConfig(preset);
+      expect(config.rainCount + config.snowCount + config.streakCount).toBeLessThanOrEqual(190);
+      expect(config.overlayAlpha).toBeLessThanOrEqual(0.34);
+    }
+  });
 });

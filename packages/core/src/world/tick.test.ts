@@ -483,6 +483,39 @@ describe('world tick', () => {
     expect(after.gameOver).toBe(true);
   });
 
+  it('ends the arena run when the final boss is destroyed', () => {
+    const player = makePlayer();
+    const boss = {
+      ...makePlayer(),
+      id: 2,
+      faction: 'enemy' as const,
+      hp: 1,
+      maxHp: 1,
+      isBoss: true,
+      kinematic: { ...makePlayer().kinematic, position: { x: 600, y: 500 } },
+    };
+    const s = {
+      ...createWorldState(42, player),
+      playerScore: 12,
+      enemies: [boss],
+      bullets: [{
+        id: 100,
+        ownerId: 1,
+        ownerFaction: 'player' as const,
+        position: { x: 600, y: 500 },
+        velocity: { x: 0, y: 0 },
+        lifetime: 1,
+        damage: 100,
+        alive: true,
+      }],
+    };
+
+    const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+
+    expect(after.playerScore).toBeGreaterThanOrEqual(15);
+    expect(after.gameOver).toBe(true);
+  });
+
   it('spawns the current arena wave in the air', () => {
     const s = {
       ...createWorldState(42, makePlayer()),

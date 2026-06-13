@@ -2,6 +2,7 @@ import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import type { WorldState } from '@biplanes/core';
 import { UPGRADE_DEFS } from '@biplanes/core';
 import { PLAYER_SCORE_TO_WIN } from '@biplanes/shared';
+import { resolveDeathScreenLayout } from './death-screen-layout.js';
 
 export function createDeathScreen(width: number, height: number, onRestart: () => void) {
   const c = new Container();
@@ -174,9 +175,11 @@ export function createDeathScreen(width: number, height: number, onRestart: () =
 
   function layout(w: number, h: number) {
     dim.clear().rect(0, 0, w, h).fill({ color: 0x070b12, alpha: 0.85 });
-    
-    panel.x = (w - panelW) / 2;
-    panel.y = (h - panelH) / 2;
+    const panelLayout = resolveDeathScreenLayout(w, h);
+
+    panel.scale.set(panelLayout.scale);
+    panel.x = panelLayout.panelX;
+    panel.y = panelLayout.panelY;
   }
   layout(width, height);
 

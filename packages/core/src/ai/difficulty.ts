@@ -1,4 +1,5 @@
 export type Difficulty = 'easy' | 'medium' | 'hard';
+export type AiRole = 'chase-player' | 'attack-caravan' | 'rookie' | 'hunter' | 'ace' | 'boss';
 
 /**
  * AI parameters split across the three behaviour layers used by `aiCommand`:
@@ -193,3 +194,44 @@ export const DIFFICULTIES: Record<Difficulty, AiParams> = {
     fireRateMultiplier: 1.75,          // later rounds must feel more dangerous than round one
   },
 };
+
+export function aiParamsForRole(difficulty: Difficulty, role: AiRole = 'chase-player'): AiParams {
+  const base = DIFFICULTIES[difficulty];
+  switch (role) {
+    case 'rookie':
+      return {
+        ...DIFFICULTIES.easy,
+        hpMultiplier: Math.min(base.hpMultiplier, DIFFICULTIES.easy.hpMultiplier),
+      };
+    case 'hunter':
+      return {
+        ...base,
+        positioningEnabled: true,
+        energyManagement: false,
+        reactionDelaySec: Math.min(base.reactionDelaySec, DIFFICULTIES.medium.reactionDelaySec),
+      };
+    case 'ace':
+      return {
+        ...base,
+        positioningEnabled: true,
+        energyManagement: true,
+        reactionDelaySec: Math.min(base.reactionDelaySec, 0.055),
+        errorWobbleRad: Math.min(base.errorWobbleRad, 0.012),
+        fireRange: Math.max(base.fireRange, 820),
+        leadFactor: Math.max(base.leadFactor, 0.9),
+        hpMultiplier: Math.min(base.hpMultiplier * 1.04, DIFFICULTIES.hard.hpMultiplier),
+      };
+    case 'boss':
+      return {
+        ...DIFFICULTIES.hard,
+        fireRange: Math.max(DIFFICULTIES.hard.fireRange, 980),
+        burstOnSec: 0.82,
+        burstOffSec: 0.12,
+        hpMultiplier: DIFFICULTIES.hard.hpMultiplier,
+      };
+    case 'attack-caravan':
+    case 'chase-player':
+    default:
+      return base;
+  }
+}
