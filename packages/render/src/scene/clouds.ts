@@ -1,28 +1,29 @@
 import { Assets, Container, Sprite, Texture } from 'pixi.js';
 import { WORLD_WIDTH } from '@biplanes/shared';
+import { assetUrl } from '../asset-url.js';
 
 const GENERATED_CLOUD_URLS = [
-  '/assets/biplanes/arena/day/clouds/cloud_bank_01.png',
-  '/assets/biplanes/arena/day/clouds/cloud_cumulus_01.png',
-  '/assets/biplanes/arena/day/clouds/cloud_cumulus_02.png',
-  '/assets/biplanes/arena/day/clouds/cloud_cumulus_03.png',
-  '/assets/biplanes/arena/day/clouds/cloud_cumulus_04.png',
-  '/assets/biplanes/arena/day/clouds/cloud_cumulus_05.png',
+  assetUrl('assets/biplanes/arena/day/clouds/cloud_bank_01.png'),
+  assetUrl('assets/biplanes/arena/day/clouds/cloud_cumulus_01.png'),
+  assetUrl('assets/biplanes/arena/day/clouds/cloud_cumulus_02.png'),
+  assetUrl('assets/biplanes/arena/day/clouds/cloud_cumulus_03.png'),
+  assetUrl('assets/biplanes/arena/day/clouds/cloud_cumulus_04.png'),
+  assetUrl('assets/biplanes/arena/day/clouds/cloud_cumulus_05.png'),
 ];
 
 const GENERATED_CIRRUS_URLS = [
-  '/assets/biplanes/arena/day/cirrus/cloud_cirrus_01.png',
-  '/assets/biplanes/arena/day/cirrus/cloud_cirrus_02.png',
-  '/assets/biplanes/arena/day/cirrus/cloud_cirrus_03.png',
-  '/assets/biplanes/arena/day/cirrus/cloud_cirrus_04.png',
-  '/assets/biplanes/arena/day/cirrus/cloud_cirrus_05.png',
-  '/assets/biplanes/arena/day/cirrus/cloud_cirrus_06.png',
-  '/assets/biplanes/arena/day/cirrus/cloud_cirrus_07.png',
+  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_01.png'),
+  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_02.png'),
+  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_03.png'),
+  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_04.png'),
+  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_05.png'),
+  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_06.png'),
+  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_07.png'),
 ];
 
 const LEGACY_CLOUD_URLS = Array.from(
   { length: 13 },
-  (_, i) => `/assets/biplanes/clouds/cloud_highres_transparent_${String(i + 1).padStart(2, '0')}.png`,
+  (_, i) => assetUrl(`assets/biplanes/clouds/cloud_highres_transparent_${String(i + 1).padStart(2, '0')}.png`),
 );
 const CLOUD_URLS = [...GENERATED_CLOUD_URLS, ...GENERATED_CIRRUS_URLS, ...LEGACY_CLOUD_URLS.slice(0, 4)];
 

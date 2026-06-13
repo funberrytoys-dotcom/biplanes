@@ -1,4 +1,5 @@
 import { Container, Graphics, Sprite, TilingSprite, Texture, Text, TextStyle } from 'pixi.js';
+import { assetUrl } from '../asset-url.js';
 import {
   CEILING_Y,
   PLAYER_HANGAR_X,
@@ -115,10 +116,10 @@ const THEMES: Record<SkyThemeId, ThemeConfig> = {
 };
 
 const SKY_IMAGE_BY_THEME: Record<SkyThemeId, string> = {
-  noon: '/assets/biplanes/sky_noon.jpg',
-  sunset: '/assets/biplanes/sky_sunset.jpg',
-  twilight: '/assets/biplanes/sky_twilight.jpg',
-  night: '/assets/biplanes/sky_night.jpg',
+  noon: assetUrl('assets/biplanes/sky_noon.jpg'),
+  sunset: assetUrl('assets/biplanes/sky_sunset.jpg'),
+  twilight: assetUrl('assets/biplanes/sky_twilight.jpg'),
+  night: assetUrl('assets/biplanes/sky_night.jpg'),
 };
 
 interface ArenaLayerSprite {
@@ -134,37 +135,37 @@ interface ArenaLayerSprite {
 }
 
 const ARENA_CIRRUS_URLS = [
-  '/assets/biplanes/arena/day/cirrus/cloud_cirrus_01.png',
-  '/assets/biplanes/arena/day/cirrus/cloud_cirrus_02.png',
-  '/assets/biplanes/arena/day/cirrus/cloud_cirrus_03.png',
-  '/assets/biplanes/arena/day/cirrus/cloud_cirrus_05.png',
-  '/assets/biplanes/arena/day/cirrus/cloud_cirrus_07.png',
+  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_01.png'),
+  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_02.png'),
+  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_03.png'),
+  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_05.png'),
+  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_07.png'),
 ];
 
 const ARENA_CLOUD_URLS = [
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_01.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_02.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_04.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_05.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_08.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_11.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_13.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_14.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_18.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_20.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_22.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_23.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_25.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_27.png',
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_01.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_02.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_04.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_05.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_08.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_11.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_13.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_14.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_18.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_20.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_22.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_23.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_25.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_27.png'),
 ];
 
 const ARENA_ISLAND_URLS = [
-  '/assets/biplanes/arena/day/islands/island_silhouette_02.png',
-  '/assets/biplanes/arena/day/islands/island_silhouette_03.png',
-  '/assets/biplanes/arena/day/islands/island_silhouette_04.png',
-  '/assets/biplanes/arena/day/islands/island_silhouette_05.png',
-  '/assets/biplanes/arena/day/islands/island_silhouette_06.png',
-  '/assets/biplanes/arena/day/islands/island_silhouette_07.png',
+  assetUrl('assets/biplanes/arena/day/islands/island_silhouette_02.png'),
+  assetUrl('assets/biplanes/arena/day/islands/island_silhouette_03.png'),
+  assetUrl('assets/biplanes/arena/day/islands/island_silhouette_04.png'),
+  assetUrl('assets/biplanes/arena/day/islands/island_silhouette_05.png'),
+  assetUrl('assets/biplanes/arena/day/islands/island_silhouette_06.png'),
+  assetUrl('assets/biplanes/arena/day/islands/island_silhouette_07.png'),
 ];
 
 function colorToRgb(color: number) {
@@ -422,7 +423,7 @@ interface BattleFlash {
 
 const SCENIC_ASSETS: ScenicAssetConfig[] = [
   {
-    url: '/assets/biplanes/airship_2.png',
+    url: assetUrl('assets/biplanes/airship_2.png'),
     sourceW: 760,
     sourceH: 506,
     x: 0.12,
@@ -438,7 +439,7 @@ const SCENIC_ASSETS: ScenicAssetConfig[] = [
     flipX: true,
   },
   {
-    url: '/assets/biplanes/airship_1.png',
+    url: assetUrl('assets/biplanes/airship_1.png'),
     sourceW: 1200,
     sourceH: 725,
     x: 0.83,
@@ -453,7 +454,7 @@ const SCENIC_ASSETS: ScenicAssetConfig[] = [
     phase: 1.7,
   },
   {
-    url: '/assets/biplanes/island_factory.png',
+    url: assetUrl('assets/biplanes/island_factory.png'),
     sourceW: 1400,
     sourceH: 1174,
     x: 0.24,
@@ -473,7 +474,7 @@ const SCENIC_ASSETS: ScenicAssetConfig[] = [
     ],
   },
   {
-    url: '/assets/biplanes/island_player.png',
+    url: assetUrl('assets/biplanes/island_player.png'),
     sourceW: 1400,
     sourceH: 807,
     x: 0.58,
@@ -494,7 +495,7 @@ const SCENIC_ASSETS: ScenicAssetConfig[] = [
     ],
   },
   {
-    url: '/assets/biplanes/island_industrial.png',
+    url: assetUrl('assets/biplanes/island_industrial.png'),
     sourceW: 1400,
     sourceH: 723,
     x: 0.78,
@@ -836,7 +837,7 @@ export function createSkyBackground(
   battleContainer.addChild(battleBeamContainer);
   const battleGroups: BattleGroup[] = enableBackdropDecor ? [
     {
-      ship: Sprite.from('/assets/biplanes/enemy_airship_2.png'),
+      ship: Sprite.from(assetUrl('assets/biplanes/enemy_airship_2.png')),
       beam: new Graphics(),
       baseX: width * 0.34,
       baseY: height * 0.23,
@@ -848,7 +849,7 @@ export function createSkyBackground(
       dots: [],
     },
     {
-      ship: Sprite.from('/assets/biplanes/enemy_airship_1.png'),
+      ship: Sprite.from(assetUrl('assets/biplanes/enemy_airship_1.png')),
       beam: new Graphics(),
       baseX: width * 0.64,
       baseY: height * 0.29,

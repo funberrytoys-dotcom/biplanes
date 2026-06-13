@@ -1,5 +1,6 @@
 import { isStalling, type WorldState } from '@biplanes/core';
 import { resolveFlightAudioMix } from './game-audio-cues.js';
+import { assetUrl } from '../asset-url.js';
 
 type SoundKey =
   | 'engine'
@@ -16,18 +17,18 @@ type SoundKey =
   | 'defeat';
 
 const SOUND_URLS: Record<SoundKey, string> = {
-  engine: '/assets/audio/war-on-water/engine.ogg',
-  boost: '/assets/audio/war-on-water/boost.ogg',
-  dive: '/assets/audio/war-on-water/dive.ogg',
-  uiSelect: '/assets/audio/war-on-water/button-click.ogg',
-  upgradePick: '/assets/audio/war-on-water/cartridges.ogg',
-  warning: '/assets/audio/war-on-water/call-help.ogg',
-  machineGun: '/assets/audio/war-on-water/machine-gun.ogg',
-  heavyGun: '/assets/audio/war-on-water/heavy-gun.ogg',
-  airplaneExplosion: '/assets/audio/war-on-water/airplane-explosion.ogg',
-  heavyExplosion: '/assets/audio/war-on-water/heavy-explosion.ogg',
-  victory: '/assets/audio/war-on-water/victory.ogg',
-  defeat: '/assets/audio/war-on-water/defeat.ogg',
+  engine: assetUrl('assets/audio/war-on-water/engine.ogg'),
+  boost: assetUrl('assets/audio/war-on-water/boost.ogg'),
+  dive: assetUrl('assets/audio/war-on-water/dive.ogg'),
+  uiSelect: assetUrl('assets/audio/war-on-water/button-click.ogg'),
+  upgradePick: assetUrl('assets/audio/war-on-water/cartridges.ogg'),
+  warning: assetUrl('assets/audio/war-on-water/call-help.ogg'),
+  machineGun: assetUrl('assets/audio/war-on-water/machine-gun.ogg'),
+  heavyGun: assetUrl('assets/audio/war-on-water/heavy-gun.ogg'),
+  airplaneExplosion: assetUrl('assets/audio/war-on-water/airplane-explosion.ogg'),
+  heavyExplosion: assetUrl('assets/audio/war-on-water/heavy-explosion.ogg'),
+  victory: assetUrl('assets/audio/war-on-water/victory.ogg'),
+  defeat: assetUrl('assets/audio/war-on-water/defeat.ogg'),
 };
 
 const ENGINE_LOOP_ENABLED = true;

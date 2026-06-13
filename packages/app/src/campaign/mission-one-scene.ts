@@ -1,6 +1,7 @@
 import { AnimatedSprite, Container, Graphics, Sprite, Texture } from 'pixi.js';
 import { WORLD_WIDTH, WORLD_HEIGHT } from '@biplanes/shared';
 import type { MissionOnePhase } from './mission-one-controller.js';
+import { assetUrl } from '../asset-url.js';
 
 export interface MissionOneSceneHandle {
   container: Container;
@@ -28,24 +29,24 @@ export function createMissionOneScene(): MissionOneSceneHandle {
   const route = new Graphics();
   const beaconBeam = new Graphics();
   const carrierDeck = new Container();
-  const carrierHull = Sprite.from('/assets/campaign/airship_sov_large.png');
+  const carrierHull = Sprite.from(assetUrl('assets/campaign/airship_sov_large.png'));
   const carrierLights = new Graphics();
-  const caravan = Sprite.from('/assets/campaign/caravan_sov.png');
-  const farCaravan = Sprite.from('/assets/campaign/airship_sov_variant_1.png');
-  const escortCaravan = Sprite.from('/assets/campaign/airship_sov_variant_2.png');
-  const crimsonCarrier = Sprite.from('/assets/biplanes/enemy_airship_1.png');
-  const secondIsland = Sprite.from('/assets/biplanes/island_industrial.png');
-  const thirdIsland = Sprite.from('/assets/biplanes/island_oilfield.png');
-  const farIsland = Sprite.from('/assets/biplanes/island_player.png');
-  const bossAirship = Sprite.from('/assets/biplanes/enemy_airship_2.png');
-  const scarPlane = Sprite.from('/assets/campaign/plane_scar.png');
+  const caravan = Sprite.from(assetUrl('assets/campaign/caravan_sov.png'));
+  const farCaravan = Sprite.from(assetUrl('assets/campaign/airship_sov_variant_1.png'));
+  const escortCaravan = Sprite.from(assetUrl('assets/campaign/airship_sov_variant_2.png'));
+  const crimsonCarrier = Sprite.from(assetUrl('assets/biplanes/enemy_airship_1.png'));
+  const secondIsland = Sprite.from(assetUrl('assets/biplanes/island_industrial.png'));
+  const thirdIsland = Sprite.from(assetUrl('assets/biplanes/island_oilfield.png'));
+  const farIsland = Sprite.from(assetUrl('assets/biplanes/island_player.png'));
+  const bossAirship = Sprite.from(assetUrl('assets/biplanes/enemy_airship_2.png'));
+  const scarPlane = Sprite.from(assetUrl('assets/campaign/plane_scar.png'));
   const smoke = new Graphics();
   const exitGlow = new Graphics();
   const routeDust = new Graphics();
 
   const frames = Array.from({ length: ISLAND_FRAME_COUNT }, (_, i) => {
     const frame = String(i + 1).padStart(4, '0');
-    return Texture.from(`/assets/campaign/island_brynn/frame_${frame}.png`);
+    return Texture.from(assetUrl(`assets/campaign/island_brynn/frame_${frame}.png`));
   });
   const island = new AnimatedSprite(frames);
   island.animationSpeed = 0.25;

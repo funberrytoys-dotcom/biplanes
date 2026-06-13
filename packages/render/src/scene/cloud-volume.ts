@@ -1,5 +1,6 @@
 import { Assets, Container, Sprite, Texture } from 'pixi.js';
 import { resolveCloudContact, resolveCloudReadabilityAlpha, smooth01 } from './cloud-volume-math.js';
+import { assetUrl } from '../asset-url.js';
 
 export interface CloudVolumePlane {
   x: number;
@@ -57,20 +58,20 @@ interface CloudParticle {
 }
 
 const CLEAN_CLOUD_URLS = [
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_01.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_02.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_04.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_05.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_08.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_11.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_13.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_14.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_18.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_20.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_22.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_23.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_25.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_27.png',
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_01.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_02.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_04.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_05.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_08.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_11.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_13.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_14.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_18.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_20.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_22.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_23.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_25.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_27.png'),
 ];
 
 function makePuffTexture(): Texture {

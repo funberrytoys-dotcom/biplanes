@@ -1,6 +1,7 @@
 import { Assets, Container, Sprite, Text, TextStyle, Texture } from 'pixi.js';
 import type { WorldState } from '@biplanes/core';
 import { GROUND_Y } from '@biplanes/shared';
+import { assetUrl } from '../asset-url.js';
 import {
   normalize,
   clamp01,
@@ -11,7 +12,7 @@ import {
   padDigits,
 } from './gauge-math.js';
 
-const BASE = '/assets/biplanes/hud/';
+const BASE = assetUrl('assets/biplanes/hud/');
 
 // Нативный размер собранной панели (panel.png = upscaler_00053_.png).
 const PANEL_W = 4200;

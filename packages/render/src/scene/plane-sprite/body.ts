@@ -1,4 +1,5 @@
 import { Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js';
+import { assetUrl } from '../../asset-url.js';
 
 export interface PlaneBodyHandle {
   fuselageContainer: Container;
@@ -15,7 +16,7 @@ export interface PlaneBodyHandle {
 
 const PLANE_ART = {
   player: {
-    url: '/assets/biplanes/plane_player_sov_sheet.png',
+    url: assetUrl('assets/biplanes/plane_player_sov_sheet.png'),
     width: 512,
     noseX: 0.43,
     frameWidth: 512,
@@ -25,7 +26,7 @@ const PLANE_ART = {
     fps: 24,
   },
   enemy: {
-    url: '/assets/biplanes/plane_enemy_crimson_sheet.png',
+    url: assetUrl('assets/biplanes/plane_enemy_crimson_sheet.png'),
     width: 512,
     noseX: 0.43,
     frameWidth: 512,

@@ -1,21 +1,22 @@
 import type { ArenaWeatherPreset, SkyThemeId } from '@biplanes/render';
+import { assetUrl } from './asset-url.js';
 
 export const ARENA_BACKGROUND_URLS = {
-  clearMorning: '/assets/biplanes/arena/backgrounds/arena_01_clear_morning.jpg?v=20260603-full-backdrops',
-  roseSunset: '/assets/biplanes/arena/backgrounds/arena_02_rose_sunset.jpg?v=20260603-full-backdrops',
-  starNight: '/assets/biplanes/arena/backgrounds/arena_03_star_night.jpg?v=20260603-full-backdrops',
-  burningHorizon: '/assets/biplanes/arena/backgrounds/arena_04_burning_horizon.jpg?v=20260603-full-backdrops',
-  snowSquall: '/assets/biplanes/arena/backgrounds/arena_05_snow_squall.jpg?v=20260603-full-backdrops',
-  finalStorm: '/assets/biplanes/arena/backgrounds/arena_06_final_storm.jpg?v=20260603-full-backdrops',
-  highCloudSea: '/assets/biplanes/arena/backgrounds/arena_07_high_cloud_sea.jpg?v=20260603-full-backdrops',
-  violetTwilight: '/assets/biplanes/arena/backgrounds/arena_08_violet_twilight.jpg?v=20260603-full-backdrops',
-  stormFront: '/assets/biplanes/arena/backgrounds/arena_09_storm_front.jpg?v=20260603-full-backdrops',
-  thunderheads: '/assets/biplanes/arena/backgrounds/arena_10_thunderheads.jpg?v=20260603-full-backdrops',
-  emberSea: '/assets/biplanes/arena/backgrounds/arena_11_ember_sea.jpg?v=20260603-full-backdrops',
-  moonlitFog: '/assets/biplanes/arena/backgrounds/arena_12_moonlit_fog.jpg?v=20260603-full-backdrops',
-  coldFront: '/assets/biplanes/arena/backgrounds/arena_13_cold_front.jpg?v=20260603-full-backdrops',
-  goldenBreak: '/assets/biplanes/arena/backgrounds/arena_14_golden_break.jpg?v=20260603-full-backdrops',
-  bossApproach: '/assets/biplanes/arena/backgrounds/arena_15_boss_approach.jpg?v=20260603-full-backdrops',
+  clearMorning: assetUrl('assets/biplanes/arena/backgrounds/arena_01_clear_morning.jpg?v=20260603-full-backdrops'),
+  roseSunset: assetUrl('assets/biplanes/arena/backgrounds/arena_02_rose_sunset.jpg?v=20260603-full-backdrops'),
+  starNight: assetUrl('assets/biplanes/arena/backgrounds/arena_03_star_night.jpg?v=20260603-full-backdrops'),
+  burningHorizon: assetUrl('assets/biplanes/arena/backgrounds/arena_04_burning_horizon.jpg?v=20260603-full-backdrops'),
+  snowSquall: assetUrl('assets/biplanes/arena/backgrounds/arena_05_snow_squall.jpg?v=20260603-full-backdrops'),
+  finalStorm: assetUrl('assets/biplanes/arena/backgrounds/arena_06_final_storm.jpg?v=20260603-full-backdrops'),
+  highCloudSea: assetUrl('assets/biplanes/arena/backgrounds/arena_07_high_cloud_sea.jpg?v=20260603-full-backdrops'),
+  violetTwilight: assetUrl('assets/biplanes/arena/backgrounds/arena_08_violet_twilight.jpg?v=20260603-full-backdrops'),
+  stormFront: assetUrl('assets/biplanes/arena/backgrounds/arena_09_storm_front.jpg?v=20260603-full-backdrops'),
+  thunderheads: assetUrl('assets/biplanes/arena/backgrounds/arena_10_thunderheads.jpg?v=20260603-full-backdrops'),
+  emberSea: assetUrl('assets/biplanes/arena/backgrounds/arena_11_ember_sea.jpg?v=20260603-full-backdrops'),
+  moonlitFog: assetUrl('assets/biplanes/arena/backgrounds/arena_12_moonlit_fog.jpg?v=20260603-full-backdrops'),
+  coldFront: assetUrl('assets/biplanes/arena/backgrounds/arena_13_cold_front.jpg?v=20260603-full-backdrops'),
+  goldenBreak: assetUrl('assets/biplanes/arena/backgrounds/arena_14_golden_break.jpg?v=20260603-full-backdrops'),
+  bossApproach: assetUrl('assets/biplanes/arena/backgrounds/arena_15_boss_approach.jpg?v=20260603-full-backdrops'),
 } as const;
 
 export interface ArenaLocationTheme {

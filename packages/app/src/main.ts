@@ -1,4 +1,5 @@
 import { Assets, Container, Graphics, Text, TextStyle } from 'pixi.js';
+import { assetUrl } from './asset-url.js';
 import {
   TICK_DT,
   PLANE_INITIAL_HP,
@@ -101,9 +102,9 @@ import { resolveFlightLabCue, resolveFlightLabSpawn } from './flight-lab.js';
 import { createGameAudio } from './audio/game-audio.js';
 import { shouldShowTouchGuide } from './mobile-touch-guide.js';
 
-const MENU_VIDEO_URL = '/assets/menu/main-menu-placeholder.mp4';
-const CHICO_PORTRAIT_URL = '/assets/campaign/portrait_chico.png';
-const ISLAND_BRYNN_FRAME_URLS = Array.from({ length: 50 }, (_, i) => `/assets/campaign/island_brynn/frame_${String(i + 1).padStart(4, '0')}.png`);
+const MENU_VIDEO_URL = assetUrl('assets/menu/main-menu-placeholder.mp4');
+const CHICO_PORTRAIT_URL = assetUrl('assets/campaign/portrait_chico.png');
+const ISLAND_BRYNN_FRAME_URLS = Array.from({ length: 50 }, (_, i) => assetUrl(`assets/campaign/island_brynn/frame_${String(i + 1).padStart(4, '0')}.png`));
 const ARENA_WORLD_WIDTH = WORLD_WIDTH * 5;
 const ARENA_WORLD_HEIGHT = WORLD_HEIGHT * 3;
 const ARENA_TOTAL_STAGES = ARENA_LOCATION_THEMES.length;
@@ -111,65 +112,65 @@ const SKY_TEST_WORLD_WIDTH = 2172 * 3;
 const SKY_TEST_WORLD_HEIGHT = 724 * 3;
 const CLOUD_VOLUME_WORLD_WIDTH = Math.max(ARENA_WORLD_WIDTH, SKY_TEST_WORLD_WIDTH);
 const CLOUD_VOLUME_WORLD_HEIGHT = Math.max(ARENA_WORLD_HEIGHT, SKY_TEST_WORLD_HEIGHT);
-const SKY_TEST_IMAGE_URL = '/assets/biplanes/arena/day/arena_day_generated_test.jpg';
+const SKY_TEST_IMAGE_URL = assetUrl('assets/biplanes/arena/day/arena_day_generated_test.jpg');
 const SKY_TEST_LAYER_ASSET_URLS = [
-  '/assets/biplanes/arena/day/cirrus/cloud_cirrus_01.png',
-  '/assets/biplanes/arena/day/cirrus/cloud_cirrus_02.png',
-  '/assets/biplanes/arena/day/cirrus/cloud_cirrus_03.png',
-  '/assets/biplanes/arena/day/cirrus/cloud_cirrus_05.png',
-  '/assets/biplanes/arena/day/cirrus/cloud_cirrus_07.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_01.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_02.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_04.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_05.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_08.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_11.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_13.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_14.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_18.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_20.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_22.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_23.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_25.png',
-  '/assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_27.png',
-  '/assets/biplanes/arena/day/islands/island_silhouette_02.png',
-  '/assets/biplanes/arena/day/islands/island_silhouette_03.png',
-  '/assets/biplanes/arena/day/islands/island_silhouette_04.png',
-  '/assets/biplanes/arena/day/islands/island_silhouette_05.png',
-  '/assets/biplanes/arena/day/islands/island_silhouette_06.png',
-  '/assets/biplanes/arena/day/islands/island_silhouette_07.png',
+  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_01.png'),
+  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_02.png'),
+  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_03.png'),
+  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_05.png'),
+  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_07.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_01.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_02.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_04.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_05.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_08.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_11.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_13.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_14.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_18.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_20.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_22.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_23.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_25.png'),
+  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_27.png'),
+  assetUrl('assets/biplanes/arena/day/islands/island_silhouette_02.png'),
+  assetUrl('assets/biplanes/arena/day/islands/island_silhouette_03.png'),
+  assetUrl('assets/biplanes/arena/day/islands/island_silhouette_04.png'),
+  assetUrl('assets/biplanes/arena/day/islands/island_silhouette_05.png'),
+  assetUrl('assets/biplanes/arena/day/islands/island_silhouette_06.png'),
+  assetUrl('assets/biplanes/arena/day/islands/island_silhouette_07.png'),
 ];
 
 const VISUAL_ASSET_URLS = [
   SKY_TEST_IMAGE_URL,
   ...Object.values(ARENA_BACKGROUND_URLS),
   ...SKY_TEST_LAYER_ASSET_URLS,
-  '/assets/biplanes/sky_noon.jpg',
-  '/assets/biplanes/sky_sunset.jpg',
-  '/assets/biplanes/sky_twilight.jpg',
-  '/assets/biplanes/sky_night.jpg',
-  '/assets/biplanes/plane_chico_blue.png',
-  '/assets/biplanes/plane_player_sov_sheet.png',
-  '/assets/biplanes/plane_enemy_red.png',
-  '/assets/biplanes/plane_enemy_crimson_sheet.png',
-  '/assets/biplanes/airship_1.png',
-  '/assets/biplanes/airship_2.png',
-  '/assets/biplanes/enemy_airship_1.png',
-  '/assets/biplanes/enemy_airship_2.png',
-  '/assets/biplanes/island_factory.png',
-  '/assets/biplanes/island_player.png',
-  '/assets/biplanes/island_industrial.png',
-  '/assets/biplanes/island_enemy_red.png',
-  '/assets/biplanes/island_enemy_core.png',
-  '/assets/biplanes/island_oilfield.png',
-  '/assets/biplanes/island_blackyard.png',
-  '/assets/biplanes/island_moon.png',
-  '/assets/campaign/portrait_chico.png',
-  '/assets/campaign/plane_scar.png',
-  '/assets/campaign/caravan_sov.png',
-  '/assets/campaign/airship_sov_large.png',
-  '/assets/campaign/airship_sov_variant_1.png',
-  '/assets/campaign/airship_sov_variant_2.png',
+  assetUrl('assets/biplanes/sky_noon.jpg'),
+  assetUrl('assets/biplanes/sky_sunset.jpg'),
+  assetUrl('assets/biplanes/sky_twilight.jpg'),
+  assetUrl('assets/biplanes/sky_night.jpg'),
+  assetUrl('assets/biplanes/plane_chico_blue.png'),
+  assetUrl('assets/biplanes/plane_player_sov_sheet.png'),
+  assetUrl('assets/biplanes/plane_enemy_red.png'),
+  assetUrl('assets/biplanes/plane_enemy_crimson_sheet.png'),
+  assetUrl('assets/biplanes/airship_1.png'),
+  assetUrl('assets/biplanes/airship_2.png'),
+  assetUrl('assets/biplanes/enemy_airship_1.png'),
+  assetUrl('assets/biplanes/enemy_airship_2.png'),
+  assetUrl('assets/biplanes/island_factory.png'),
+  assetUrl('assets/biplanes/island_player.png'),
+  assetUrl('assets/biplanes/island_industrial.png'),
+  assetUrl('assets/biplanes/island_enemy_red.png'),
+  assetUrl('assets/biplanes/island_enemy_core.png'),
+  assetUrl('assets/biplanes/island_oilfield.png'),
+  assetUrl('assets/biplanes/island_blackyard.png'),
+  assetUrl('assets/biplanes/island_moon.png'),
+  assetUrl('assets/campaign/portrait_chico.png'),
+  assetUrl('assets/campaign/plane_scar.png'),
+  assetUrl('assets/campaign/caravan_sov.png'),
+  assetUrl('assets/campaign/airship_sov_large.png'),
+  assetUrl('assets/campaign/airship_sov_variant_1.png'),
+  assetUrl('assets/campaign/airship_sov_variant_2.png'),
   ...ISLAND_BRYNN_FRAME_URLS,
 ];
 
