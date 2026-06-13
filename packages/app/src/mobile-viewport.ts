@@ -14,7 +14,7 @@ export function getMobileViewportInfo(width: number, height: number): MobileView
   return {
     isPhoneLike,
     isLandscape,
-    combatZoom: isPhoneLike && isLandscape ? 1.14 : 1,
+    combatZoom: isPhoneLike && isLandscape ? 1.38 : 1,
     storyZoom: isPhoneLike && isLandscape ? Math.max(0.88, 1.08 - heightPressure * 0.14) : 1.55,
   };
 }
