@@ -1,6 +1,6 @@
 function appBaseUrl(): string {
   const meta = import.meta as ImportMeta & { env?: { BASE_URL?: string } };
-  const base = meta.env?.BASE_URL ?? '/';
+  const base = meta.env?.BASE_URL ?? './';
   return base.endsWith('/') ? base : `${base}/`;
 }
 
