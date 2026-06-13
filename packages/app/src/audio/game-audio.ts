@@ -1,6 +1,7 @@
 import { isStalling, type WorldState } from '@biplanes/core';
 import { resolveFlightAudioMix } from './game-audio-cues.js';
 import { assetUrl } from '../asset-url.js';
+import { AUDIO_UNLOCK_EVENTS, type AudioUnlockEventName } from './audio-unlock-events.js';
 
 type SoundKey =
   | 'engine'
@@ -117,6 +118,18 @@ export function createGameAudio(): GameAudioHandle {
     }
   }
 
+  function primeSilentTap() {
+    const audioCtx = ensureContext();
+    if (!audioCtx || !master) return;
+    const src = audioCtx.createBufferSource();
+    const gain = audioCtx.createGain();
+    gain.gain.value = 0;
+    src.buffer = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
+    src.connect(gain);
+    gain.connect(master);
+    src.start(0);
+  }
+
   function ensureLoop(layer: LoopLayer) {
     const audioCtx = ensureContext();
     if (!audioCtx || !master) return null;
@@ -148,6 +161,7 @@ export function createGameAudio(): GameAudioHandle {
   }
 
   function playBuffer(key: SoundKey, volume = 1, rate = 1) {
+    resume();
     const audioCtx = ensureContext();
     if (!audioCtx || !master) return;
     const buffer = buffers.get(key);
@@ -165,9 +179,14 @@ export function createGameAudio(): GameAudioHandle {
     src.start();
   }
 
-  const unlock = () => resume();
-  window.addEventListener('pointerdown', unlock);
-  window.addEventListener('keydown', unlock);
+  const unlock = () => {
+    resume();
+    primeSilentTap();
+  };
+  const unlockOptions: AddEventListenerOptions = { capture: true, passive: true };
+  for (const eventName of AUDIO_UNLOCK_EVENTS) {
+    window.addEventListener(eventName, unlock as EventListener, unlockOptions);
+  }
 
   return {
     unlock,
@@ -257,8 +276,9 @@ export function createGameAudio(): GameAudioHandle {
     },
     destroy() {
       disposed = true;
-      window.removeEventListener('pointerdown', unlock);
-      window.removeEventListener('keydown', unlock);
+      for (const eventName of AUDIO_UNLOCK_EVENTS as readonly AudioUnlockEventName[]) {
+        window.removeEventListener(eventName, unlock as EventListener, { capture: true });
+      }
       if (ctx) void ctx.close();
       ctx = null;
     },
