@@ -1,6 +1,10 @@
 import type { PlayerCommand } from '@biplanes/shared';
 
 type RoundZone = { x: number; y: number; r: number };
+type TouchPoint = { x: number; y: number };
+
+const JOYSTICK_DEADZONE_RATIO = 0.12;
+const JOYSTICK_CAPTURE_RATIO = 1.42;
 
 export interface TouchZones {
   joystick: RoundZone;
@@ -16,6 +20,7 @@ export interface TouchController {
   destroy(): void;
   // expose for render to draw the buttons
   zones: TouchZones;
+  joystickKnob(): TouchPoint;
   updateZones(viewportW: number, viewportH: number): void;
 }
 
@@ -46,19 +51,39 @@ export function resolveTouchZones(w: number, h: number): TouchZones {
 
 export function resolveJoystickRotate(
   joystick: RoundZone,
-  point: { x: number; y: number } | null,
+  point: TouchPoint | null,
 ): -1 | 0 | 1 {
   if (!point || joystick.r <= 0) return 0;
   const dx = point.x - joystick.x;
-  const deadzone = joystick.r * 0.22;
+  const dy = point.y - joystick.y;
+  const deadzone = joystick.r * JOYSTICK_DEADZONE_RATIO;
+  if (Math.hypot(dx, dy) < deadzone) return 0;
+
+  if (Math.abs(dy) > Math.abs(dx) * 1.15) {
+    return dy < 0 ? -1 : 1;
+  }
   if (dx < -deadzone) return -1;
   if (dx > deadzone) return 1;
   return 0;
 }
 
+export function resolveJoystickKnob(
+  joystick: RoundZone,
+  point: TouchPoint | null,
+): TouchPoint {
+  if (!point || joystick.r <= 0) return { x: joystick.x, y: joystick.y };
+  const dx = point.x - joystick.x;
+  const dy = point.y - joystick.y;
+  const distance = Math.hypot(dx, dy);
+  const maxDistance = joystick.r * 0.62;
+  if (distance <= maxDistance || distance === 0) return point;
+  const scale = maxDistance / distance;
+  return { x: joystick.x + dx * scale, y: joystick.y + dy * scale };
+}
+
 export function createTouchController(canvas: HTMLElement): TouchController {
   const state = {
-    joystickPoint: null as { x: number; y: number } | null,
+    joystickPoint: null as TouchPoint | null,
     fire: false,
     special: false,
     eject: false,
@@ -83,6 +108,13 @@ export function createTouchController(canvas: HTMLElement): TouchController {
     return dx * dx + dy * dy <= z.r * z.r;
   }
 
+  function inJoystickCapture(px: number, py: number) {
+    return inZone(px, py, {
+      ...zones.joystick,
+      r: zones.joystick.r * JOYSTICK_CAPTURE_RATIO,
+    });
+  }
+
   function handleTouches(touches: TouchList) {
     state.joystickPoint = null;
     state.fire = state.special = state.eject = state.throttleUp = state.throttleDown = false;
@@ -91,7 +123,7 @@ export function createTouchController(canvas: HTMLElement): TouchController {
       const t = touches[i]!;
       const x = t.clientX - rect.left;
       const y = t.clientY - rect.top;
-      if (inZone(x, y, zones.joystick)) state.joystickPoint = { x, y };
+      if (inJoystickCapture(x, y)) state.joystickPoint = { x, y };
       if (inZone(x, y, zones.fire)) state.fire = true;
       if (inZone(x, y, zones.special)) state.special = true;
       if (inZone(x, y, zones.eject)) state.eject = true;
@@ -133,6 +165,9 @@ export function createTouchController(canvas: HTMLElement): TouchController {
       canvas.removeEventListener('touchcancel', onTouch);
     },
     get zones() { return zones; },
+    joystickKnob() {
+      return resolveJoystickKnob(zones.joystick, state.joystickPoint);
+    },
     updateZones,
   };
 }

@@ -300,7 +300,7 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
   const labels = {
     stick: new Text({ text: 'STICK', style: labelStyle }),
     fire: new Text({ text: 'FIRE', style: labelStyle }),
-    special: new Text({ text: 'SPEC', style: labelStyle }),
+    special: new Text({ text: 'BOOST', style: labelStyle }),
     eject: new Text({ text: 'EJECT', style: labelStyle }),
     throttleUp: new Text({ text: 'GAS+', style: labelStyle }),
     throttleDown: new Text({ text: 'GAS-', style: labelStyle }),
@@ -337,6 +337,16 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
       .stroke({ color: 0xffffff, width: 2, alpha: 0.38 });
   }
 
+  function updateStickKnob() {
+    if (!touchLikely) return;
+    const z = touch.zones.joystick;
+    const p = touch.joystickKnob();
+    rings.stickKnob.clear()
+      .circle(p.x, p.y, z.r * 0.32)
+      .fill({ color: 0xf6fbff, alpha: 0.24 })
+      .stroke({ color: 0xffffff, width: 2, alpha: 0.46 });
+  }
+
   function placeLabel(label: Text, x: number, y: number) {
     label.x = x - label.width / 2;
     label.y = y - label.height / 2;
@@ -369,7 +379,7 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
     c.visible = active && touchLikely;
   }
 
-  return { container: c, layout, setActive };
+  return { container: c, layout, setActive, update: updateStickKnob };
 }
 
 function makePlayer(): Plane {
@@ -1775,6 +1785,7 @@ export async function startGame(container: HTMLElement) {
     deathScreen.update(dt);
     radioPopup.update(dt);
     touchGuide.setActive(runMode !== 'skytest' && runMode !== 'gunfeelLab' && runMode !== 'oilshot' && gameRunning && !choicesShowing && !state.gameOver);
+    touchGuide.update();
     publishDebugState();
 
     if (!gameRunning) {
