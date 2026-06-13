@@ -1,55 +1,102 @@
 import type { PlayerCommand } from '@biplanes/shared';
 
+type RoundZone = { x: number; y: number; r: number };
+
+export interface TouchZones {
+  joystick: RoundZone;
+  fire: RoundZone;
+  special: RoundZone;
+  eject: RoundZone;
+  throttleUp: RoundZone;
+  throttleDown: RoundZone;
+}
+
 export interface TouchController {
   current(): PlayerCommand;
   destroy(): void;
   // expose for render to draw the buttons
-  zones: {
-    rotateCcw: { x: number; y: number; r: number };
-    rotateCw: { x: number; y: number; r: number };
-    fire: { x: number; y: number; r: number };
-    bomb: { x: number; y: number; r: number };
-    boost: { x: number; y: number; r: number };
-  };
+  zones: TouchZones;
   updateZones(viewportW: number, viewportH: number): void;
 }
 
+export function resolveTouchZones(w: number, h: number): TouchZones {
+  const base = Math.min(w, h);
+  const stickR = Math.max(54, Math.min(92, base * 0.145));
+  const buttonR = Math.max(28, Math.min(48, base * 0.078));
+  const marginX = Math.max(22, base * 0.055);
+  const lowerY = h - Math.max(17 + buttonR, base * 0.11);
+  const midY = lowerY - buttonR * 2.22;
+  const upperY = midY - buttonR * 2.22;
+  const farRightX = w - marginX - buttonR;
+  const innerRightX = farRightX - buttonR * 2.28;
+
+  return {
+    joystick: {
+      x: marginX + stickR,
+      y: h - Math.max(stickR + 18, base * 0.18),
+      r: stickR,
+    },
+    fire: { x: farRightX, y: lowerY, r: buttonR * 1.16 },
+    special: { x: innerRightX, y: lowerY, r: buttonR },
+    eject: { x: innerRightX, y: upperY, r: buttonR * 0.92 },
+    throttleUp: { x: farRightX, y: upperY, r: buttonR * 0.94 },
+    throttleDown: { x: farRightX, y: midY, r: buttonR * 0.94 },
+  };
+}
+
+export function resolveJoystickRotate(
+  joystick: RoundZone,
+  point: { x: number; y: number } | null,
+): -1 | 0 | 1 {
+  if (!point || joystick.r <= 0) return 0;
+  const dx = point.x - joystick.x;
+  const deadzone = joystick.r * 0.22;
+  if (dx < -deadzone) return -1;
+  if (dx > deadzone) return 1;
+  return 0;
+}
+
 export function createTouchController(canvas: HTMLElement): TouchController {
-  const state = { rotateCcw: false, rotateCw: false, fire: false, bomb: false, boost: false };
-  const zones = {
-    rotateCcw: { x: 0, y: 0, r: 0 },
-    rotateCw: { x: 0, y: 0, r: 0 },
+  const state = {
+    joystickPoint: null as { x: number; y: number } | null,
+    fire: false,
+    special: false,
+    eject: false,
+    throttleUp: false,
+    throttleDown: false,
+  };
+  let zones: TouchZones = {
+    joystick: { x: 0, y: 0, r: 0 },
     fire: { x: 0, y: 0, r: 0 },
-    bomb: { x: 0, y: 0, r: 0 },
-    boost: { x: 0, y: 0, r: 0 },
+    special: { x: 0, y: 0, r: 0 },
+    eject: { x: 0, y: 0, r: 0 },
+    throttleUp: { x: 0, y: 0, r: 0 },
+    throttleDown: { x: 0, y: 0, r: 0 },
   };
 
   function updateZones(w: number, h: number) {
-    const r = Math.min(w, h) * 0.08;
-    zones.rotateCcw = { x: r * 1.2, y: h - r * 1.2, r };
-    zones.rotateCw = { x: r * 3.2, y: h - r * 1.2, r };
-    zones.fire = { x: w - r * 1.5, y: h - r * 1.5, r: r * 1.2 };
-    zones.bomb = { x: w - r * 3.5, y: h - r * 1.5, r };
-    zones.boost = { x: w - r * 2.5, y: h - r * 3.15, r: r * 0.9 };
+    Object.assign(zones, resolveTouchZones(w, h));
   }
 
-  function inZone(px: number, py: number, z: { x: number; y: number; r: number }) {
+  function inZone(px: number, py: number, z: RoundZone) {
     const dx = px - z.x; const dy = py - z.y;
-    return dx * dx + dy * dy < z.r * z.r;
+    return dx * dx + dy * dy <= z.r * z.r;
   }
 
   function handleTouches(touches: TouchList) {
-    state.rotateCcw = state.rotateCw = state.fire = state.bomb = state.boost = false;
+    state.joystickPoint = null;
+    state.fire = state.special = state.eject = state.throttleUp = state.throttleDown = false;
+    const rect = canvas.getBoundingClientRect();
     for (let i = 0; i < touches.length; i++) {
       const t = touches[i]!;
-      const rect = canvas.getBoundingClientRect();
       const x = t.clientX - rect.left;
       const y = t.clientY - rect.top;
-      if (inZone(x, y, zones.rotateCcw)) state.rotateCcw = true;
-      if (inZone(x, y, zones.rotateCw)) state.rotateCw = true;
+      if (inZone(x, y, zones.joystick)) state.joystickPoint = { x, y };
       if (inZone(x, y, zones.fire)) state.fire = true;
-      if (inZone(x, y, zones.bomb)) state.bomb = true;
-      if (inZone(x, y, zones.boost)) state.boost = true;
+      if (inZone(x, y, zones.special)) state.special = true;
+      if (inZone(x, y, zones.eject)) state.eject = true;
+      if (inZone(x, y, zones.throttleUp)) state.throttleUp = true;
+      if (inZone(x, y, zones.throttleDown)) state.throttleDown = true;
     }
   }
 
@@ -65,11 +112,19 @@ export function createTouchController(canvas: HTMLElement): TouchController {
 
   return {
     current(): PlayerCommand {
-      let rotate: -1 | 0 | 1 = 0;
-      if (state.rotateCcw && !state.rotateCw) rotate = -1;
-      else if (state.rotateCw && !state.rotateCcw) rotate = 1;
-      const touching = state.rotateCcw || state.rotateCw || state.fire || state.bomb || state.boost;
-      return { rotate, fire: state.fire, bomb: state.bomb, throttleDelta: touching ? 1 : 0, eject: false, jump: false, boost: state.boost };
+      const rotate = resolveJoystickRotate(zones.joystick, state.joystickPoint);
+      let throttleDelta: -1 | 0 | 1 = 0;
+      if (state.throttleUp && !state.throttleDown) throttleDelta = 1;
+      else if (state.throttleDown && !state.throttleUp) throttleDelta = -1;
+      return {
+        rotate,
+        fire: state.fire,
+        bomb: false,
+        throttleDelta,
+        eject: state.eject,
+        jump: false,
+        boost: state.special,
+      };
     },
     destroy() {
       canvas.removeEventListener('touchstart', onTouch);
@@ -77,7 +132,7 @@ export function createTouchController(canvas: HTMLElement): TouchController {
       canvas.removeEventListener('touchend', onTouch);
       canvas.removeEventListener('touchcancel', onTouch);
     },
-    zones,
+    get zones() { return zones; },
     updateZones,
   };
 }

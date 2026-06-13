@@ -282,29 +282,32 @@ function createMenuBackdrop(container: HTMLElement) {
 function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
   const c = new Container();
   const rings = {
-    left: new Graphics(),
-    right: new Graphics(),
+    stick: new Graphics(),
+    stickKnob: new Graphics(),
     fire: new Graphics(),
-    bomb: new Graphics(),
-    boost: new Graphics(),
+    special: new Graphics(),
+    eject: new Graphics(),
+    throttleUp: new Graphics(),
+    throttleDown: new Graphics(),
   };
   const labelStyle = new TextStyle({
     fontFamily: 'monospace',
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: 'bold',
     fill: 0xffffff,
     stroke: { color: 0x000000, width: 3 },
   });
   const labels = {
-    left: new Text({ text: 'TURN', style: labelStyle }),
-    right: new Text({ text: 'TURN', style: labelStyle }),
+    stick: new Text({ text: 'STICK', style: labelStyle }),
     fire: new Text({ text: 'FIRE', style: labelStyle }),
-    bomb: new Text({ text: 'BOMB', style: labelStyle }),
-    boost: new Text({ text: 'BOOST', style: labelStyle }),
+    special: new Text({ text: 'SPEC', style: labelStyle }),
+    eject: new Text({ text: 'EJECT', style: labelStyle }),
+    throttleUp: new Text({ text: 'GAS+', style: labelStyle }),
+    throttleDown: new Text({ text: 'GAS-', style: labelStyle }),
   };
   c.addChild(
-    rings.left, rings.right, rings.fire, rings.bomb, rings.boost,
-    labels.left, labels.right, labels.fire, labels.bomb, labels.boost
+    rings.stick, rings.stickKnob, rings.fire, rings.special, rings.eject, rings.throttleUp, rings.throttleDown,
+    labels.stick, labels.fire, labels.special, labels.eject, labels.throttleUp, labels.throttleDown
   );
   let active = false;
   let touchLikely = false;
@@ -312,10 +315,26 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
   function drawRing(g: Graphics, x: number, y: number, r: number, color: number) {
     g.clear()
       .circle(x, y, r)
-      .fill({ color, alpha: 0.1 })
+      .fill({ color, alpha: 0.12 })
       .stroke({ color, width: 2.5, alpha: 0.55 })
       .circle(x, y, r * 0.58)
       .stroke({ color: 0xffffff, width: 1.4, alpha: 0.24 });
+  }
+
+  function drawStick(base: Graphics, knob: Graphics, x: number, y: number, r: number) {
+    base.clear()
+      .circle(x, y, r)
+      .fill({ color: 0x1fb7ff, alpha: 0.08 })
+      .stroke({ color: 0x57ddff, width: 3, alpha: 0.52 })
+      .circle(x, y, r * 0.72)
+      .stroke({ color: 0xffffff, width: 1.4, alpha: 0.18 })
+      .moveTo(x - r * 0.62, y)
+      .lineTo(x + r * 0.62, y)
+      .stroke({ color: 0xffffff, width: 1, alpha: 0.18 });
+    knob.clear()
+      .circle(x, y, r * 0.32)
+      .fill({ color: 0xf6fbff, alpha: 0.2 })
+      .stroke({ color: 0xffffff, width: 2, alpha: 0.38 });
   }
 
   function placeLabel(label: Text, x: number, y: number) {
@@ -331,16 +350,18 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
     c.visible = active && touchLikely;
     if (!touchLikely) return;
     const z = touch.zones;
-    drawRing(rings.left, z.rotateCcw.x, z.rotateCcw.y, z.rotateCcw.r, 0x33d6ff);
-    drawRing(rings.right, z.rotateCw.x, z.rotateCw.y, z.rotateCw.r, 0x33d6ff);
+    drawStick(rings.stick, rings.stickKnob, z.joystick.x, z.joystick.y, z.joystick.r);
     drawRing(rings.fire, z.fire.x, z.fire.y, z.fire.r, 0xff8c19);
-    drawRing(rings.bomb, z.bomb.x, z.bomb.y, z.bomb.r, 0xff4444);
-    drawRing(rings.boost, z.boost.x, z.boost.y, z.boost.r, 0xffd34a);
-    placeLabel(labels.left, z.rotateCcw.x, z.rotateCcw.y);
-    placeLabel(labels.right, z.rotateCw.x, z.rotateCw.y);
+    drawRing(rings.special, z.special.x, z.special.y, z.special.r, 0xffd34a);
+    drawRing(rings.eject, z.eject.x, z.eject.y, z.eject.r, 0xff4949);
+    drawRing(rings.throttleUp, z.throttleUp.x, z.throttleUp.y, z.throttleUp.r, 0x7cff8f);
+    drawRing(rings.throttleDown, z.throttleDown.x, z.throttleDown.y, z.throttleDown.r, 0x6aa4ff);
+    placeLabel(labels.stick, z.joystick.x, z.joystick.y + z.joystick.r * 0.52);
     placeLabel(labels.fire, z.fire.x, z.fire.y);
-    placeLabel(labels.bomb, z.bomb.x, z.bomb.y);
-    placeLabel(labels.boost, z.boost.x, z.boost.y);
+    placeLabel(labels.special, z.special.x, z.special.y);
+    placeLabel(labels.eject, z.eject.x, z.eject.y);
+    placeLabel(labels.throttleUp, z.throttleUp.x, z.throttleUp.y);
+    placeLabel(labels.throttleDown, z.throttleDown.x, z.throttleDown.y);
   }
 
   function setActive(nextActive: boolean) {
