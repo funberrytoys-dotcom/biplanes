@@ -101,6 +101,7 @@ import { getGunfeelLabShotAt } from './gunfeel-lab.js';
 import { resolveFlightLabCue, resolveFlightLabSpawn } from './flight-lab.js';
 import { createGameAudio } from './audio/game-audio.js';
 import { shouldShowTouchGuide } from './mobile-touch-guide.js';
+import { fitMobileZoom, getMobileViewportInfo } from './mobile-viewport.js';
 
 const MENU_VIDEO_URL = assetUrl('assets/menu/main-menu-placeholder.mp4');
 const CHICO_PORTRAIT_URL = assetUrl('assets/campaign/portrait_chico.png');
@@ -1143,7 +1144,7 @@ export async function startGame(container: HTMLElement) {
       playerY: state.player.kinematic.position.y,
       facing: state.player.kinematic.facing,
     });
-    camera.setFocus(focus.x, focus.y, focus.zoom);
+    camera.setFocus(focus.x, focus.y, cameraZoom(focus.zoom));
     camera.snap();
   }
 
@@ -1277,6 +1278,14 @@ export async function startGame(container: HTMLElement) {
   uiLayer.addChild(touchGuide.container);
   touchGuide.layout(app.screen.width, app.screen.height);
 
+  function mobileViewport() {
+    return getMobileViewportInfo(app.screen.width, app.screen.height);
+  }
+
+  function cameraZoom(baseZoom: number) {
+    return fitMobileZoom(baseZoom, mobileViewport());
+  }
+
   function currentCommand(): PlayerCommand {
     const k = kb.current();
     const t = touch.current();
@@ -1354,7 +1363,7 @@ export async function startGame(container: HTMLElement) {
         playerY: state.player.kinematic.position.y,
         facing: state.player.kinematic.facing,
       });
-      camera.setFocus(focus.x, focus.y, focus.zoom);
+      camera.setFocus(focus.x, focus.y, cameraZoom(focus.zoom));
     }
     camera.snap();
     startScreen.hide();
@@ -1388,7 +1397,7 @@ export async function startGame(container: HTMLElement) {
     syncAtmosphereLayers();
     camera.setWorldSize(SKY_TEST_WORLD_WIDTH, SKY_TEST_WORLD_HEIGHT);
     layoutWorld();
-    camera.setFocus(state.player.kinematic.position.x + 220, state.player.kinematic.position.y - 60, 1.0);
+    camera.setFocus(state.player.kinematic.position.x + 220, state.player.kinematic.position.y - 60, cameraZoom(1.0));
     camera.snap();
     startScreen.hide();
     menuBackdrop.hide();
@@ -1420,7 +1429,7 @@ export async function startGame(container: HTMLElement) {
     syncAtmosphereLayers();
     camera.setWorldSize(SKY_TEST_WORLD_WIDTH, SKY_TEST_WORLD_HEIGHT);
     layoutWorld();
-    camera.setFocus(state.player.kinematic.position.x + 260, state.player.kinematic.position.y - 50, 1.08);
+    camera.setFocus(state.player.kinematic.position.x + 260, state.player.kinematic.position.y - 50, cameraZoom(1.08));
     camera.snap();
     startScreen.hide();
     menuBackdrop.hide();
@@ -1455,7 +1464,7 @@ export async function startGame(container: HTMLElement) {
     syncAtmosphereLayers();
     camera.setWorldSize(SKY_TEST_WORLD_WIDTH, SKY_TEST_WORLD_HEIGHT);
     layoutWorld();
-    camera.setFocus(state.player.kinematic.position.x + 220, state.player.kinematic.position.y - 60, 1.0);
+    camera.setFocus(state.player.kinematic.position.x + 220, state.player.kinematic.position.y - 60, cameraZoom(1.0));
     camera.snap();
     startScreen.hide();
     menuBackdrop.hide();
@@ -1489,7 +1498,7 @@ export async function startGame(container: HTMLElement) {
     syncAtmosphereLayers();
     camera.setWorldSize(SKY_TEST_WORLD_WIDTH, SKY_TEST_WORLD_HEIGHT);
     layoutWorld();
-    camera.setFocus(state.player.kinematic.position.x + 260, state.player.kinematic.position.y - 50, 1.08);
+    camera.setFocus(state.player.kinematic.position.x + 260, state.player.kinematic.position.y - 50, cameraZoom(1.08));
     camera.snap();
     startScreen.hide();
     menuBackdrop.hide();
@@ -1524,7 +1533,7 @@ export async function startGame(container: HTMLElement) {
     camera.setWorldSize(MISSION_ONE_WORLD_WIDTH, WORLD_HEIGHT);
     layoutWorld();
     // Start the camera already framed close on the carrier launch (no zoom-in pop).
-    camera.setFocus(state.player.kinematic.position.x + 90, WORLD_HEIGHT * 0.52, 1.55);
+    camera.setFocus(state.player.kinematic.position.x + 90, WORLD_HEIGHT * 0.52, mobileViewport().storyZoom);
     camera.snap();
 
     // Initialize Caravan State inside core state!
@@ -1968,7 +1977,7 @@ export async function startGame(container: HTMLElement) {
       const py = state.player.kinematic.position.y;
       if (tSec < 2.5) {
         // Launch — frame the carrier deck + player up close.
-        camera.setFocus(px + 90, WORLD_HEIGHT * 0.52, 1.55);
+        camera.setFocus(px + 90, WORLD_HEIGHT * 0.52, mobileViewport().storyZoom);
       } else if (tSec < 8.0) {
         // Launch → escort transition: ease zoom back to cover while panning to player.
         const u = (tSec - 2.5) / 5.5;
@@ -1978,14 +1987,14 @@ export async function startGame(container: HTMLElement) {
         const midY = (py + cy) / 2;
         const fx = px + (midX - px) * u;
         const fy = WORLD_HEIGHT * 0.52 + (midY - WORLD_HEIGHT * 0.52) * u;
-        const zoom = Math.max(1.0, 1.55 - u * 0.5);
+        const zoom = Math.max(cameraZoom(1.0), mobileViewport().storyZoom - u * 0.5);
         camera.setFocus(fx, fy, zoom);
       } else if (tSec >= 246 && tSec < 249) {
         // Boss entrance — frame Scar and the player together.
         const boss = state.enemies.find(e => e.id === missionOne.bossId);
         const bx = boss ? boss.kinematic.position.x : 10000;
         const by = boss ? boss.kinematic.position.y : WORLD_HEIGHT * 0.24;
-        camera.setFocus((bx + px) * 0.5, (by + py) * 0.5, 1.18);
+        camera.setFocus((bx + px) * 0.5, (by + py) * 0.5, cameraZoom(1.18));
       } else {
         // Escort: keep the player in frame, with a limited bias toward the caravan.
         const cx = state.caravan ? state.caravan.position.x : WORLD_WIDTH / 2;
@@ -1996,7 +2005,7 @@ export async function startGame(container: HTMLElement) {
           caravanX: cx,
           caravanY: cy,
         });
-        camera.setFocus(focus.x, focus.y, focus.zoom);
+        camera.setFocus(focus.x, focus.y, cameraZoom(focus.zoom));
       }
 
       const missionOutcome = resolveMissionOneOutcome({
@@ -2100,12 +2109,12 @@ export async function startGame(container: HTMLElement) {
         playerY: playerPilot?.position.y ?? state.player.kinematic.position.y,
         facing: playerPilot?.facing ?? state.player.kinematic.facing,
       });
-      camera.setFocus(focus.x, focus.y, focus.zoom);
+      camera.setFocus(focus.x, focus.y, cameraZoom(focus.zoom));
     } else if (runMode === 'skytest' || runMode === 'gunfeelLab' || runMode === 'flightLab' || runMode === 'oilshot') {
       camera.setFocus(
         state.player.kinematic.position.x + state.player.kinematic.facing * 220,
         state.player.kinematic.position.y - 60,
-        1.0
+        cameraZoom(1.0)
       );
     }
 

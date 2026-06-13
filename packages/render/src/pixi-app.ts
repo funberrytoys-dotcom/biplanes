@@ -13,6 +13,9 @@ export async function createPixiApp(container: HTMLElement): Promise<Application
   });
   app.canvas.style.position = 'absolute';
   app.canvas.style.inset = '0';
+  app.canvas.style.width = '100%';
+  app.canvas.style.height = '100%';
+  app.canvas.style.display = 'block';
   app.canvas.style.zIndex = '1';
   container.appendChild(app.canvas);
   return app;
