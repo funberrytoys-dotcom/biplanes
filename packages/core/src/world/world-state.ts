@@ -74,10 +74,14 @@ export interface WorldState {
   collisionDamageMultiplier: number;// <1 means rams are less lethal
   xpMagnetRange: number;            // base XP_PICKUP_MAGNET_RANGE (legacy, unused)
   hpRegenPerSec: number;            // passive HP regen/sec while flying (field_repair upgrade)
-  hasDrone: boolean;                // future flag for drone companion
+  hasDrone: boolean;                // legacy flag — true when droneCount > 0
+  droneCount: number;               // number of wingman drones
   hasHomingRockets: boolean;
   hasFlameTrail: boolean;
   hasHeavyCannon: boolean;
+  multishotExtra: number;           // extra bullets per shot (0 = single)
+  lifestealPerKill: number;         // HP restored per enemy killed
+  salvoCooldownMultiplier: number;  // <1 = faster rocket salvo
   homingRocketTimer: number;
   droneTimer: number;
 
@@ -143,9 +147,13 @@ export function createWorldState(seed: number, player: Plane): WorldState {
     xpMagnetRange: XP_PICKUP_MAGNET_RANGE,
     hpRegenPerSec: 0,
     hasDrone: false,
+    droneCount: 0,
     hasHomingRockets: false,
     hasFlameTrail: false,
     hasHeavyCannon: false,
+    multishotExtra: 0,
+    lifestealPerKill: 0,
+    salvoCooldownMultiplier: 1,
     homingRocketTimer: 0,
     droneTimer: 0,
     explosionEvents: [],

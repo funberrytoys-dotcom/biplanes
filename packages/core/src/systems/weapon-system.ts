@@ -18,10 +18,12 @@ export function makeBulletFromPlane(
   plane: Plane,
   id: EntityId,
   isHeavy: boolean = false,
-  pierceCount: number = 0
+  pierceCount: number = 0,
+  angleOffset: number = 0,
 ): Bullet {
-  const cos = Math.cos(plane.kinematic.heading);
-  const sin = Math.sin(plane.kinematic.heading);
+  const heading = plane.kinematic.heading + angleOffset;
+  const cos = Math.cos(heading);
+  const sin = Math.sin(heading);
   // Spawn slightly in front of plane nose
   const offset = 28;
   return {
@@ -45,9 +47,11 @@ export function makeBulletFromPlane(
 }
 
 export interface FireResult {
-  bullet?: Bullet;
+  bullets: Bullet[];
   newCooldown: number;
 }
+
+const MULTISHOT_SPREAD = 0.12; // rad between fanned shots
 
 export function firePlayerWeapon(
   plane: Plane,
@@ -56,22 +60,30 @@ export function firePlayerWeapon(
   damageMultiplier: number = 1,
   fireRateMultiplier: number = 1,
   hasHeavyCannon: boolean = false,
-  hasPiercing: boolean = false
+  hasPiercing: boolean = false,
+  multishotExtra: number = 0,
 ): FireResult {
   if (!fireInput || plane.weaponCooldown > 0 || !plane.alive) {
-    return { newCooldown: plane.weaponCooldown };
+    return { bullets: [], newCooldown: plane.weaponCooldown };
   }
 
   const isHeavy = hasHeavyCannon;
   const pierceCount = isHeavy ? HEAVY_CANNON_PIERCE : (hasPiercing ? 1 : 0);
 
-  const bullet = makeBulletFromPlane(plane, bulletId, isHeavy, pierceCount);
-  bullet.damage = bullet.damage * damageMultiplier;
+  // Multishot fans an odd number of bullets symmetrically around the nose.
+  const count = 1 + Math.max(0, multishotExtra);
+  const bullets: Bullet[] = [];
+  for (let i = 0; i < count; i++) {
+    const t = count > 1 ? (i - (count - 1) / 2) : 0;
+    const b = makeBulletFromPlane(plane, bulletId + i, isHeavy, pierceCount, t * MULTISHOT_SPREAD);
+    b.damage = b.damage * damageMultiplier;
+    bullets.push(b);
+  }
 
   const baseCooldown = isHeavy ? HEAVY_CANNON_COOLDOWN : MACHINE_GUN_COOLDOWN;
 
   return {
-    bullet,
+    bullets,
     newCooldown: baseCooldown / fireRateMultiplier,
   };
 }

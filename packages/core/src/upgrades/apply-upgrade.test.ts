@@ -67,4 +67,28 @@ describe('applyUpgrade', () => {
     expect(after.collisionDamageMultiplier).toBeLessThan(1);
     expect(after.player.maxHp).toBeGreaterThan(PLANE_INITIAL_HP);
   });
+
+  it('multishot stacks extra bullets', () => {
+    let s = createWorldState(42, makePlayer());
+    s = applyUpgrade(s, 'multishot');
+    expect(s.multishotExtra).toBe(1);
+    s = applyUpgrade(s, 'multishot');
+    expect(s.multishotExtra).toBe(2);
+  });
+
+  it('lifesteal grants per-kill healing', () => {
+    const after = applyUpgrade(createWorldState(42, makePlayer()), 'lifesteal');
+    expect(after.lifestealPerKill).toBeGreaterThan(0);
+  });
+
+  it('quick_salvo speeds up the salvo cooldown', () => {
+    const after = applyUpgrade(createWorldState(42, makePlayer()), 'quick_salvo');
+    expect(after.salvoCooldownMultiplier).toBeLessThan(1);
+  });
+
+  it('chico_wing evolution grants two drones', () => {
+    const after = applyUpgrade(createWorldState(42, makePlayer()), 'chico_wing');
+    expect(after.droneCount).toBe(2);
+    expect(after.hasDrone).toBe(true);
+  });
 });

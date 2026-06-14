@@ -494,10 +494,11 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
       state.damageMultiplier,
       state.fireRateMultiplier,
       state.hasHeavyCannon,
-      state.appliedUpgradeIds.includes('piercing_bullets')
+      state.appliedUpgradeIds.includes('piercing_bullets'),
+      state.multishotExtra,
     );
-    if (fireResult.bullet) {
-      newBulletList.push(fireResult.bullet);
+    for (const b of fireResult.bullets) {
+      newBulletList.push(b);
       nextEntityId++;
     }
     player = { ...player, weaponCooldown: fireResult.newCooldown };
@@ -611,9 +612,11 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
         baseParams.damageMultiplier,
         baseParams.fireRateMultiplier,
       );
-      if (result.bullet) {
-        newBulletList.push(result.bullet);
+      for (const b of result.bullets) {
+        newBulletList.push(b);
         nextEntityId++;
+      }
+      if (result.bullets.length > 0) {
         newCooldown = result.newCooldown;
       }
     }
@@ -686,7 +689,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
         });
         nextEntityId++;
       }
-      specialCooldown = SALVO_COOLDOWN;
+      specialCooldown = SALVO_COOLDOWN * state.salvoCooldownMultiplier;
     }
   } else {
     specialCooldown = Math.max(0, specialCooldown - TICK_DT);
@@ -698,49 +701,48 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     player = { ...player, hp: Math.min(player.maxHp, player.hp + state.hpRegenPerSec * TICK_DT) };
   }
 
-  // === Player Companion Drone Firing ===
+  // === Player Companion Drone Firing (1..N drones trailing the plane) ===
   let droneTimer = state.droneTimer;
-  if (state.hasDrone && player.alive && player.state === 'flying') {
+  const droneN = state.droneCount > 0 ? state.droneCount : (state.hasDrone ? 1 : 0);
+  if (droneN > 0 && player.alive && player.state === 'flying') {
     droneTimer = Math.max(0, droneTimer - TICK_DT);
     if (droneTimer <= 0) {
-      const dronePos = {
-        x: player.kinematic.position.x + Math.cos(state.timeSec * 3) * 45,
-        y: player.kinematic.position.y + Math.sin(state.timeSec * 3) * 45,
-      };
-
-      let closestDist = Infinity;
-      let target: Plane | null = null;
-      for (const e of enemies) {
-        if (e.alive && e.state === 'flying') {
-          const dist = distance(dronePos, e.kinematic.position);
-          if (dist < closestDist) {
-            closestDist = dist;
-            target = e;
+      let firedAny = false;
+      const back = player.kinematic.heading + Math.PI;
+      for (let d = 0; d < droneN; d++) {
+        const phase = state.timeSec * 3 + (d * Math.PI * 2) / droneN;
+        const dronePos = {
+          x: player.kinematic.position.x + Math.cos(back) * 38 + Math.cos(phase) * 30,
+          y: player.kinematic.position.y + Math.sin(back) * 38 + Math.sin(phase) * 30,
+        };
+        let closestDist = Infinity;
+        let target: Plane | null = null;
+        for (const e of enemies) {
+          if (e.alive && e.state === 'flying') {
+            const dist = distance(dronePos, e.kinematic.position);
+            if (dist < closestDist) {
+              closestDist = dist;
+              target = e;
+            }
           }
         }
+        if (target && closestDist <= DRONE_RANGE) {
+          const angle = angleOf(sub(target.kinematic.position, dronePos));
+          newBulletList.push({
+            id: nextEntityId,
+            ownerId: player.id,
+            ownerFaction: 'player',
+            position: dronePos,
+            velocity: { x: Math.cos(angle) * BULLET_SPEED, y: Math.sin(angle) * BULLET_SPEED },
+            lifetime: BULLET_LIFETIME,
+            damage: DRONE_DAMAGE * state.damageMultiplier,
+            alive: true,
+          });
+          nextEntityId++;
+          firedAny = true;
+        }
       }
-
-      if (target && closestDist <= DRONE_RANGE) {
-        const toTarget = sub(target.kinematic.position, dronePos);
-        const angle = angleOf(toTarget);
-        const bulletVel = {
-          x: Math.cos(angle) * BULLET_SPEED,
-          y: Math.sin(angle) * BULLET_SPEED,
-        };
-        const droneBullet: Bullet = {
-          id: nextEntityId,
-          ownerId: player.id,
-          ownerFaction: 'player',
-          position: dronePos,
-          velocity: bulletVel,
-          lifetime: BULLET_LIFETIME,
-          damage: DRONE_DAMAGE * state.damageMultiplier,
-          alive: true,
-        };
-        newBulletList.push(droneBullet);
-        nextEntityId++;
-        droneTimer = DRONE_COOLDOWN;
-      }
+      if (firedAny) droneTimer = DRONE_COOLDOWN;
     }
   } else {
     droneTimer = Math.max(0, droneTimer - TICK_DT);
@@ -1034,6 +1036,11 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
   pilots = collision.pilots;
   playerScore += collision.playerScoreDelta + enemiesKilledThisTick;
   enemyScore += collision.enemyScoreDelta;
+
+  // Lifesteal — each kill this tick patches the corpse back together a little.
+  if (state.lifestealPerKill > 0 && enemiesKilledThisTick > 0 && player.alive) {
+    player = { ...player, hp: Math.min(player.maxHp, player.hp + state.lifestealPerKill * enemiesKilledThisTick) };
+  }
 
   // If the player plane just died this tick AND they didn't choose to eject → +1 to enemy.
   if (wasPlayerAliveBefore && !player.alive && !playerEjectedThisTick) {

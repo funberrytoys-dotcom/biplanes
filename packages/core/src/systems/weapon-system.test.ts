@@ -27,27 +27,37 @@ describe('weapon-system', () => {
   it('firePlayerWeapon emits a bullet when cooldown is zero and fire is true', () => {
     const p = makePlayer();
     const result = firePlayerWeapon(p, true, 999);
-    expect(result.bullet).toBeDefined();
+    expect(result.bullets.length).toBe(1);
     expect(result.newCooldown).toBeGreaterThan(0);
   });
 
   it('firePlayerWeapon emits nothing when cooldown > 0', () => {
     const p = { ...makePlayer(), weaponCooldown: 0.1 };
     const result = firePlayerWeapon(p, true, 999);
-    expect(result.bullet).toBeUndefined();
+    expect(result.bullets.length).toBe(0);
   });
 
   it('firePlayerWeapon emits nothing when fire is false', () => {
     const p = makePlayer();
     const result = firePlayerWeapon(p, false, 999);
-    expect(result.bullet).toBeUndefined();
+    expect(result.bullets.length).toBe(0);
   });
 
   it('bullet inherits plane heading as velocity direction', () => {
     const p = makePlayer();
     const result = firePlayerWeapon(p, true, 999);
-    expect(result.bullet!.velocity.x).toBeCloseTo(BULLET_SPEED);
-    expect(result.bullet!.velocity.y).toBeCloseTo(0);
+    expect(result.bullets[0]!.velocity.x).toBeCloseTo(BULLET_SPEED);
+    expect(result.bullets[0]!.velocity.y).toBeCloseTo(0);
+  });
+
+  it('multishot fires a symmetric fan of extra bullets', () => {
+    const p = makePlayer();
+    const result = firePlayerWeapon(p, true, 999, 1, 1, false, false, 2);
+    expect(result.bullets.length).toBe(3);
+    // Middle bullet stays on heading; outer two fan up and down.
+    const ys = result.bullets.map(b => b.velocity.y).sort((a, b) => a - b);
+    expect(ys[0]).toBeLessThan(0);
+    expect(ys[2]).toBeGreaterThan(0);
   });
 
   it('stepBullets advances bullet position and decreases lifetime', () => {

@@ -899,6 +899,24 @@ export async function startGame(container: HTMLElement) {
   const playerSprite = createPlaneSprite('player');
   planeLayer.addChild(playerSprite.container, playerSprite.hpBar);
 
+  // Wingman drone sprites — small brass dieselpunk drones that trail the plane.
+  const droneSprites: { c: Container; prop: Graphics }[] = [];
+  for (let i = 0; i < 2; i++) {
+    const c = new Container();
+    const body = new Graphics();
+    body.ellipse(0, 0, 12, 7).fill({ color: 0xc8922e }).stroke({ color: 0x2a1a0e, width: 1.6 });
+    body.ellipse(2, -1.5, 6, 3).fill({ color: 0xffe9b0, alpha: 0.5 });
+    body.circle(6, 0, 2.6).fill({ color: 0x9fe8ff }).stroke({ color: 0x2a1a0e, width: 1 }); // sensor eye
+    body.rect(-15, -1.6, 7, 3.2).fill({ color: 0x6b7790 }).stroke({ color: 0x2a1a0e, width: 1 }); // rear gun
+    const prop = new Graphics();
+    prop.rect(-1.4, -9, 2.8, 18).fill({ color: 0xdfe6ee, alpha: 0.7 });
+    prop.x = 12;
+    c.addChild(body, prop);
+    c.visible = false;
+    planeLayer.addChild(c);
+    droneSprites.push({ c, prop });
+  }
+
   const enemySprites = new Map<number, ReturnType<typeof createPlaneSprite>>();
 
   // Pilot sprites — keyed by pilot.id like enemy planes. Faction baked in at creation.
@@ -2617,6 +2635,26 @@ export async function startGame(container: HTMLElement) {
     prevBoostActive = boosting;
 
     floatingNumbers.update(dt);
+
+    // Wingman drones follow behind the plane, orbiting (matches the core firing positions).
+    {
+      const dn = state.droneCount > 0 ? state.droneCount : (state.hasDrone ? 1 : 0);
+      const pk = state.player.kinematic;
+      const back = pk.heading + Math.PI;
+      for (let i = 0; i < droneSprites.length; i++) {
+        const ds = droneSprites[i]!;
+        const show = i < dn && state.player.alive && state.player.state !== 'crashed';
+        ds.c.visible = show;
+        if (show) {
+          const phase = renderTimeSec * 3 + (i * Math.PI * 2) / Math.max(1, dn);
+          ds.c.x = pk.position.x + Math.cos(back) * 38 + Math.cos(phase) * 30;
+          ds.c.y = pk.position.y + Math.sin(back) * 38 + Math.sin(phase) * 30;
+          ds.c.rotation = pk.heading;
+          ds.c.scale.x = pk.facing;
+          ds.prop.rotation = renderTimeSec * 42;
+        }
+      }
+    }
 
     playerSprite.update(state.player, dt, damageFx, clock, camera, undefined, groundFx, { screenFx });
 

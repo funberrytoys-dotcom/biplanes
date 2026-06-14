@@ -16,6 +16,10 @@ export function applyUpgrade(state: WorldState, id: UpgradeId): WorldState {
   let player = state.player;
   let xpMagnetRange = state.xpMagnetRange;
   let hpRegenPerSec = state.hpRegenPerSec;
+  let droneCount = state.droneCount;
+  let multishotExtra = state.multishotExtra;
+  let lifestealPerKill = state.lifestealPerKill;
+  let salvoCooldownMultiplier = state.salvoCooldownMultiplier;
 
   switch (id) {
     case 'damage_plus_25': damageMultiplier *= 1.25; break;
@@ -36,7 +40,13 @@ export function applyUpgrade(state: WorldState, id: UpgradeId): WorldState {
       // Repurposed: "Полевой ремонт" — passive HP regen (the old XP-magnet was a dead no-op).
       hpRegenPerSec += HP_REGEN_PER_SEC;
       break;
-    case 'drone_wingman': hasDrone = true; break;
+    case 'drone_wingman':
+      hasDrone = true;
+      droneCount = Math.max(droneCount, 1);
+      break;
+    case 'multishot': multishotExtra += 1; break;
+    case 'lifesteal': lifestealPerKill += 8; break;
+    case 'quick_salvo': salvoCooldownMultiplier *= 0.78; break;
     case 'piercing_bullets': /* handled dynamically in collision-system */ break;
     case 'heavy_bomb': /* handled in tick drop logic */ break;
     case 'heavy_cannon':
@@ -71,12 +81,18 @@ export function applyUpgrade(state: WorldState, id: UpgradeId): WorldState {
       damageMultiplier *= 1.5;
       fireRateMultiplier *= 2.0;
       break;
+    case 'bullet_storm':
+      fireRateMultiplier *= 1.6;
+      damageMultiplier *= 1.2;
+      multishotExtra += 1;
+      break;
     case 'fire_screen':
       hasFlameTrail = true;
       damageMultiplier *= 1.25;
       break;
     case 'chico_wing':
       hasDrone = true;
+      droneCount = Math.max(droneCount, 2);
       hpRegenPerSec += HP_REGEN_PER_SEC * 1.6;
       break;
     case 'redline_engine':
@@ -101,6 +117,10 @@ export function applyUpgrade(state: WorldState, id: UpgradeId): WorldState {
     hasHeavyCannon,
     xpMagnetRange,
     hpRegenPerSec,
+    droneCount,
+    multishotExtra,
+    lifestealPerKill,
+    salvoCooldownMultiplier,
     appliedUpgradeIds: [...state.appliedUpgradeIds, id],
     pendingLevelUp: false,
   };

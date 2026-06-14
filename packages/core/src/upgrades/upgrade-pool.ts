@@ -20,7 +20,11 @@ export type UpgradeId =
   | 'reinforced_struts'
   | 'chico_wing'
   | 'fire_screen'
-  | 'redline_engine';
+  | 'redline_engine'
+  | 'multishot'
+  | 'lifesteal'
+  | 'quick_salvo'
+  | 'bullet_storm';
 
 export interface UpgradeDef {
   id: UpgradeId;
@@ -28,42 +32,66 @@ export interface UpgradeDef {
   description: string;
   category: 'weapon' | 'plane' | 'passive' | 'companion';
   isEvolution: boolean;
-  evolutionRequires?: UpgradeId[]; // both must be present
+  /** How many times this upgrade can be taken (default 1). >1 = stackable tiers. */
+  maxStacks?: number;
+  evolutionRequires?: UpgradeId[]; // all must be present
 }
 
 export const UPGRADE_DEFS: UpgradeDef[] = [
-  { id: 'damage_plus_25', title: '+25% урона', description: 'Пули заметно больнее пробивают врага.', category: 'passive', isEvolution: false },
-  { id: 'damage_plus_50', title: '+50% урона', description: 'Главный ствол становится основой билда.', category: 'passive', isEvolution: false },
-  { id: 'fire_rate_plus_25', title: '+25% скорострельности', description: 'Пулемет чаще держит врага под давлением.', category: 'passive', isEvolution: false },
-  { id: 'fire_rate_plus_50', title: '+50% скорострельности', description: 'Очереди становятся плотнее и опаснее.', category: 'passive', isEvolution: false },
-  { id: 'hp_plus_25', title: '+25% прочности', description: 'Фюзеляж переживает больше попаданий.', category: 'plane', isEvolution: false },
-  { id: 'hp_plus_50', title: '+50% брони', description: 'Усиленная рама для тяжелых раундов.', category: 'plane', isEvolution: false },
-  { id: 'magnet_range_plus', title: 'Полевой ремонт', description: 'Самолёт медленно латает себя прямо в полёте.', category: 'plane', isEvolution: false },
-  { id: 'drone_wingman', title: 'Ведомый дрон', description: 'Малый помощник стреляет рядом с тобой.', category: 'companion', isEvolution: false },
-  { id: 'piercing_bullets', title: 'Бронебойные пули', description: 'Пули прошивают одного врага насквозь.', category: 'weapon', isEvolution: false },
-  { id: 'heavy_bomb', title: 'Ракетный блок', description: 'Залп ракет выпускает на 2 снаряда больше.', category: 'weapon', isEvolution: false },
-  { id: 'heavy_cannon', title: 'Тяжелая пушка', description: 'Редкие, но мощные пробивающие выстрелы.', category: 'weapon', isEvolution: false },
-  { id: 'homing_rocket', title: 'Самонаводящаяся ракета', description: 'Автоматически выпускает ракету по цели.', category: 'weapon', isEvolution: false },
-  { id: 'flame_trail', title: 'Огненный след', description: 'За самолетом остается опасный горящий хвост.', category: 'passive', isEvolution: false },
-  { id: 'tracer_belt', title: 'Трассирующая лента', description: 'Пули дольше живут в лобовых атаках.', category: 'weapon', isEvolution: false },
-  { id: 'cluster_bomb', title: 'Тяжёлые БЧ', description: 'Ракеты залпа бьют мощнее и накрывают шире.', category: 'weapon', isEvolution: false },
-  { id: 'coolant_injector', title: 'Инжектор охлаждения', description: 'Форсаж медленнее греет мотор и быстрее остывает.', category: 'plane', isEvolution: false },
-  { id: 'boost_supercharger', title: 'Нагнетатель форсажа', description: 'Форсаж толкает сильнее, но требует дисциплины.', category: 'plane', isEvolution: false },
-  { id: 'reinforced_struts', title: 'Усиленные стойки', description: 'Больше прочности и меньше урона от таранов.', category: 'plane', isEvolution: false },
-  { id: 'gatling_evolution', title: 'Гатлинг', description: 'ЭВОЛЮЦИЯ: непрерывный поток огня.', category: 'weapon', isEvolution: true, evolutionRequires: ['damage_plus_50', 'fire_rate_plus_50'] },
-  { id: 'fire_screen', title: 'Огненная завеса', description: 'ЭВОЛЮЦИЯ: залп + огненный след выжигают зону смерти.', category: 'weapon', isEvolution: true, evolutionRequires: ['heavy_bomb', 'flame_trail'] },
-  { id: 'chico_wing', title: 'Крыло Чико', description: 'ЭВОЛЮЦИЯ: ведомый и полевой ремонт — машина выживания.', category: 'companion', isEvolution: true, evolutionRequires: ['drone_wingman', 'magnet_range_plus'] },
-  { id: 'redline_engine', title: 'Красная зона', description: 'ЭВОЛЮЦИЯ: длинные и мощные окна форсажа.', category: 'plane', isEvolution: true, evolutionRequires: ['coolant_injector', 'boost_supercharger'] },
+  // --- Stackable stat lines (tiered) ---
+  { id: 'damage_plus_25', title: 'Урон', description: '+25% урона по врагу.', category: 'passive', isEvolution: false, maxStacks: 4 },
+  { id: 'fire_rate_plus_25', title: 'Скорострельность', description: '+25% темпа стрельбы.', category: 'passive', isEvolution: false, maxStacks: 4 },
+  { id: 'hp_plus_25', title: 'Прочность', description: '+25% прочности корпуса.', category: 'plane', isEvolution: false, maxStacks: 3 },
+  { id: 'magnet_range_plus', title: 'Полевой ремонт', description: 'Самолёт чинит себя в полёте.', category: 'plane', isEvolution: false, maxStacks: 3 },
+  { id: 'tracer_belt', title: 'Трассирующая лента', description: '+15% темпа, пули летят дальше.', category: 'weapon', isEvolution: false, maxStacks: 2 },
+  { id: 'coolant_injector', title: 'Инжектор охлаждения', description: 'Форсаж меньше греет, быстрее стынет.', category: 'plane', isEvolution: false, maxStacks: 2 },
+  { id: 'boost_supercharger', title: 'Нагнетатель форсажа', description: 'Форсаж толкает сильнее.', category: 'plane', isEvolution: false, maxStacks: 2 },
+  { id: 'reinforced_struts', title: 'Усиленные стойки', description: 'Меньше урона от таранов, +прочность.', category: 'plane', isEvolution: false, maxStacks: 2 },
 
+  // --- Big one-shot stat picks ---
+  { id: 'damage_plus_50', title: 'Тяжёлые патроны', description: '+50% урона разом.', category: 'passive', isEvolution: false },
+  { id: 'fire_rate_plus_50', title: 'Перегретый ствол', description: '+50% темпа разом.', category: 'passive', isEvolution: false },
+  { id: 'hp_plus_50', title: 'Броня', description: '+50% прочности разом.', category: 'plane', isEvolution: false },
+
+  // --- Weapon unlocks / new mechanics ---
+  { id: 'multishot', title: 'Веер пуль', description: 'Стреляешь веером из нескольких пуль.', category: 'weapon', isEvolution: false, maxStacks: 2 },
+  { id: 'lifesteal', title: 'Кровосос', description: 'Каждый сбитый враг латает твой корпус.', category: 'passive', isEvolution: false, maxStacks: 2 },
+  { id: 'quick_salvo', title: 'Скорый залп', description: 'Ракетный залп перезаряжается быстрее.', category: 'weapon', isEvolution: false, maxStacks: 2 },
+  { id: 'piercing_bullets', title: 'Бронебойные пули', description: 'Пули прошивают одного врага насквозь.', category: 'weapon', isEvolution: false },
+  { id: 'heavy_cannon', title: 'Тяжёлая пушка', description: 'Редкие, но мощные пробивающие выстрелы.', category: 'weapon', isEvolution: false },
+  { id: 'homing_rocket', title: 'Самонаводящаяся ракета', description: 'Автоматически выпускает ракету по цели.', category: 'weapon', isEvolution: false },
+  { id: 'flame_trail', title: 'Огненный след', description: 'За самолётом тянется горящий хвост.', category: 'passive', isEvolution: false },
+  { id: 'drone_wingman', title: 'Ведомый дрон', description: 'Дрон летит рядом и стреляет по врагам.', category: 'companion', isEvolution: false },
+  { id: 'heavy_bomb', title: 'Ракетный блок', description: 'Залп ракет выпускает на 2 снаряда больше.', category: 'weapon', isEvolution: false },
+  { id: 'cluster_bomb', title: 'Тяжёлые БЧ', description: 'Ракеты залпа бьют мощнее и накрывают шире.', category: 'weapon', isEvolution: false },
+
+  // --- Evolutions (need two prerequisites) ---
+  { id: 'gatling_evolution', title: 'Гатлинг', description: 'ЭВОЛЮЦИЯ: непрерывный поток огня.', category: 'weapon', isEvolution: true, evolutionRequires: ['damage_plus_50', 'fire_rate_plus_50'] },
+  { id: 'bullet_storm', title: 'Свинцовый шквал', description: 'ЭВОЛЮЦИЯ: веер + бешеный темп = стена огня.', category: 'weapon', isEvolution: true, evolutionRequires: ['multishot', 'fire_rate_plus_50'] },
+  { id: 'fire_screen', title: 'Огненная завеса', description: 'ЭВОЛЮЦИЯ: залп + огненный след выжигают зону.', category: 'weapon', isEvolution: true, evolutionRequires: ['heavy_bomb', 'flame_trail'] },
+  { id: 'chico_wing', title: 'Крыло Чико', description: 'ЭВОЛЮЦИЯ: второй дрон + ускоренный ремонт.', category: 'companion', isEvolution: true, evolutionRequires: ['drone_wingman', 'magnet_range_plus'] },
+  { id: 'redline_engine', title: 'Красная зона', description: 'ЭВОЛЮЦИЯ: длинные и мощные окна форсажа.', category: 'plane', isEvolution: true, evolutionRequires: ['coolant_injector', 'boost_supercharger'] },
 ];
 
+const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
+
+/** Display title with a tier numeral for stackable upgrades (e.g., "Урон II"). */
+export function upgradeChoiceTitle(def: UpgradeDef, nextTier: number): string {
+  if ((def.maxStacks ?? 1) > 1) {
+    return `${def.title} ${ROMAN[Math.min(nextTier, ROMAN.length - 1)]}`.trim();
+  }
+  return def.title;
+}
 
 export function rollUpgradeChoices(
   applied: readonly string[],
   rng: { pickN: <T>(items: readonly T[], n: number) => T[] }
 ): UpgradeDef[] {
+  const timesTaken = (id: string) => applied.filter(a => a === id).length;
+
   const available = UPGRADE_DEFS.filter(u => {
-    if (applied.includes(u.id)) return false;
+    const taken = timesTaken(u.id);
+    if (taken >= (u.maxStacks ?? 1)) return false;
     if (u.isEvolution) {
       return u.evolutionRequires!.every(req => applied.includes(req));
     }
@@ -72,5 +100,10 @@ export function rollUpgradeChoices(
 
   if (available.length === 0) return [];
   const n = Math.min(3, available.length);
-  return rng.pickN(available, n);
+  // Decorate stackable picks with their tier numeral so the UI shows progression.
+  return rng.pickN(available, n).map(def =>
+    (def.maxStacks ?? 1) > 1
+      ? { ...def, title: upgradeChoiceTitle(def, timesTaken(def.id) + 1) }
+      : def
+  );
 }
