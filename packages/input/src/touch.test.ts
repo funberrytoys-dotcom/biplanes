@@ -38,6 +38,20 @@ describe('touch control layout', () => {
     }
   });
 
+  it('keeps iPhone 15 Pro Max landscape controls inside safe edges', () => {
+    const zones = resolveTouchZones(932, 430);
+    const landscapeSafeLeft = 59;
+    const landscapeSafeRight = 59;
+    const landscapeSafeBottom = 21;
+    const rightButtons = [zones.fire, zones.special, zones.eject, zones.throttleUp, zones.throttleDown];
+
+    expect(zones.joystick.x - zones.joystick.r).toBeGreaterThanOrEqual(landscapeSafeLeft);
+    for (const zone of rightButtons) {
+      expect(zone.x + zone.r).toBeLessThanOrEqual(932 - landscapeSafeRight);
+      expect(zone.y + zone.r).toBeLessThanOrEqual(430 - landscapeSafeBottom);
+    }
+  });
+
   it('turns only when the stick leaves its deadzone', () => {
     const { joystick } = resolveTouchZones(932, 430);
 

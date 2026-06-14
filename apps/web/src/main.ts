@@ -17,6 +17,7 @@ function isPhoneRuntime() {
 
 const telegram = initializeTelegramMiniApp();
 const params = new URLSearchParams(window.location.search);
+let shouldReplaceUrl = false;
 if (telegram.isTelegramMiniApp) {
   params.set('phone', '');
   if (
@@ -29,6 +30,13 @@ if (telegram.isTelegramMiniApp) {
   ) {
     params.set('arena', '');
   }
+  shouldReplaceUrl = true;
+}
+if (params.has('iphone15') && !params.has('arena') && !params.has('story')) {
+  params.set('arena', '');
+  shouldReplaceUrl = true;
+}
+if (shouldReplaceUrl) {
   const nextSearch = params.toString();
   window.history.replaceState(
     null,
@@ -36,10 +44,10 @@ if (telegram.isTelegramMiniApp) {
     `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`,
   );
 }
-if (params.has('device')) {
+if (params.has('device') || params.has('iphone15')) {
   document.body.classList.add('device-preview');
 }
-if (telegram.isTelegramMiniApp || params.has('phone') || params.has('iphone') || isPhoneRuntime()) {
+if (telegram.isTelegramMiniApp || params.has('phone') || params.has('iphone') || params.has('iphone15') || isPhoneRuntime()) {
   document.body.classList.add('phone-runtime');
 }
 syncAppHeight();

@@ -26,10 +26,12 @@ export interface TouchController {
 
 export function resolveTouchZones(w: number, h: number): TouchZones {
   const base = Math.min(w, h);
+  const landscape = w > h;
   const stickR = Math.max(54, Math.min(92, base * 0.145));
   const buttonR = Math.max(28, Math.min(48, base * 0.078));
-  const marginX = Math.max(22, base * 0.055);
-  const lowerY = h - Math.max(17 + buttonR, base * 0.11);
+  const marginX = Math.max(22, base * 0.055, landscape ? Math.min(76, w * 0.075) : 0);
+  const bottomGuard = Math.max(17 + buttonR, base * 0.11, landscape ? Math.min(70, h * 0.14) : 0);
+  const lowerY = h - bottomGuard;
   const midY = lowerY - buttonR * 2.22;
   const upperY = midY - buttonR * 2.22;
   const farRightX = w - marginX - buttonR;
