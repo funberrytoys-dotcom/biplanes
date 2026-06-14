@@ -957,6 +957,64 @@ export async function startGame(container: HTMLElement) {
   arenaStatus.visible = false;
   uiLayer.addChild(arenaStatus);
 
+  const arenaToast = new Container();
+  const arenaToastBg = new Graphics();
+  const arenaToastTitle = new Text({
+    text: '',
+    style: new TextStyle({
+      fontFamily: 'Georgia, serif',
+      fontSize: 30,
+      fill: 0xffe4a8,
+      fontWeight: 'bold',
+      letterSpacing: 0,
+      stroke: { color: 0x120804, width: 4 },
+    }),
+  });
+  const arenaToastSub = new Text({
+    text: '',
+    style: new TextStyle({
+      fontFamily: 'monospace',
+      fontSize: 13,
+      fill: 0xcde7f4,
+      fontWeight: 'bold',
+      letterSpacing: 0,
+      stroke: { color: 0x061019, width: 3 },
+    }),
+  });
+  arenaToast.addChild(arenaToastBg, arenaToastTitle, arenaToastSub);
+  arenaToast.visible = false;
+  uiLayer.addChild(arenaToast);
+  let arenaToastTimer = 0;
+  let arenaToastDuration = 1;
+
+  function layoutArenaToast(w: number, h: number) {
+    const toastW = Math.min(460, Math.max(300, w * 0.46));
+    const toastH = 82;
+    arenaToast.x = (w - toastW) / 2;
+    arenaToast.y = Math.max(64, h * 0.18);
+    arenaToastBg.clear()
+      .roundRect(0, 0, toastW, toastH, 8)
+      .fill({ color: 0x091522, alpha: 0.74 })
+      .stroke({ color: 0xffd27a, width: 2.5, alpha: 0.8 })
+      .rect(18, 52, toastW - 36, 1)
+      .fill({ color: 0x6fdcff, alpha: 0.4 });
+    arenaToastTitle.style.fontSize = Math.max(21, Math.min(32, w * 0.032));
+    arenaToastSub.style.fontSize = Math.max(10, Math.min(13, w * 0.014));
+    arenaToastTitle.x = (toastW - arenaToastTitle.width) / 2;
+    arenaToastTitle.y = 11;
+    arenaToastSub.x = (toastW - arenaToastSub.width) / 2;
+    arenaToastSub.y = 53;
+  }
+
+  function showArenaToast(titleText: string, subText: string, duration = 1.8) {
+    arenaToastTitle.text = titleText;
+    arenaToastSub.text = subText;
+    arenaToastDuration = Math.max(0.2, duration);
+    arenaToastTimer = arenaToastDuration;
+    arenaToast.visible = true;
+    layoutArenaToast(app.screen.width, app.screen.height);
+  }
+
   const flightLabStatus = new Text({
     text: '',
     style: new TextStyle({
@@ -982,6 +1040,7 @@ export async function startGame(container: HTMLElement) {
       arenaStatus.x = Math.max(12, (w - arenaStatus.width) / 2);
       arenaStatus.y = 12;
     }
+    if (arenaToast.visible) layoutArenaToast(w, h);
     if (flightLabStatus.visible) {
       flightLabStatus.x = Math.max(12, (w - flightLabStatus.width) / 2);
       flightLabStatus.y = 58;
@@ -1287,15 +1346,18 @@ export async function startGame(container: HTMLElement) {
       }
       audio.playUpgradeOpen();
       screenFx.flash(0xb8f0ff, 0.18, 0.16);
+      showArenaToast('ВОЛНА ЗАЧИЩЕНА', 'Трофеи и доработка через 3 секунды', 2.2);
     }
 
     arenaRoundPhase = flow.phase;
     arenaRound = flow.round;
 
     if (flow.shouldShowUpgrade) {
+      showArenaToast('ТРОФЕИ НА БОРТ', 'Выбери один модуль для следующей волны', 1.4);
       showArenaRoundUpgrade();
     } else if (flow.shouldLaunchNextRound) {
       resetArenaPlayerForNextTakeoff();
+      showArenaToast(`ВОЛНА ${arenaRound}`, 'Разгоняйся и набирай высоту', 2.0);
     }
 
     updateArenaStatusText();
@@ -1382,6 +1444,8 @@ export async function startGame(container: HTMLElement) {
     dialogueOverlay.hide();
     hud.hideEnemyArrows();
     arenaStatus.visible = false;
+    arenaToast.visible = false;
+    arenaToastTimer = 0;
     flightLabStatus.visible = false;
     shownChicoFirstKillRadio = false;
     gunfeelLabShotWasActive = false;
@@ -1435,6 +1499,7 @@ export async function startGame(container: HTMLElement) {
     debugText.visible = false;
     updateArenaDirector();
     gameRunning = true;
+    showArenaToast(`ВОЛНА ${arenaRound}`, 'Разгоняйся и набирай высоту', 2.0);
   }
 
   function startSkyTest() {
@@ -1803,6 +1868,17 @@ export async function startGame(container: HTMLElement) {
     levelUpScreen.update(dt);
     deathScreen.update(dt);
     radioPopup.update(dt);
+    if (arenaToast.visible) {
+      arenaToastTimer = Math.max(0, arenaToastTimer - dt);
+      const t = arenaToastTimer / arenaToastDuration;
+      arenaToast.alpha = Math.min(1, t * 1.8);
+      arenaToast.scale.set(1 + (1 - t) * 0.025);
+      if (arenaToastTimer <= 0) {
+        arenaToast.visible = false;
+        arenaToast.alpha = 1;
+        arenaToast.scale.set(1);
+      }
+    }
     touchGuide.setActive(runMode !== 'skytest' && runMode !== 'gunfeelLab' && runMode !== 'oilshot' && gameRunning && !choicesShowing && !state.gameOver);
     touchGuide.update();
     publishDebugState();
