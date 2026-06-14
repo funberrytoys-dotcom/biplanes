@@ -7,7 +7,8 @@ describe('mobile viewport', () => {
 
     expect(info.isPhoneLike).toBe(true);
     expect(info.isLandscape).toBe(true);
-    expect(info.combatZoom).toBeGreaterThanOrEqual(1.47);
+    expect(info.combatZoom).toBeGreaterThanOrEqual(1.56);
+    expect(info.combatZoom).toBeLessThanOrEqual(1.58);
     expect(fitMobileZoom(1.22, info)).toBe(info.combatZoom);
   });
 
@@ -16,7 +17,7 @@ describe('mobile viewport', () => {
     const compact = getMobileViewportInfo(910, 332);
 
     expect(compact.combatZoom).toBeGreaterThan(proMax.combatZoom);
-    expect(compact.combatZoom).toBeLessThanOrEqual(1.58);
+    expect(compact.combatZoom).toBeLessThanOrEqual(1.68);
   });
 
   it('detects portrait phone view so the shell can block gameplay visually', () => {

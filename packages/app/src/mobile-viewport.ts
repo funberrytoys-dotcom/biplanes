@@ -12,12 +12,12 @@ export function getMobileViewportInfo(width: number, height: number): MobileView
   const isLandscape = width > height;
   const heightPressure = Math.max(0, 430 - height) / 430;
   const lowLandscapeBoost = isPhoneLike && isLandscape
-    ? Math.max(0, Math.min(0.12, (470 - height) / 1000))
+    ? Math.max(0, Math.min(0.16, (470 - height) / 820))
     : 0;
   return {
     isPhoneLike,
     isLandscape,
-    combatZoom: isPhoneLike && isLandscape ? 1.44 + lowLandscapeBoost : 1,
+    combatZoom: isPhoneLike && isLandscape ? 1.52 + lowLandscapeBoost : 1,
     storyZoom: isPhoneLike && isLandscape ? Math.max(0.88, 1.08 - heightPressure * 0.14) : 1.55,
   };
 }

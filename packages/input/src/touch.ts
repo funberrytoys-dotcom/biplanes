@@ -3,8 +3,8 @@ import type { PlayerCommand } from '@biplanes/shared';
 type RoundZone = { x: number; y: number; r: number };
 type TouchPoint = { x: number; y: number };
 
-const JOYSTICK_DEADZONE_RATIO = 0.085;
-const JOYSTICK_CAPTURE_RATIO = 1.65;
+const JOYSTICK_DEADZONE_RATIO = 0.055;
+const JOYSTICK_CAPTURE_RATIO = 1.92;
 
 export interface TouchZones {
   joystick: RoundZone;
@@ -27,15 +27,15 @@ export interface TouchController {
 export function resolveTouchZones(w: number, h: number): TouchZones {
   const base = Math.min(w, h);
   const landscape = w > h;
-  const stickR = Math.max(54, Math.min(92, base * 0.145));
-  const buttonR = Math.max(28, Math.min(48, base * 0.078));
+  const stickR = Math.max(62, Math.min(102, base * 0.158));
+  const buttonR = Math.max(31, Math.min(52, base * 0.084));
   const marginX = Math.max(22, base * 0.055, landscape ? Math.min(76, w * 0.075) : 0);
-  const bottomGuard = Math.max(17 + buttonR, base * 0.11, landscape ? Math.min(70, h * 0.14) : 0);
+  const bottomGuard = Math.max(22 + buttonR, base * 0.115, landscape ? Math.min(80, h * 0.155) : 0);
   const lowerY = h - bottomGuard;
-  const midY = lowerY - buttonR * 2.22;
-  const upperY = midY - buttonR * 2.22;
+  const midY = lowerY - buttonR * 2.3;
+  const upperY = midY - buttonR * 2.3;
   const farRightX = w - marginX - buttonR;
-  const innerRightX = farRightX - buttonR * 2.28;
+  const innerRightX = farRightX - buttonR * 2.38;
 
   return {
     joystick: {
@@ -61,7 +61,7 @@ export function resolveJoystickRotate(
   const deadzone = joystick.r * JOYSTICK_DEADZONE_RATIO;
   if (Math.hypot(dx, dy) < deadzone) return 0;
 
-  if (Math.abs(dy) > Math.abs(dx) * 1.15) {
+  if (Math.abs(dy) > Math.abs(dx) * 0.92) {
     return dy < 0 ? -1 : 1;
   }
   if (dx < -deadzone) return -1;

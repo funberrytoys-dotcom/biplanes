@@ -641,14 +641,14 @@ export function createHud(width: number, height: number) {
         if (!showCaravanArrow) arrow.visible = false;
         centerOverlay(width, height);
       } else if (s.player.state === 'taxi') {
-        overlay.text = throttle < 0.15
-          ? 'ENGINE IDLE\nTHROTTLE UP'
-          : 'ROLLING\nPITCH UP';
-        overlay.style.fontSize = 24;
+        overlay.text = compactHud
+          ? (throttle < 0.15 ? 'GAS+' : 'PITCH UP')
+          : (throttle < 0.15 ? 'ENGINE IDLE\nTHROTTLE UP' : 'ROLLING\nPITCH UP');
+        overlay.style.fontSize = compactHud ? 18 : 24;
         overlay.visible = true;
         if (!showCaravanArrow) arrow.visible = false;
         centerOverlay(width, height);
-        overlay.y = height * (compactHud ? 0.62 : 0.68);
+        overlay.y = height * (compactHud ? 0.44 : 0.68);
       } else if (stalling) {
         overlay.text = 'STALL\nDIVE TO RECOVER';
         overlay.style.fontSize = 24;

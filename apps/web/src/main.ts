@@ -5,7 +5,8 @@ import {
 } from './telegram-mini-app.js';
 
 function syncAppHeight() {
-  document.documentElement.style.setProperty('--app-height', `${getTelegramViewportHeight() ?? window.innerHeight}px`);
+  const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
+  document.documentElement.style.setProperty('--app-height', `${getTelegramViewportHeight() ?? viewportHeight}px`);
 }
 
 function isPhoneRuntime() {
@@ -44,8 +45,11 @@ if (shouldReplaceUrl) {
     `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ''}${window.location.hash}`,
   );
 }
-if (params.has('device') || params.has('iphone15')) {
+if (params.has('device')) {
   document.body.classList.add('device-preview');
+}
+if (params.has('iphone15')) {
+  document.body.classList.add('iphone15-preview');
 }
 if (telegram.isTelegramMiniApp || params.has('phone') || params.has('iphone') || params.has('iphone15') || isPhoneRuntime()) {
   document.body.classList.add('phone-runtime');
@@ -53,6 +57,7 @@ if (telegram.isTelegramMiniApp || params.has('phone') || params.has('iphone') ||
 syncAppHeight();
 window.addEventListener('resize', syncAppHeight);
 window.addEventListener('orientationchange', syncAppHeight);
+window.visualViewport?.addEventListener('resize', syncAppHeight);
 bindTelegramViewportChange(syncAppHeight);
 
 const container = document.getElementById('game');

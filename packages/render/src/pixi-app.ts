@@ -2,6 +2,8 @@ import { Application } from 'pixi.js';
 
 export async function createPixiApp(container: HTMLElement): Promise<Application> {
   const app = new Application();
+  const phoneLike = Math.min(window.innerWidth, window.innerHeight) <= 520
+    && Math.max(window.innerWidth, window.innerHeight) <= 1100;
   await app.init({
     preference: 'webgl',
     powerPreference: 'high-performance',
@@ -9,7 +11,7 @@ export async function createPixiApp(container: HTMLElement): Promise<Application
     resizeTo: container,
     antialias: true,
     autoDensity: true,
-    resolution: window.devicePixelRatio || 1,
+    resolution: phoneLike ? Math.min(window.devicePixelRatio || 1, 2) : window.devicePixelRatio || 1,
   });
   app.canvas.style.position = 'absolute';
   app.canvas.style.inset = '0';

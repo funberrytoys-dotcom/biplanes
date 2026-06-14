@@ -57,16 +57,16 @@ describe('touch control layout', () => {
 
     expect(resolveJoystickRotate(joystick, null)).toBe(0);
     expect(resolveJoystickRotate(joystick, { x: joystick.x, y: joystick.y })).toBe(0);
-    expect(resolveJoystickRotate(joystick, { x: joystick.x - joystick.r * 0.06, y: joystick.y })).toBe(0);
-    expect(resolveJoystickRotate(joystick, { x: joystick.x - joystick.r * 0.11, y: joystick.y })).toBe(-1);
-    expect(resolveJoystickRotate(joystick, { x: joystick.x + joystick.r * 0.11, y: joystick.y })).toBe(1);
+    expect(resolveJoystickRotate(joystick, { x: joystick.x - joystick.r * 0.04, y: joystick.y })).toBe(0);
+    expect(resolveJoystickRotate(joystick, { x: joystick.x - joystick.r * 0.07, y: joystick.y })).toBe(-1);
+    expect(resolveJoystickRotate(joystick, { x: joystick.x + joystick.r * 0.07, y: joystick.y })).toBe(1);
   });
 
   it('reads vertical stick pulls as flight-stick pitch', () => {
     const { joystick } = resolveTouchZones(932, 430);
 
-    expect(resolveJoystickRotate(joystick, { x: joystick.x, y: joystick.y - joystick.r * 0.2 })).toBe(-1);
-    expect(resolveJoystickRotate(joystick, { x: joystick.x, y: joystick.y + joystick.r * 0.2 })).toBe(1);
+    expect(resolveJoystickRotate(joystick, { x: joystick.x, y: joystick.y - joystick.r * 0.1 })).toBe(-1);
+    expect(resolveJoystickRotate(joystick, { x: joystick.x, y: joystick.y + joystick.r * 0.1 })).toBe(1);
   });
 
   it('keeps the visual knob clamped inside the stick ring', () => {
