@@ -337,10 +337,11 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
 
   function drawIcons() {
     const z = touch.zones;
-    placeIcon(icons.fire, z.fire, 1.5);
-    placeIcon(icons.special, z.special, 1.8);
-    placeIcon(icons.boost, z.boost, 1.85);
-    placeIcon(icons.eject, z.eject, 2.0);
+    placeIcon(icons.fire, z.fire, 1.7);
+    placeIcon(icons.special, z.special, 1.95);
+    placeIcon(icons.boost, z.boost, 2.0);
+    placeIcon(icons.eject, z.eject, 2.15);
+    for (const sp of Object.values(icons)) sp.alpha = ICON_IDLE_ALPHA;
   }
 
   function drawRing(g: Graphics, x: number, y: number, r: number, color: number, activeRing = false, dim = false) {
@@ -397,26 +398,18 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
       .stroke({ color: 0xffffff, width: 2, alpha: 0.46 });
   }
 
+  const ICON_IDLE_ALPHA = 0.66;
+
   function updateButtonFeedback(specialCdRatio: number) {
     if (!touchLikely) return;
-    const z = touch.zones;
     const command = touch.current();
     const ready = specialCdRatio <= 0.001;
-    drawRing(rings.fire, z.fire.x, z.fire.y, z.fire.r, 0xff8c19, command.fire);
-    drawRing(rings.special, z.special.x, z.special.y, z.special.r, ready ? 0x7be3ff : 0x3d5d70, command.special === true, !ready);
-    drawRing(rings.boost, z.boost.x, z.boost.y, z.boost.r, 0xffd34a, command.boost === true);
-    drawRing(rings.eject, z.eject.x, z.eject.y, z.eject.r, 0xff4949, command.eject);
-    // Cooldown sweep on the salvo button: a depleting arc that fills back to ready.
-    rings.specialArc.clear();
-    if (!ready) {
-      const sweep = (1 - specialCdRatio) * Math.PI * 2;
-      rings.specialArc
-        .moveTo(z.special.x, z.special.y)
-        .arc(z.special.x, z.special.y, z.special.r * 0.82, -Math.PI / 2, -Math.PI / 2 + sweep)
-        .lineTo(z.special.x, z.special.y)
-        .fill({ color: 0x7be3ff, alpha: 0.22 });
-    }
-    icons.special.alpha = ready ? 1 : 0.4;
+    // No rings — just the art glyphs: muted at rest, bright when pressed.
+    // The salvo glyph also dims while it's reloading.
+    icons.fire.alpha = command.fire ? 1 : ICON_IDLE_ALPHA;
+    icons.boost.alpha = command.boost === true ? 1 : ICON_IDLE_ALPHA;
+    icons.eject.alpha = command.eject ? 1 : ICON_IDLE_ALPHA;
+    icons.special.alpha = command.special === true ? 1 : ICON_IDLE_ALPHA * (ready ? 1 : 0.45);
     drawLever(touch.throttleValue());
   }
 
@@ -434,10 +427,6 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
     if (!touchLikely) return;
     const z = touch.zones;
     drawStick(rings.stick, rings.stickKnob, z.joystick.x, z.joystick.y, z.joystick.r);
-    drawRing(rings.fire, z.fire.x, z.fire.y, z.fire.r, 0xff8c19);
-    drawRing(rings.special, z.special.x, z.special.y, z.special.r, 0x7be3ff);
-    drawRing(rings.boost, z.boost.x, z.boost.y, z.boost.r, 0xffd34a);
-    drawRing(rings.eject, z.eject.x, z.eject.y, z.eject.r, 0xff4949);
     drawLever(touch.throttleValue());
     drawIcons();
     placeLabel(labels.throttle, z.throttle.x, z.throttle.yTop - 14);

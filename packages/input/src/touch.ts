@@ -50,13 +50,11 @@ export function resolveTouchZones(w: number, h: number): TouchZones {
   const sliderTop = Math.max(h * 0.14, base * 0.12);
   const sliderBottom = lowerY + fireR * 0.2;
 
-  // Combat cluster sits to the LEFT of the lever (fire dominant, bottom-inner).
-  // Keep a clear gap so a thumb on fire never spills into the lever's hit band.
-  const fireX = sliderX - sliderW * 0.5 - buttonR * 1.25 - fireR;
-  const colGapX = fireR + buttonR + Math.max(12, buttonR * 0.34);
-  const rowGapY = fireR + buttonR + Math.max(12, buttonR * 0.3);
-  const leftColX = fireX - colGapX;
-  const upperY = lowerY - rowGapY;
+  // Action buttons run along a diagonal, stepping up-and-left from the fire
+  // button (the thumb's natural rest spot), kept left of the throttle lever.
+  const fireX = sliderX - sliderW * 0.5 - buttonR * 1.1 - fireR;
+  const stepX = buttonR * 1.68;
+  const stepY = buttonR * 1.68;
 
   return {
     joystick: {
@@ -65,9 +63,9 @@ export function resolveTouchZones(w: number, h: number): TouchZones {
       r: stickR,
     },
     fire: { x: fireX, y: lowerY, r: fireR },
-    boost: { x: leftColX, y: lowerY, r: buttonR },
-    special: { x: fireX, y: upperY, r: buttonR },
-    eject: { x: leftColX, y: upperY, r: buttonR * 0.88 },
+    boost: { x: fireX - stepX, y: lowerY - stepY, r: buttonR },
+    special: { x: fireX - stepX * 2, y: lowerY - stepY * 2, r: buttonR },
+    eject: { x: fireX - stepX * 3, y: lowerY - stepY * 3, r: buttonR * 0.92 },
     throttle: { x: sliderX, yTop: sliderTop, yBottom: sliderBottom, w: sliderW },
   };
 }
