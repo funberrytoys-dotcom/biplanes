@@ -50,11 +50,13 @@ export function resolveTouchZones(w: number, h: number): TouchZones {
   const sliderTop = Math.max(h * 0.14, base * 0.12);
   const sliderBottom = lowerY + fireR * 0.2;
 
-  // Action buttons run along a diagonal, stepping up-and-left from the fire
-  // button (the thumb's natural rest spot), kept left of the throttle lever.
-  const fireX = sliderX - sliderW * 0.5 - buttonR * 1.1 - fireR;
-  const stepX = buttonR * 1.68;
-  const stepY = buttonR * 1.68;
+  // Action buttons form a 2x2 grid left of the throttle lever (two per row,
+  // stacked). Fire sits bottom-inner, nearest the thumb.
+  const fireX = sliderX - sliderW * 0.5 - buttonR * 1.25 - fireR;
+  const colGapX = fireR + buttonR + Math.max(12, buttonR * 0.34);
+  const rowGapY = fireR + buttonR + Math.max(12, buttonR * 0.3);
+  const leftColX = fireX - colGapX;
+  const upperY = lowerY - rowGapY;
 
   return {
     joystick: {
@@ -63,9 +65,9 @@ export function resolveTouchZones(w: number, h: number): TouchZones {
       r: stickR,
     },
     fire: { x: fireX, y: lowerY, r: fireR },
-    boost: { x: fireX - stepX, y: lowerY - stepY, r: buttonR },
-    special: { x: fireX - stepX * 2, y: lowerY - stepY * 2, r: buttonR },
-    eject: { x: fireX - stepX * 3, y: lowerY - stepY * 3, r: buttonR * 0.92 },
+    boost: { x: leftColX, y: lowerY, r: buttonR },
+    special: { x: fireX, y: upperY, r: buttonR },
+    eject: { x: leftColX, y: upperY, r: buttonR * 0.9 },
     throttle: { x: sliderX, yTop: sliderTop, yBottom: sliderBottom, w: sliderW },
   };
 }

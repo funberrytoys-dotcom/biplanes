@@ -337,10 +337,12 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
 
   function drawIcons() {
     const z = touch.zones;
-    placeIcon(icons.fire, z.fire, 1.7);
-    placeIcon(icons.special, z.special, 1.95);
-    placeIcon(icons.boost, z.boost, 2.0);
-    placeIcon(icons.eject, z.eject, 2.15);
+    // ~20% smaller than before, sized uniformly across the 2x2 grid
+    // (frac compensates for each button's differing hit radius).
+    placeIcon(icons.fire, z.fire, 1.36);
+    placeIcon(icons.special, z.special, 1.6);
+    placeIcon(icons.boost, z.boost, 1.6);
+    placeIcon(icons.eject, z.eject, 1.78);
     for (const sp of Object.values(icons)) sp.alpha = ICON_IDLE_ALPHA;
   }
 
