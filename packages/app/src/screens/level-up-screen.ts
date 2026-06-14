@@ -2,6 +2,7 @@ import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import type { UpgradeDef } from '@biplanes/core';
 import {
   categoryLabel,
+  rarityLabel,
   rarityForUpgrade,
   resolveLevelUpCardLayout,
   type UpgradeRarity,
@@ -12,9 +13,10 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
   c.visible = false;
   c.eventMode = 'static';
 
-  const dim = new Graphics().rect(0, 0, width, height).fill({ color: 0x08090d, alpha: 0.78 });
+  const dim = new Graphics().rect(0, 0, width, height).fill({ color: 0x08090d, alpha: 0.66 });
   const vignette = new Graphics();
-  c.addChild(dim, vignette);
+  const rays = new Graphics();
+  c.addChild(dim, vignette, rays);
 
   const titleStyle = new TextStyle({
     fontFamily: 'Georgia, serif',
@@ -30,14 +32,16 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
     fill: 0x9fb5c4,
     letterSpacing: 0,
   });
-  const title = new Text({ text: 'FIELD MODIFICATION', style: titleStyle });
-  const subtitle = new Text({ text: 'Choose one upgrade for the next sortie', style: subtitleStyle });
+  const title = new Text({ text: 'MODIFICATION BAY', style: titleStyle });
+  const subtitle = new Text({ text: 'Install one field module before the next wave', style: subtitleStyle });
   c.addChild(title, subtitle);
 
   interface CardHandle {
     container: Container;
     bg: Graphics;
+    shine: Graphics;
     badge: Graphics;
+    rarityText: Text;
     categoryText: Text;
     titleText: Text;
     descText: Text;
@@ -79,6 +83,14 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
     fontWeight: 'bold',
     letterSpacing: 0,
   });
+  const rarityStyle = new TextStyle({
+    fontFamily: 'monospace',
+    fontSize: 9,
+    fill: 0xffe7ad,
+    fontWeight: 'bold',
+    letterSpacing: 0,
+    stroke: { color: 0x120804, width: 2 },
+  });
   const pickStyle = new TextStyle({
     fontFamily: 'monospace',
     fontSize: 11,
@@ -88,21 +100,34 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
   });
 
   function drawCard(card: CardHandle, highlighted = false) {
-    const { bg, badge, width: cardW, height: cardH, rarity, pressed } = card;
-    const accent = rarity === 'ace' ? 0xffd55d : 0xb97536;
-    const edge = highlighted || pressed ? 0xffe1a4 : accent;
-    const fill = rarity === 'ace' ? 0x29170b : 0x162231;
+    const { bg, shine, badge, width: cardW, height: cardH, rarity, pressed } = card;
+    const accent = rarity === 'ace' ? 0xffd55d : 0x51c7ff;
+    const secondary = rarity === 'ace' ? 0xff7a3d : 0xb97536;
+    const edge = highlighted || pressed ? 0xfff0bd : accent;
+    const fill = rarity === 'ace' ? 0x2b1608 : 0x11283a;
 
     bg.clear();
     bg.roundRect(0, 0, cardW, cardH, 8)
       .fill({ color: fill, alpha: highlighted ? 0.98 : 0.94 })
-      .stroke({ color: 0x0a0d12, width: 5, alpha: 0.95 });
+      .stroke({ color: 0x05070a, width: 5, alpha: 0.98 });
+    bg.roundRect(4, 4, cardW - 8, cardH - 8, 6)
+      .fill({ color: rarity === 'ace' ? 0x442009 : 0x183449, alpha: 0.52 });
     bg.roundRect(5, 5, cardW - 10, cardH - 10)
       .stroke({ color: edge, width: highlighted || pressed ? 3 : 2, alpha: 0.92 });
-    bg.rect(12, 42, cardW - 24, 1).fill({ color: accent, alpha: 0.55 });
-    bg.rect(12, cardH - 42, cardW - 24, 1).fill({ color: 0x6f8792, alpha: 0.38 });
-    bg.circle(cardW - 22, 22, 4).fill({ color: accent, alpha: 0.85 });
-    bg.circle(22, cardH - 22, 3).fill({ color: 0x6f8792, alpha: 0.75 });
+    bg.rect(12, 43, cardW - 24, 1).fill({ color: accent, alpha: 0.62 });
+    bg.rect(12, cardH - 48, cardW - 24, 1).fill({ color: 0x6f8792, alpha: 0.42 });
+    bg.circle(cardW - 24, 22, 5).fill({ color: accent, alpha: 0.9 });
+    bg.circle(cardW - 24, 22, 11).stroke({ color: accent, width: 1.2, alpha: 0.45 });
+    bg.circle(22, cardH - 22, 3.4).fill({ color: secondary, alpha: 0.8 });
+    bg.circle(cardW - 22, cardH - 22, 3.4).fill({ color: secondary, alpha: 0.65 });
+
+    shine.clear()
+      .moveTo(8, 8)
+      .lineTo(cardW - 8, 8)
+      .lineTo(cardW - 34, 32)
+      .lineTo(32, 32)
+      .closePath()
+      .fill({ color: 0xffffff, alpha: highlighted || pressed ? 0.075 : 0.045 });
 
     badge.clear();
     badge.roundRect(0, 0, Math.min(92, cardW - 24), 22, 5)
@@ -116,18 +141,22 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
     btn.cursor = 'pointer';
 
     const bg = new Graphics();
+    const shine = new Graphics();
     const badge = new Graphics();
+    const rarityText = new Text({ text: '', style: rarityStyle });
     const categoryText = new Text({ text: '', style: labelStyle });
     const titleText = new Text({ text: '', style: cardTitleStyle });
     const descText = new Text({ text: '', style: cardDescStyle });
     const pickText = new Text({ text: 'TAP TO INSTALL', style: pickStyle });
 
-    btn.addChild(bg, badge, categoryText, titleText, descText, pickText);
+    btn.addChild(bg, shine, badge, categoryText, rarityText, titleText, descText, pickText);
 
     const card: CardHandle = {
       container: btn,
       bg,
+      shine,
       badge,
+      rarityText,
       categoryText,
       titleText,
       descText,
@@ -168,10 +197,20 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
   }
 
   function layout(w: number, h: number) {
-    dim.clear().rect(0, 0, w, h).fill({ color: 0x08090d, alpha: 0.78 });
+    dim.clear().rect(0, 0, w, h).fill({ color: 0x08090d, alpha: 0.66 });
     vignette.clear()
-      .rect(0, 0, w, h * 0.22).fill({ color: 0x000000, alpha: 0.3 })
-      .rect(0, h * 0.78, w, h * 0.22).fill({ color: 0x000000, alpha: 0.24 });
+      .rect(0, 0, w, h * 0.22).fill({ color: 0x000000, alpha: 0.34 })
+      .rect(0, h * 0.74, w, h * 0.26).fill({ color: 0x000000, alpha: 0.34 });
+    rays.clear();
+    for (let i = 0; i < 9; i++) {
+      const x = (i + 0.5) * (w / 9);
+      rays
+        .moveTo(x - 18, h)
+        .lineTo(x + 16, h)
+        .lineTo(w * 0.5 + (i - 4) * 24, h * 0.08)
+        .closePath()
+        .fill({ color: 0xffd87a, alpha: i % 2 === 0 ? 0.035 : 0.022 });
+    }
 
     const cardLayout = resolveLevelUpCardLayout(w, h, cards.length);
     title.style.fontSize = Math.max(20, Math.min(30, w * 0.03));
@@ -190,16 +229,19 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
       card.targetY = bounds.y;
       card.titleText.style.wordWrapWidth = bounds.width - 28;
       card.descText.style.wordWrapWidth = bounds.width - 28;
-      card.titleText.style.fontSize = bounds.width < 230 ? 16 : 19;
-      card.descText.style.fontSize = bounds.width < 230 ? 12 : 13;
+      card.titleText.style.fontSize = bounds.width < 230 ? 17 : 20;
+      card.descText.style.fontSize = bounds.width < 230 ? 13 : 14;
+      card.rarityText.style.fontSize = bounds.width < 230 ? 8 : 9;
       card.categoryText.x = 19;
       card.categoryText.y = 16;
       card.badge.x = 14;
       card.badge.y = 12;
+      card.rarityText.x = bounds.width - card.rarityText.width - 16;
+      card.rarityText.y = 16;
       card.titleText.x = 14;
-      card.titleText.y = 52;
+      card.titleText.y = 55;
       card.descText.x = 14;
-      card.descText.y = 100;
+      card.descText.y = 106;
       card.pickText.x = 14;
       card.pickText.y = bounds.height - 30;
       if (!c.visible) {
@@ -222,9 +264,11 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
           card.rarity = rarityForUpgrade(upgrade);
           card.pressed = false;
           card.categoryText.text = categoryLabel(upgrade.category);
+          card.rarityText.text = rarityLabel(card.rarity);
           card.titleText.text = upgrade.title;
           card.descText.text = upgrade.description;
-          card.pickText.text = card.rarity === 'ace' ? 'INSTALL ACE MOD' : 'TAP TO INSTALL';
+          card.pickText.text = card.rarity === 'ace' ? 'INSTALL EVOLUTION' : 'INSTALL MODULE';
+          card.rarityText.x = card.width - card.rarityText.width - 16;
           card.animTimer = -i * 0.12;
           card.container.x = card.targetX;
           card.container.y = card.targetY + 72;

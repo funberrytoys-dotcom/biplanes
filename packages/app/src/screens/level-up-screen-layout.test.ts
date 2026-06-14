@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   categoryLabel,
+  rarityLabel,
   rarityForUpgrade,
   resolveLevelUpCardLayout,
 } from './level-up-screen-layout.js';
@@ -14,8 +15,9 @@ describe('level-up screen layout', () => {
 
     expect(first.x - first.width / 2).toBeGreaterThanOrEqual(18);
     expect(last.x + last.width / 2).toBeLessThanOrEqual(932 - 18);
-    expect(first.height).toBeLessThanOrEqual(196);
-    expect(layout.titleY).toBeLessThan(56);
+    expect(first.height).toBeGreaterThanOrEqual(210);
+    expect(first.y + first.height / 2).toBeLessThanOrEqual(430 - 18);
+    expect(layout.titleY).toBeLessThan(32);
   });
 
   it('marks evolutions as rare ace modifications', () => {
@@ -28,6 +30,8 @@ describe('level-up screen layout', () => {
     };
 
     expect(rarityForUpgrade(upgrade)).toBe('ace');
+    expect(rarityLabel('ace')).toBe('ACE EVOLUTION');
+    expect(rarityLabel('standard')).toBe('FIELD MOD');
   });
 
   it('translates upgrade categories into short readable labels', () => {
