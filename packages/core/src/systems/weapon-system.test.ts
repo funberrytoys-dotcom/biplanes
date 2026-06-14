@@ -62,4 +62,14 @@ describe('weapon-system', () => {
     const stepped = stepBullets([b]);
     expect(stepped).toEqual([]);
   });
+
+  it('bullets bleed speed (drag) and arc downward (gravity)', () => {
+    // Horizontal shot: starts with vy≈0 and full horizontal speed.
+    const b = makeBulletFromPlane(makePlayer(), 999);
+    const [stepped] = stepBullets([b]);
+    // Gravity pulls it down → vy becomes positive.
+    expect(stepped!.velocity.y).toBeGreaterThan(b.velocity.y);
+    // Drag bleeds horizontal speed → vx shrinks.
+    expect(stepped!.velocity.x).toBeLessThan(b.velocity.x);
+  });
 });

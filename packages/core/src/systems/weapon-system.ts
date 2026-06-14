@@ -2,6 +2,8 @@ import {
   TICK_DT,
   BULLET_SPEED,
   BULLET_LIFETIME,
+  BULLET_DRAG,
+  BULLET_GRAVITY,
   MACHINE_GUN_COOLDOWN,
   MACHINE_GUN_DAMAGE,
   HEAVY_CANNON_COOLDOWN,
@@ -76,15 +78,20 @@ export function firePlayerWeapon(
 
 export function stepBullets(bullets: readonly Bullet[]): Bullet[] {
   const out: Bullet[] = [];
+  const drag = Math.max(0, 1 - BULLET_DRAG * TICK_DT);
   for (const b of bullets) {
     const newLifetime = b.lifetime - TICK_DT;
     if (newLifetime <= 0) continue;
+    // Semi-implicit Euler: bleed speed (drag), then arc down (gravity), then move.
+    const vx = b.velocity.x * drag;
+    const vy = b.velocity.y * drag + BULLET_GRAVITY * TICK_DT;
     out.push({
       ...b,
       position: {
-        x: b.position.x + b.velocity.x * TICK_DT,
-        y: b.position.y + b.velocity.y * TICK_DT,
+        x: b.position.x + vx * TICK_DT,
+        y: b.position.y + vy * TICK_DT,
       },
+      velocity: { x: vx, y: vy },
       lifetime: newLifetime,
     });
   }

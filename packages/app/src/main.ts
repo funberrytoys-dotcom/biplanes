@@ -356,19 +356,17 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
       .stroke({ color: 0xffffff, width: activeRing ? 2 : 1.4, alpha: activeRing ? 0.55 : 0.22 });
   }
 
-  function drawStick(base: Graphics, knob: Graphics, x: number, y: number, r: number) {
+  function drawStick(base: Graphics, x: number, y: number, r: number, mul: number) {
     base.clear()
       .circle(x, y, r)
-      .fill({ color: 0x1fb7ff, alpha: 0.08 })
-      .stroke({ color: 0x57ddff, width: 3, alpha: 0.52 })
+      .fill({ color: 0x1fb7ff, alpha: 0.08 * mul })
+      .stroke({ color: 0x57ddff, width: 3, alpha: 0.52 * mul })
       .circle(x, y, r * 0.72)
-      .stroke({ color: 0xffffff, width: 1.4, alpha: 0.18 })
+      .stroke({ color: 0xffffff, width: 1.4, alpha: 0.18 * mul })
       .moveTo(x, y - r * 0.62).lineTo(x, y + r * 0.62)
-      .stroke({ color: 0xffffff, width: 1, alpha: 0.18 });
-    knob.clear()
-      .circle(x, y, r * 0.32)
-      .fill({ color: 0xf6fbff, alpha: 0.2 })
-      .stroke({ color: 0xffffff, width: 2, alpha: 0.38 });
+      .stroke({ color: 0xffffff, width: 1, alpha: 0.18 * mul })
+      .moveTo(x - r * 0.62, y).lineTo(x + r * 0.62, y)
+      .stroke({ color: 0xffffff, width: 1, alpha: 0.12 * mul });
   }
 
   function drawLever(value: number) {
@@ -393,11 +391,23 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
   function updateStickKnob() {
     if (!touchLikely) return;
     const z = touch.zones.joystick;
-    const p = touch.joystickKnob();
-    rings.stickKnob.clear()
-      .circle(p.x, p.y, z.r * 0.32)
-      .fill({ color: 0xf6fbff, alpha: 0.24 })
-      .stroke({ color: 0xffffff, width: 2, alpha: 0.46 });
+    if (touch.joystickActive()) {
+      // Floating stick: base snaps to where the thumb landed, knob follows.
+      const o = touch.joystickOrigin();
+      const p = touch.joystickKnob();
+      drawStick(rings.stick, o.x, o.y, z.r, 1);
+      rings.stickKnob.clear()
+        .circle(p.x, p.y, z.r * 0.34)
+        .fill({ color: 0x9fe8ff, alpha: 0.4 })
+        .stroke({ color: 0xffffff, width: 2.5, alpha: 0.7 });
+    } else {
+      // Idle: a faint hint at the rest spot so the thumb knows where to land.
+      drawStick(rings.stick, z.x, z.y, z.r, 0.5);
+      rings.stickKnob.clear()
+        .circle(z.x, z.y, z.r * 0.3)
+        .fill({ color: 0xf6fbff, alpha: 0.12 })
+        .stroke({ color: 0xffffff, width: 2, alpha: 0.25 });
+    }
   }
 
   const ICON_IDLE_ALPHA = 0.66;
@@ -428,7 +438,7 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
     c.visible = active && touchLikely;
     if (!touchLikely) return;
     const z = touch.zones;
-    drawStick(rings.stick, rings.stickKnob, z.joystick.x, z.joystick.y, z.joystick.r);
+    updateStickKnob();
     drawLever(touch.throttleValue());
     drawIcons();
     placeLabel(labels.throttle, z.throttle.x, z.throttle.yTop - 14);

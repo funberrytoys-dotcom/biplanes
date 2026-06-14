@@ -7,7 +7,6 @@ type TouchPoint = { x: number; y: number };
 export type SliderZone = { x: number; yTop: number; yBottom: number; w: number };
 
 const JOYSTICK_DEADZONE_RATIO = 0.055;
-const JOYSTICK_CAPTURE_RATIO = 1.92;
 const DEFAULT_THROTTLE = 0.85;
 
 export interface TouchZones {
@@ -24,6 +23,10 @@ export interface TouchController {
   destroy(): void;
   // expose for render to draw the buttons
   zones: TouchZones;
+  /** True while a thumb is actively driving the floating stick. */
+  joystickActive(): boolean;
+  /** Dynamic centre of the floating stick (where the thumb landed). */
+  joystickOrigin(): TouchPoint;
   joystickKnob(): TouchPoint;
   /** 0..1 lever position, for the on-screen knob. */
   throttleValue(): number;
@@ -115,6 +118,9 @@ export function resolveThrottleValue(slider: SliderZone, y: number): number {
 
 export function createTouchController(canvas: HTMLElement): TouchController {
   const state = {
+    // Floating joystick: the thumb's first touch on the left defines the centre.
+    joystickId: null as number | null,
+    joystickOrigin: null as TouchPoint | null,
     joystickPoint: null as TouchPoint | null,
     fire: false,
     special: false,
@@ -124,21 +130,23 @@ export function createTouchController(canvas: HTMLElement): TouchController {
     throttleEngaged: false,
   };
   let zones: TouchZones = resolveTouchZones(0, 0);
+  let viewW = 0;
+  let viewH = 0;
+
+  // Virtual stick radius — small travel for a snappy, responsive feel.
+  function stickRadius() {
+    return Math.max(46, Math.min(86, Math.min(viewW, viewH) * 0.14));
+  }
 
   function updateZones(w: number, h: number) {
+    viewW = w;
+    viewH = h;
     Object.assign(zones, resolveTouchZones(w, h));
   }
 
   function inZone(px: number, py: number, z: RoundZone) {
     const dx = px - z.x; const dy = py - z.y;
     return dx * dx + dy * dy <= z.r * z.r;
-  }
-
-  function inJoystickCapture(px: number, py: number) {
-    return inZone(px, py, {
-      ...zones.joystick,
-      r: zones.joystick.r * JOYSTICK_CAPTURE_RATIO,
-    });
   }
 
   // Generous hit band around the lever so it's easy to grab with a thumb.
@@ -149,15 +157,42 @@ export function createTouchController(canvas: HTMLElement): TouchController {
     return Math.abs(px - s.x) <= halfW && py >= s.yTop - pad && py <= s.yBottom + pad;
   }
 
+  function onAnyButton(px: number, py: number) {
+    return inZone(px, py, zones.fire) || inZone(px, py, zones.special)
+      || inZone(px, py, zones.boost) || inZone(px, py, zones.eject) || inThrottle(px, py);
+  }
+
+  // The whole left side (minus the right-hand controls) is the stick's pad —
+  // the thumb can land anywhere and that becomes the centre.
+  function inStickRegion(px: number, py: number) {
+    return px < viewW * 0.5 && !onAnyButton(px, py);
+  }
+
   function handleTouches(touches: TouchList) {
-    state.joystickPoint = null;
     state.fire = state.special = state.boost = state.eject = false;
     const rect = canvas.getBoundingClientRect();
+
+    // 1) Is the active stick-touch still down? Update or release it.
+    let stickStillDown = false;
     for (let i = 0; i < touches.length; i++) {
       const t = touches[i]!;
+      if (t.identifier === state.joystickId) {
+        stickStillDown = true;
+        state.joystickPoint = { x: t.clientX - rect.left, y: t.clientY - rect.top };
+      }
+    }
+    if (state.joystickId !== null && !stickStillDown) {
+      state.joystickId = null;
+      state.joystickOrigin = null;
+      state.joystickPoint = null;
+    }
+
+    // 2) Process the rest: claim a new stick touch or light up buttons.
+    for (let i = 0; i < touches.length; i++) {
+      const t = touches[i]!;
+      if (t.identifier === state.joystickId) continue;
       const x = t.clientX - rect.left;
       const y = t.clientY - rect.top;
-      if (inJoystickCapture(x, y)) state.joystickPoint = { x, y };
       if (inZone(x, y, zones.fire)) state.fire = true;
       if (inZone(x, y, zones.special)) state.special = true;
       if (inZone(x, y, zones.boost)) state.boost = true;
@@ -165,6 +200,10 @@ export function createTouchController(canvas: HTMLElement): TouchController {
       if (inThrottle(x, y)) {
         state.throttleValue = resolveThrottleValue(zones.throttle, y);
         state.throttleEngaged = true;
+      } else if (state.joystickId === null && inStickRegion(x, y)) {
+        state.joystickId = t.identifier;
+        state.joystickOrigin = { x, y };
+        state.joystickPoint = { x, y };
       }
     }
   }
@@ -179,9 +218,16 @@ export function createTouchController(canvas: HTMLElement): TouchController {
   canvas.addEventListener('touchend', onTouch, { passive: false });
   canvas.addEventListener('touchcancel', onTouch, { passive: false });
 
+  function stickZone(): RoundZone {
+    const o = state.joystickOrigin ?? { x: zones.joystick.x, y: zones.joystick.y };
+    return { x: o.x, y: o.y, r: stickRadius() };
+  }
+
   return {
     current(): PlayerCommand {
-      const rotate = resolveJoystickRotate(zones.joystick, state.joystickPoint);
+      const rotate = state.joystickOrigin
+        ? resolveJoystickRotate(stickZone(), state.joystickPoint)
+        : 0;
       return {
         rotate,
         fire: state.fire,
@@ -201,8 +247,12 @@ export function createTouchController(canvas: HTMLElement): TouchController {
       canvas.removeEventListener('touchcancel', onTouch);
     },
     get zones() { return zones; },
+    joystickActive() { return state.joystickOrigin !== null; },
+    joystickOrigin() {
+      return state.joystickOrigin ?? { x: zones.joystick.x, y: zones.joystick.y };
+    },
     joystickKnob() {
-      return resolveJoystickKnob(zones.joystick, state.joystickPoint);
+      return resolveJoystickKnob(stickZone(), state.joystickPoint);
     },
     throttleValue() { return state.throttleValue; },
     setThrottleEngaged(engaged: boolean) { state.throttleEngaged = engaged; },
