@@ -3,8 +3,8 @@ import type { PlayerCommand } from '@biplanes/shared';
 type RoundZone = { x: number; y: number; r: number };
 type TouchPoint = { x: number; y: number };
 
-const JOYSTICK_DEADZONE_RATIO = 0.12;
-const JOYSTICK_CAPTURE_RATIO = 1.42;
+const JOYSTICK_DEADZONE_RATIO = 0.085;
+const JOYSTICK_CAPTURE_RATIO = 1.65;
 
 export interface TouchZones {
   joystick: RoundZone;
@@ -77,7 +77,7 @@ export function resolveJoystickKnob(
   const dx = point.x - joystick.x;
   const dy = point.y - joystick.y;
   const distance = Math.hypot(dx, dy);
-  const maxDistance = joystick.r * 0.62;
+  const maxDistance = joystick.r * 0.72;
   if (distance <= maxDistance || distance === 0) return point;
   const scale = maxDistance / distance;
   return { x: joystick.x + dx * scale, y: joystick.y + dy * scale };

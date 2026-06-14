@@ -57,9 +57,9 @@ describe('touch control layout', () => {
 
     expect(resolveJoystickRotate(joystick, null)).toBe(0);
     expect(resolveJoystickRotate(joystick, { x: joystick.x, y: joystick.y })).toBe(0);
-    expect(resolveJoystickRotate(joystick, { x: joystick.x - joystick.r * 0.1, y: joystick.y })).toBe(0);
-    expect(resolveJoystickRotate(joystick, { x: joystick.x - joystick.r * 0.16, y: joystick.y })).toBe(-1);
-    expect(resolveJoystickRotate(joystick, { x: joystick.x + joystick.r * 0.16, y: joystick.y })).toBe(1);
+    expect(resolveJoystickRotate(joystick, { x: joystick.x - joystick.r * 0.06, y: joystick.y })).toBe(0);
+    expect(resolveJoystickRotate(joystick, { x: joystick.x - joystick.r * 0.11, y: joystick.y })).toBe(-1);
+    expect(resolveJoystickRotate(joystick, { x: joystick.x + joystick.r * 0.11, y: joystick.y })).toBe(1);
   });
 
   it('reads vertical stick pulls as flight-stick pitch', () => {
@@ -76,6 +76,6 @@ describe('touch control layout', () => {
       y: joystick.y,
     });
 
-    expect(Math.hypot(knob.x - joystick.x, knob.y - joystick.y)).toBeLessThanOrEqual(joystick.r * 0.62);
+    expect(Math.hypot(knob.x - joystick.x, knob.y - joystick.y)).toBeLessThanOrEqual(joystick.r * 0.72);
   });
 });

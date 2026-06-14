@@ -312,13 +312,13 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
   let active = false;
   let touchLikely = false;
 
-  function drawRing(g: Graphics, x: number, y: number, r: number, color: number) {
+  function drawRing(g: Graphics, x: number, y: number, r: number, color: number, activeRing = false) {
     g.clear()
       .circle(x, y, r)
-      .fill({ color, alpha: 0.12 })
-      .stroke({ color, width: 2.5, alpha: 0.55 })
+      .fill({ color, alpha: activeRing ? 0.28 : 0.12 })
+      .stroke({ color, width: activeRing ? 4 : 2.5, alpha: activeRing ? 0.9 : 0.55 })
       .circle(x, y, r * 0.58)
-      .stroke({ color: 0xffffff, width: 1.4, alpha: 0.24 });
+      .stroke({ color: 0xffffff, width: activeRing ? 2 : 1.4, alpha: activeRing ? 0.52 : 0.24 });
   }
 
   function drawStick(base: Graphics, knob: Graphics, x: number, y: number, r: number) {
@@ -345,6 +345,17 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
       .circle(p.x, p.y, z.r * 0.32)
       .fill({ color: 0xf6fbff, alpha: 0.24 })
       .stroke({ color: 0xffffff, width: 2, alpha: 0.46 });
+  }
+
+  function updateButtonFeedback() {
+    if (!touchLikely) return;
+    const z = touch.zones;
+    const command = touch.current();
+    drawRing(rings.fire, z.fire.x, z.fire.y, z.fire.r, 0xff8c19, command.fire);
+    drawRing(rings.special, z.special.x, z.special.y, z.special.r, 0xffd34a, command.boost === true);
+    drawRing(rings.eject, z.eject.x, z.eject.y, z.eject.r, 0xff4949, command.eject);
+    drawRing(rings.throttleUp, z.throttleUp.x, z.throttleUp.y, z.throttleUp.r, 0x7cff8f, command.throttleDelta === 1);
+    drawRing(rings.throttleDown, z.throttleDown.x, z.throttleDown.y, z.throttleDown.r, 0x6aa4ff, command.throttleDelta === -1);
   }
 
   function placeLabel(label: Text, x: number, y: number) {
@@ -379,7 +390,15 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
     c.visible = active && touchLikely;
   }
 
-  return { container: c, layout, setActive, update: updateStickKnob };
+  return {
+    container: c,
+    layout,
+    setActive,
+    update() {
+      updateStickKnob();
+      updateButtonFeedback();
+    },
+  };
 }
 
 function makePlayer(): Plane {

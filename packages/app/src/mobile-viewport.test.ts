@@ -7,8 +7,16 @@ describe('mobile viewport', () => {
 
     expect(info.isPhoneLike).toBe(true);
     expect(info.isLandscape).toBe(true);
-    expect(info.combatZoom).toBeGreaterThanOrEqual(1.35);
+    expect(info.combatZoom).toBeGreaterThanOrEqual(1.47);
     expect(fitMobileZoom(1.22, info)).toBe(info.combatZoom);
+  });
+
+  it('pushes combat slightly closer on very short landscape phone screens', () => {
+    const proMax = getMobileViewportInfo(932, 430);
+    const compact = getMobileViewportInfo(910, 332);
+
+    expect(compact.combatZoom).toBeGreaterThan(proMax.combatZoom);
+    expect(compact.combatZoom).toBeLessThanOrEqual(1.58);
   });
 
   it('detects portrait phone view so the shell can block gameplay visually', () => {
