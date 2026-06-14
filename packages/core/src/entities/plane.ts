@@ -22,7 +22,8 @@ export interface Plane {
   hp: number;
   maxHp: number;
   weaponCooldown: number; // seconds until next shot allowed
-  bombCooldown?: number;  // seconds until next bomb allowed
+  bombCooldown?: number;  // seconds until next bomb allowed (legacy)
+  specialCooldown?: number; // seconds until next rocket salvo allowed
   alive: boolean;
 
   state: PlaneState;

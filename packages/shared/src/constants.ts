@@ -80,6 +80,17 @@ export const ROCKET_DAMAGE = 50;              // max damage at center
 export const ROCKET_COOLDOWN = 3.0;           // auto-fire interval in seconds
 export const ROCKET_LIFETIME = 4.0;           // rocket lifetime
 
+// === Special weapon: manual rocket salvo ("Залп") — baseline, air-to-air ===
+// Replaces the old gravity bomb. Fired on command.special with a cooldown.
+export const SALVO_COOLDOWN = 2.6;            // sec between salvos
+export const SALVO_BASE_COUNT = 3;            // rockets per salvo at baseline
+export const SALVO_SPREAD = 0.34;             // total fan spread in radians
+export const SALVO_ROCKET_SPEED = 620;        // launch speed (a touch faster than auto rockets)
+export const SALVO_ROCKET_LIFETIME = 3.2;     // lifetime per salvo rocket
+
+// === Field repair (repurposed XP-magnet upgrade) ===
+export const HP_REGEN_PER_SEC = 3.5;          // HP/sec passive regen when 'field_repair' active
+
 export const DRONE_COOLDOWN = 0.5;            // interval between drone shots
 export const DRONE_DAMAGE = 5;                // damage per drone bullet
 export const DRONE_RANGE = 400;               // range of drone shooting

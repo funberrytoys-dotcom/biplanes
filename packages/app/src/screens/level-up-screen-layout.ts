@@ -42,18 +42,18 @@ export function rarityForUpgrade(upgrade: UpgradeDef): UpgradeRarity {
 }
 
 export function rarityLabel(rarity: UpgradeRarity): string {
-  return rarity === 'ace' ? 'ACE EVOLUTION' : 'FIELD MOD';
+  return rarity === 'ace' ? 'ЭВОЛЮЦИЯ' : 'МОДУЛЬ';
 }
 
 export function categoryLabel(category: UpgradeDef['category']): string {
   switch (category) {
     case 'weapon':
-      return 'WEAPON';
+      return 'ОРУЖИЕ';
     case 'plane':
-      return 'AIRFRAME';
+      return 'КОРПУС';
     case 'passive':
-      return 'SYSTEM';
+      return 'СИСТЕМА';
     case 'companion':
-      return 'WINGMAN';
+      return 'ВЕДОМЫЙ';
   }
 }

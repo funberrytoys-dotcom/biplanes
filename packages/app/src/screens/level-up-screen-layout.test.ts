@@ -30,14 +30,14 @@ describe('level-up screen layout', () => {
     };
 
     expect(rarityForUpgrade(upgrade)).toBe('ace');
-    expect(rarityLabel('ace')).toBe('ACE EVOLUTION');
-    expect(rarityLabel('standard')).toBe('FIELD MOD');
+    expect(rarityLabel('ace')).toBe('ЭВОЛЮЦИЯ');
+    expect(rarityLabel('standard')).toBe('МОДУЛЬ');
   });
 
   it('translates upgrade categories into short readable labels', () => {
-    expect(categoryLabel('weapon')).toBe('WEAPON');
-    expect(categoryLabel('plane')).toBe('AIRFRAME');
-    expect(categoryLabel('passive')).toBe('SYSTEM');
-    expect(categoryLabel('companion')).toBe('WINGMAN');
+    expect(categoryLabel('weapon')).toBe('ОРУЖИЕ');
+    expect(categoryLabel('plane')).toBe('КОРПУС');
+    expect(categoryLabel('passive')).toBe('СИСТЕМА');
+    expect(categoryLabel('companion')).toBe('ВЕДОМЫЙ');
   });
 });

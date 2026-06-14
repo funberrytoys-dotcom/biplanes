@@ -226,17 +226,29 @@ describe('world tick', () => {
     expect(after.explosionEvents).toHaveLength(1);
   });
 
-  it('cluster bomb upgrade also enables dropping visible bombs', () => {
+  it('special weapon fires a baseline salvo of rockets', () => {
+    const player = makePlayer();
+    const s = createWorldState(42, player);
+
+    const after = tick(s, { rotate: 0, fire: false, bomb: false, special: true, throttleDelta: 0, eject: false, jump: false });
+
+    // Baseline salvo (no upgrades) = SALVO_BASE_COUNT rockets, all player-owned.
+    expect(after.rockets.length).toBe(3);
+    expect(after.rockets.every(r => r.ownerFaction === 'player')).toBe(true);
+    expect(after.bombs).toHaveLength(0);
+  });
+
+  it('rocket-pod upgrade adds rockets to the salvo', () => {
     const player = makePlayer();
     const s = {
       ...createWorldState(42, player),
-      appliedUpgradeIds: ['cluster_bomb'],
+      appliedUpgradeIds: ['heavy_bomb'],
     };
 
-    const after = tick(s, { rotate: 0, fire: false, bomb: true, throttleDelta: 0, eject: false, jump: false });
+    const after = tick(s, { rotate: 0, fire: false, bomb: false, special: true, throttleDelta: 0, eject: false, jump: false });
 
-    expect(after.bombs).toHaveLength(1);
-    expect(after.bombs[0]!.ownerFaction).toBe('player');
+    // Baseline 3 + 2 from the rocket-pod ("heavy_bomb") upgrade.
+    expect(after.rockets.length).toBe(5);
   });
 
   it('rockets steer toward closest enemy and explode', () => {

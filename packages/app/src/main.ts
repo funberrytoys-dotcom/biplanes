@@ -17,6 +17,7 @@ import {
   SLOW_MO_RECOVERY_SEC,
   HIT_PAUSE_FRAMES_RAM,
   HIT_PAUSE_FRAMES_RAM_KILL,
+  SALVO_COOLDOWN,
   type PlayerCommand,
 } from '@biplanes/shared';
 import {
@@ -48,6 +49,7 @@ import {
   DamageFx,
   MuzzleFlashes,
   BulletTracers,
+  FloatingNumbers,
   createScreenEffects,
   createLightning,
   createLensFlare,
@@ -286,39 +288,43 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
     stickKnob: new Graphics(),
     fire: new Graphics(),
     special: new Graphics(),
+    specialArc: new Graphics(),
+    boost: new Graphics(),
     eject: new Graphics(),
-    throttleUp: new Graphics(),
-    throttleDown: new Graphics(),
+    throttleTrack: new Graphics(),
+    throttleFill: new Graphics(),
+    throttleKnob: new Graphics(),
   };
   const labelStyle = new TextStyle({
     fontFamily: 'monospace',
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: 'bold',
     fill: 0xffffff,
     stroke: { color: 0x000000, width: 3 },
   });
   const labels = {
-    stick: new Text({ text: 'STICK', style: labelStyle }),
-    fire: new Text({ text: 'FIRE', style: labelStyle }),
-    special: new Text({ text: 'BOOST', style: labelStyle }),
-    eject: new Text({ text: 'EJECT', style: labelStyle }),
-    throttleUp: new Text({ text: 'GAS+', style: labelStyle }),
-    throttleDown: new Text({ text: 'GAS-', style: labelStyle }),
+    fire: new Text({ text: 'ОГОНЬ', style: labelStyle }),
+    special: new Text({ text: 'ЗАЛП', style: labelStyle }),
+    boost: new Text({ text: 'ФОРС', style: labelStyle }),
+    eject: new Text({ text: 'КАТ', style: labelStyle }),
+    throttle: new Text({ text: 'ГАЗ', style: labelStyle }),
   };
   c.addChild(
-    rings.stick, rings.stickKnob, rings.fire, rings.special, rings.eject, rings.throttleUp, rings.throttleDown,
-    labels.stick, labels.fire, labels.special, labels.eject, labels.throttleUp, labels.throttleDown
+    rings.throttleTrack, rings.throttleFill, rings.throttleKnob,
+    rings.stick, rings.stickKnob, rings.fire, rings.special, rings.specialArc, rings.boost, rings.eject,
+    labels.fire, labels.special, labels.boost, labels.eject, labels.throttle
   );
   let active = false;
   let touchLikely = false;
 
-  function drawRing(g: Graphics, x: number, y: number, r: number, color: number, activeRing = false) {
+  function drawRing(g: Graphics, x: number, y: number, r: number, color: number, activeRing = false, dim = false) {
+    const baseAlpha = dim ? 0.05 : 0.12;
     g.clear()
       .circle(x, y, r)
-      .fill({ color, alpha: activeRing ? 0.28 : 0.12 })
-      .stroke({ color, width: activeRing ? 4 : 2.5, alpha: activeRing ? 0.9 : 0.55 })
+      .fill({ color, alpha: activeRing ? 0.3 : baseAlpha })
+      .stroke({ color, width: activeRing ? 4 : 2.5, alpha: dim ? 0.28 : (activeRing ? 0.95 : 0.6) })
       .circle(x, y, r * 0.58)
-      .stroke({ color: 0xffffff, width: activeRing ? 2 : 1.4, alpha: activeRing ? 0.52 : 0.24 });
+      .stroke({ color: 0xffffff, width: activeRing ? 2 : 1.4, alpha: activeRing ? 0.55 : 0.22 });
   }
 
   function drawStick(base: Graphics, knob: Graphics, x: number, y: number, r: number) {
@@ -328,13 +334,31 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
       .stroke({ color: 0x57ddff, width: 3, alpha: 0.52 })
       .circle(x, y, r * 0.72)
       .stroke({ color: 0xffffff, width: 1.4, alpha: 0.18 })
-      .moveTo(x - r * 0.62, y)
-      .lineTo(x + r * 0.62, y)
+      .moveTo(x, y - r * 0.62).lineTo(x, y + r * 0.62)
       .stroke({ color: 0xffffff, width: 1, alpha: 0.18 });
     knob.clear()
       .circle(x, y, r * 0.32)
       .fill({ color: 0xf6fbff, alpha: 0.2 })
       .stroke({ color: 0xffffff, width: 2, alpha: 0.38 });
+  }
+
+  function drawLever(value: number) {
+    const s = touch.zones.throttle;
+    const left = s.x - s.w / 2;
+    const span = s.yBottom - s.yTop;
+    const fillTopY = s.yBottom - value * span;
+    const gasColor = value > 0.66 ? 0x7cff8f : value > 0.33 ? 0xffd34a : 0xff8c5a;
+    rings.throttleTrack.clear()
+      .roundRect(left, s.yTop, s.w, span, s.w / 2)
+      .fill({ color: 0x081523, alpha: 0.5 })
+      .stroke({ color: 0x57ddff, width: 2.5, alpha: 0.5 });
+    rings.throttleFill.clear()
+      .roundRect(left + 3, fillTopY, s.w - 6, s.yBottom - fillTopY, Math.max(2, (s.w - 6) / 2))
+      .fill({ color: gasColor, alpha: 0.42 });
+    rings.throttleKnob.clear()
+      .roundRect(s.x - s.w * 0.92, fillTopY - s.w * 0.46, s.w * 1.84, s.w * 0.92, s.w * 0.46)
+      .fill({ color: 0xf6fbff, alpha: 0.34 })
+      .stroke({ color: 0xffffff, width: 2, alpha: 0.62 });
   }
 
   function updateStickKnob() {
@@ -347,15 +371,26 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
       .stroke({ color: 0xffffff, width: 2, alpha: 0.46 });
   }
 
-  function updateButtonFeedback() {
+  function updateButtonFeedback(specialCdRatio: number) {
     if (!touchLikely) return;
     const z = touch.zones;
     const command = touch.current();
+    const ready = specialCdRatio <= 0.001;
     drawRing(rings.fire, z.fire.x, z.fire.y, z.fire.r, 0xff8c19, command.fire);
-    drawRing(rings.special, z.special.x, z.special.y, z.special.r, 0xffd34a, command.boost === true);
+    drawRing(rings.special, z.special.x, z.special.y, z.special.r, ready ? 0x7be3ff : 0x3d5d70, command.special === true, !ready);
+    drawRing(rings.boost, z.boost.x, z.boost.y, z.boost.r, 0xffd34a, command.boost === true);
     drawRing(rings.eject, z.eject.x, z.eject.y, z.eject.r, 0xff4949, command.eject);
-    drawRing(rings.throttleUp, z.throttleUp.x, z.throttleUp.y, z.throttleUp.r, 0x7cff8f, command.throttleDelta === 1);
-    drawRing(rings.throttleDown, z.throttleDown.x, z.throttleDown.y, z.throttleDown.r, 0x6aa4ff, command.throttleDelta === -1);
+    // Cooldown sweep on the salvo button: a depleting arc that fills back to ready.
+    rings.specialArc.clear();
+    if (!ready) {
+      const sweep = (1 - specialCdRatio) * Math.PI * 2;
+      rings.specialArc
+        .moveTo(z.special.x, z.special.y)
+        .arc(z.special.x, z.special.y, z.special.r * 0.82, -Math.PI / 2, -Math.PI / 2 + sweep)
+        .lineTo(z.special.x, z.special.y)
+        .fill({ color: 0x7be3ff, alpha: 0.22 });
+    }
+    drawLever(touch.throttleValue());
   }
 
   function placeLabel(label: Text, x: number, y: number) {
@@ -373,16 +408,15 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
     const z = touch.zones;
     drawStick(rings.stick, rings.stickKnob, z.joystick.x, z.joystick.y, z.joystick.r);
     drawRing(rings.fire, z.fire.x, z.fire.y, z.fire.r, 0xff8c19);
-    drawRing(rings.special, z.special.x, z.special.y, z.special.r, 0xffd34a);
+    drawRing(rings.special, z.special.x, z.special.y, z.special.r, 0x7be3ff);
+    drawRing(rings.boost, z.boost.x, z.boost.y, z.boost.r, 0xffd34a);
     drawRing(rings.eject, z.eject.x, z.eject.y, z.eject.r, 0xff4949);
-    drawRing(rings.throttleUp, z.throttleUp.x, z.throttleUp.y, z.throttleUp.r, 0x7cff8f);
-    drawRing(rings.throttleDown, z.throttleDown.x, z.throttleDown.y, z.throttleDown.r, 0x6aa4ff);
-    placeLabel(labels.stick, z.joystick.x, z.joystick.y + z.joystick.r * 0.52);
+    drawLever(touch.throttleValue());
     placeLabel(labels.fire, z.fire.x, z.fire.y);
     placeLabel(labels.special, z.special.x, z.special.y);
+    placeLabel(labels.boost, z.boost.x, z.boost.y);
     placeLabel(labels.eject, z.eject.x, z.eject.y);
-    placeLabel(labels.throttleUp, z.throttleUp.x, z.throttleUp.y);
-    placeLabel(labels.throttleDown, z.throttleDown.x, z.throttleDown.y);
+    placeLabel(labels.throttle, z.throttle.x, z.throttle.yTop - 14);
   }
 
   function setActive(nextActive: boolean) {
@@ -394,9 +428,10 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
     container: c,
     layout,
     setActive,
-    update() {
+    isTouchLikely() { return touchLikely; },
+    update(specialCdRatio: number = 0) {
       updateStickKnob();
-      updateButtonFeedback();
+      updateButtonFeedback(specialCdRatio);
     },
   };
 }
@@ -833,6 +868,7 @@ export async function startGame(container: HTMLElement) {
   const damageFx = new DamageFx(fxLayer, glowLayer.container);
   const muzzleFlashes = new MuzzleFlashes(glowLayer.container);
   const tracers = new BulletTracers(glowLayer.container);
+  const floatingNumbers = new FloatingNumbers(fxLayer);
 
   let prevBulletIds = new Set<number>();
   const playerSprite = createPlaneSprite('player');
@@ -1344,8 +1380,9 @@ export async function startGame(container: HTMLElement) {
       } else {
         arenaVictoryFlightSec = 0;
       }
-      audio.playUpgradeOpen();
+      audio.playWaveClear();
       screenFx.flash(0xb8f0ff, 0.18, 0.16);
+      camera.zoomPunch(1.03, 0.3);
       showArenaToast('ВОЛНА ЗАЧИЩЕНА', 'Трофеи и доработка через 3 секунды', 2.2);
     }
 
@@ -1415,7 +1452,10 @@ export async function startGame(container: HTMLElement) {
       rotate: (k.rotate || t.rotate) as -1 | 0 | 1,
       fire: k.fire || t.fire,
       bomb: k.bomb || t.bomb,
+      special: k.special === true || t.special === true || k.bomb === true,
       boost: k.boost || t.boost,
+      // The on-screen lever (touch) sets throttle absolutely; keyboard keeps the +/- delta.
+      throttleTarget: t.throttleTarget != null ? t.throttleTarget : null,
       throttleDelta: (k.throttleDelta || t.throttleDelta) as -1 | 0 | 1,
       eject: k.eject || t.eject,
       jump: k.jump || t.jump,
@@ -1782,6 +1822,9 @@ export async function startGame(container: HTMLElement) {
   let prevTickCount = state.tickCount;
   let prevPlayerHp = state.player.hp;
   let prevExplosionEventCount = state.explosionEvents.length;
+  let prevBoostActive = false;
+  let prevSpecialCooldown = 0;
+  const enemyHpForFx = new Map<number, number>();
   let gunfeelLabShotWasActive = false;
   let flightLabWasStalling = false;
   let flightLabRecoveredFromStall = false;
@@ -1880,7 +1923,9 @@ export async function startGame(container: HTMLElement) {
       }
     }
     touchGuide.setActive(runMode !== 'skytest' && runMode !== 'gunfeelLab' && runMode !== 'oilshot' && gameRunning && !choicesShowing && !state.gameOver);
-    touchGuide.update();
+    // On real touch devices the lever owns the throttle; desktop keeps keyboard W/S.
+    touch.setThrottleEngaged(navigator.maxTouchPoints > 0);
+    touchGuide.update(Math.max(0, Math.min(1, (state.player.specialCooldown ?? 0) / SALVO_COOLDOWN)));
     publishDebugState();
 
     if (!gameRunning) {
@@ -2226,6 +2271,43 @@ export async function startGame(container: HTMLElement) {
           hud.showRamNotice();
         }
       }
+
+      // Floating damage numbers — spawn when an enemy's HP drops between ticks.
+      // Threshold avoids spam from continuous sources (flame trail ~0.8/frame).
+      for (const e of state.enemies) {
+        const prevHp = enemyHpForFx.get(e.id);
+        if (prevHp !== undefined && e.alive && e.state === 'flying') {
+          const dmg = prevHp - e.hp;
+          if (dmg >= 4) {
+            floatingNumbers.spawn(
+              e.kinematic.position.x + (Math.random() - 0.5) * 18,
+              e.kinematic.position.y - 26,
+              dmg,
+              true,
+            );
+          }
+        }
+        enemyHpForFx.set(e.id, e.hp);
+      }
+      for (const id of [...enemyHpForFx.keys()]) {
+        if (!state.enemies.some(e => e.id === id)) enemyHpForFx.delete(id);
+      }
+
+      // Salvo launch VFX — specialCooldown jumps from ~0 back to full when fired.
+      const specialCd = state.player.specialCooldown ?? 0;
+      if (specialCd > prevSpecialCooldown + 0.5 && state.player.alive) {
+        const h = state.player.kinematic.heading;
+        const nx = state.player.kinematic.position.x + Math.cos(h) * 30;
+        const ny = state.player.kinematic.position.y + Math.sin(h) * 30;
+        muzzleFlashes.spawn(nx, ny, h, { scale: 1.7, duration: 0.16 });
+        damageFx.addSmokeTrail({ x: nx, y: ny }, 10);
+        audio.playSalvo();
+        camera.shake(runMode === 'arena' ? 2.5 : 5);
+        camera.punch(-Math.cos(h) * 7, -Math.sin(h) * 7, 7);
+        screenFx.flash(0xbfe9ff, 0.07, 0.14);
+      }
+      prevSpecialCooldown = specialCd;
+
       prevTickCount = state.tickCount;
     }
 
@@ -2284,10 +2366,19 @@ export async function startGame(container: HTMLElement) {
     }
 
     if (state.playerScore > prevPlayerScore) {
+      // Kill confirmation — a brief lens kick on top of the explosion already firing.
       screenFx.flash(0xffffff, 0.25, 0.12);
+      camera.zoomPunch(1.02, 0.16);
     }
     if (state.level > prevLevel) {
-      screenFx.flash(0xffc24a, 0.4, 0.22);
+      // Level-up should feel like a power surge: gold flash + zoom + spark burst + chime.
+      screenFx.flash(0xffd86a, 0.5, 0.32);
+      camera.zoomPunch(1.05, 0.4);
+      camera.shake(4);
+      const lp = state.player.kinematic.position;
+      damageFx.addSparks({ x: lp.x, y: lp.y }, 26);
+      damageFx.addShockwave({ x: lp.x, y: lp.y });
+      audio.playLevelUp();
     }
     const playerPilotActive = findPilot(state.pilots, 'player') !== undefined;
     if (prevPlayerAlive && !state.player.alive && !playerPilotActive) {
@@ -2350,6 +2441,28 @@ export async function startGame(container: HTMLElement) {
       }
     }
     prevBulletIds = seenBulletIds;
+
+    // === Boost feel ===
+    // Boost used to be invisible. Now: a kick on activation + a continuous afterburner
+    // plume off the tail + a faint speed-line wash while held.
+    const boosting = state.player.boostActive === true && state.player.alive && state.player.state === 'flying';
+    if (boosting && !prevBoostActive) {
+      camera.zoomPunch(1.06, 0.34);
+      camera.shake(3);
+      screenFx.flash(0x9fe6ff, 0.1, 0.18);
+      audio.playBoostKick();
+    }
+    if (boosting) {
+      const h = state.player.kinematic.heading;
+      const pos = state.player.kinematic.position;
+      const tail = { x: pos.x - Math.cos(h) * 26, y: pos.y - Math.sin(h) * 26 };
+      damageFx.addFireTrail(tail, 2);
+      damageFx.addEngineExhaust(tail, 1);
+      if (Math.random() < 0.6) damageFx.addWindStreak(pos, h);
+    }
+    prevBoostActive = boosting;
+
+    floatingNumbers.update(dt);
 
     playerSprite.update(state.player, dt, damageFx, clock, camera, undefined, groundFx, { screenFx });
 

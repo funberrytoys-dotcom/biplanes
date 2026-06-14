@@ -33,7 +33,9 @@ const SOUND_URLS: Record<SoundKey, string> = {
 };
 
 const ENGINE_LOOP_ENABLED = true;
-const AUDIO_WARNING_BEEPS_ENABLED = false;
+// Synth beeps now (clean oscillator tones, not the old voice clip), so warnings
+// are useful instead of grating.
+const AUDIO_WARNING_BEEPS_ENABLED = true;
 
 interface LoopLayer {
   key: SoundKey;
@@ -58,6 +60,10 @@ export interface GameAudioHandle {
   playThunder(): void;
   playVictory(): void;
   playDefeat(): void;
+  playSalvo(): void;
+  playBoostKick(): void;
+  playLevelUp(): void;
+  playWaveClear(): void;
   destroy(): void;
 }
 
@@ -179,6 +185,34 @@ export function createGameAudio(): GameAudioHandle {
     src.start();
   }
 
+  // Synthesized tone (oscillator + AD envelope). Used for crisp UI/feedback cues
+  // and warning beeps so we don't depend on harsh sampled clips.
+  function synthTone(
+    freq: number,
+    duration: number,
+    peak: number,
+    type: OscillatorType = 'sine',
+    glideTo?: number,
+    delay = 0,
+  ) {
+    resume();
+    const audioCtx = ensureContext();
+    if (!audioCtx || !master) return;
+    const start = audioCtx.currentTime + delay;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, start);
+    if (glideTo) osc.frequency.exponentialRampToValueAtTime(Math.max(20, glideTo), start + duration);
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(Math.max(0.0002, peak), start + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+    osc.connect(gain);
+    gain.connect(master);
+    osc.start(start);
+    osc.stop(start + duration + 0.03);
+  }
+
   const unlock = () => {
     resume();
     primeSilentTap();
@@ -230,8 +264,16 @@ export function createGameAudio(): GameAudioHandle {
         warningTimer -= dt;
         if (mix.warning !== lastWarning) warningTimer = 0;
         if (warningTimer <= 0) {
-          playBuffer('warning', mix.warning === 'overheat' ? 0.3 : 0.22, mix.warning === 'stall' ? 0.86 : 1);
-          warningTimer = mix.warning === 'stall' ? 0.52 : 0.7;
+          if (mix.warning === 'stall') {
+            synthTone(330, 0.16, 0.12, 'triangle');
+            warningTimer = 0.5;
+          } else if (mix.warning === 'overheat') {
+            synthTone(760, 0.1, 0.1, 'square');
+            warningTimer = 0.62;
+          } else {
+            synthTone(520, 0.1, 0.09, 'square');
+            warningTimer = 0.7;
+          }
         }
       } else {
         warningTimer = 0;
@@ -273,6 +315,28 @@ export function createGameAudio(): GameAudioHandle {
     },
     playDefeat() {
       playBuffer('defeat', 0.58, 1);
+    },
+    playSalvo() {
+      // Rocket whoosh: a quick descending tone + a softened heavy-gun thump.
+      synthTone(440, 0.22, 0.16, 'sawtooth', 150);
+      playBuffer('heavyGun', 0.34, 0.72 + Math.random() * 0.06);
+    },
+    playBoostKick() {
+      // Afterburner light-up: rising sweep + a touch of the boost sample.
+      synthTone(170, 0.34, 0.16, 'sawtooth', 540);
+      playBuffer('boost', 0.3, 1.2);
+    },
+    playLevelUp() {
+      // Ascending major triad chime — reads as a reward.
+      synthTone(523, 0.16, 0.14, 'triangle', undefined, 0);
+      synthTone(659, 0.16, 0.14, 'triangle', undefined, 0.08);
+      synthTone(784, 0.3, 0.16, 'triangle', undefined, 0.16);
+    },
+    playWaveClear() {
+      // Two-note rising fanfare to punctuate a cleared wave.
+      synthTone(392, 0.14, 0.13, 'triangle', undefined, 0);
+      synthTone(523, 0.26, 0.15, 'triangle', undefined, 0.12);
+      playBuffer('upgradePick', 0.28, 1.0);
     },
     destroy() {
       disposed = true;

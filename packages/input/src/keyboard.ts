@@ -34,6 +34,8 @@ export function createKeyboardController(): KeyboardController {
         fire: keys.has('Space'),
         jump: keys.has('Space'),
         bomb: keys.has('KeyB'),
+        // Special weapon (rocket salvo): Q or B.
+        special: keys.has('KeyQ') || keys.has('KeyB'),
         boost: keys.has('ShiftLeft') || keys.has('ShiftRight'),
         throttleDelta,
         eject: keys.has('KeyE'),

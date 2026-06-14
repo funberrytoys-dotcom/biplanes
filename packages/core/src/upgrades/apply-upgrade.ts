@@ -1,3 +1,4 @@
+import { HP_REGEN_PER_SEC } from '@biplanes/shared';
 import type { WorldState } from '../world/world-state.js';
 import type { UpgradeId } from './upgrade-pool.js';
 
@@ -14,6 +15,7 @@ export function applyUpgrade(state: WorldState, id: UpgradeId): WorldState {
   let hasHeavyCannon = state.hasHeavyCannon;
   let player = state.player;
   let xpMagnetRange = state.xpMagnetRange;
+  let hpRegenPerSec = state.hpRegenPerSec;
 
   switch (id) {
     case 'damage_plus_25': damageMultiplier *= 1.25; break;
@@ -30,7 +32,10 @@ export function applyUpgrade(state: WorldState, id: UpgradeId): WorldState {
       player = { ...player, maxHp: newMax, hp: newMax };
       break;
     }
-    case 'magnet_range_plus': xpMagnetRange = xpMagnetRange * 1.5; break;
+    case 'magnet_range_plus':
+      // Repurposed: "Полевой ремонт" — passive HP regen (the old XP-magnet was a dead no-op).
+      hpRegenPerSec += HP_REGEN_PER_SEC;
+      break;
     case 'drone_wingman': hasDrone = true; break;
     case 'piercing_bullets': /* handled dynamically in collision-system */ break;
     case 'heavy_bomb': /* handled in tick drop logic */ break;
@@ -72,7 +77,7 @@ export function applyUpgrade(state: WorldState, id: UpgradeId): WorldState {
       break;
     case 'chico_wing':
       hasDrone = true;
-      xpMagnetRange = xpMagnetRange * 1.6;
+      hpRegenPerSec += HP_REGEN_PER_SEC * 1.6;
       break;
     case 'redline_engine':
       boostHeatMultiplier *= 0.82;
@@ -95,6 +100,7 @@ export function applyUpgrade(state: WorldState, id: UpgradeId): WorldState {
     hasFlameTrail,
     hasHeavyCannon,
     xpMagnetRange,
+    hpRegenPerSec,
     appliedUpgradeIds: [...state.appliedUpgradeIds, id],
     pendingLevelUp: false,
   };

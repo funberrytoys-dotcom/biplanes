@@ -18,8 +18,6 @@ import {
   PLAYER_SCORE_TO_WIN,
   LEVEL_UP_THRESHOLDS,
   BOMB_GRAVITY,
-  BOMB_COOLDOWN,
-  BOMB_LIFETIME,
   BOMB_EXPLOSION_RADIUS,
   BOMB_DAMAGE,
   ROCKET_SPEED,
@@ -28,6 +26,12 @@ import {
   ROCKET_LIFETIME,
   ROCKET_EXPLOSION_RADIUS,
   ROCKET_DAMAGE,
+  SALVO_COOLDOWN,
+  SALVO_BASE_COUNT,
+  SALVO_SPREAD,
+  SALVO_ROCKET_SPEED,
+  SALVO_ROCKET_LIFETIME,
+  HP_REGEN_PER_SEC,
   DRONE_COOLDOWN,
   DRONE_DAMAGE,
   DRONE_RANGE,
@@ -74,16 +78,24 @@ function targetEnemyCount(_difficulty: WorldState['difficulty'], _timeSec: numbe
   return arenaTargetEnemyCount(playerScore);
 }
 
-function hasBombWeapon(appliedUpgradeIds: readonly string[]): boolean {
-  return appliedUpgradeIds.includes('heavy_bomb')
-    || appliedUpgradeIds.includes('cluster_bomb')
-    || appliedUpgradeIds.includes('fire_screen');
-}
-
 function bombExplosionRadius(appliedUpgradeIds: readonly string[]): number {
   return appliedUpgradeIds.includes('cluster_bomb') || appliedUpgradeIds.includes('fire_screen')
     ? BOMB_EXPLOSION_RADIUS * 1.45
     : BOMB_EXPLOSION_RADIUS;
+}
+
+/** Number of rockets in a manual salvo — buffed by the (repurposed) rocket-pod upgrades. */
+function salvoRocketCount(appliedUpgradeIds: readonly string[]): number {
+  let n = SALVO_BASE_COUNT;
+  if (appliedUpgradeIds.includes('heavy_bomb')) n += 2;   // "Ракетный блок"
+  if (appliedUpgradeIds.includes('fire_screen')) n += 2;  // evolution
+  return n;
+}
+
+/** Per-rocket explosion damage for a salvo — buffed by the (repurposed) warhead upgrades. */
+function salvoRocketDamage(appliedUpgradeIds: readonly string[], damageMultiplier: number): number {
+  const heavy = appliedUpgradeIds.includes('cluster_bomb') || appliedUpgradeIds.includes('fire_screen');
+  return (heavy ? ROCKET_DAMAGE * 1.5 : ROCKET_DAMAGE) * damageMultiplier;
 }
 
 /** Reset a plane's kinematic state back to its faction's runway, taxiing. */
@@ -385,11 +397,15 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     let playerThrottleLevel = state.player.kinematic.throttleLevel;
     if (
       (state.player.state === 'flying' || state.player.state === 'taxi')
-      && playerCommand.throttleDelta !== 0
     ) {
-      playerThrottleLevel = Math.max(0, Math.min(1,
-        playerThrottleLevel + playerCommand.throttleDelta * THROTTLE_CHANGE_RATE * TICK_DT
-      ));
+      if (playerCommand.throttleTarget != null) {
+        // Absolute set from a slider/lever — 1:1 with the finger.
+        playerThrottleLevel = Math.max(0, Math.min(1, playerCommand.throttleTarget));
+      } else if (playerCommand.throttleDelta !== 0) {
+        playerThrottleLevel = Math.max(0, Math.min(1,
+          playerThrottleLevel + playerCommand.throttleDelta * THROTTLE_CHANGE_RATE * TICK_DT
+        ));
+      }
     }
     const playerWithThrottle: Plane = {
       ...state.player,
@@ -637,29 +653,50 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
   // Add any newly-ejected enemy pilots to the list.
   pilots = [...pilots, ...ejectedThisTick];
 
-  // === Player Bomb Dropping ===
-  let bombCooldown = player.bombCooldown ?? 0;
+  // === Player Special Weapon: manual rocket salvo ("Залп") ===
+  // Replaces the old gravity bomb. Always available; the (repurposed) rocket-pod
+  // and warhead upgrades buff salvo count and per-rocket blast. Fired on
+  // command.special with a cooldown. Rockets are homing (handled in stepping).
+  let specialCooldown = player.specialCooldown ?? 0;
   const currentBombs = [...state.bombs];
-  if (!playerPilotActive && player.state === 'flying' && player.alive && hasBombWeapon(state.appliedUpgradeIds)) {
-    bombCooldown = Math.max(0, bombCooldown - TICK_DT);
-    if (playerCommand.bomb && bombCooldown <= 0) {
-      const newBomb: Bomb = {
-        id: nextEntityId,
-        ownerId: player.id,
-        ownerFaction: 'player',
-        position: { ...player.kinematic.position },
-        velocity: { ...player.kinematic.velocity },
-        lifetime: BOMB_LIFETIME,
-        alive: true,
-      };
-      currentBombs.push(newBomb);
-      nextEntityId++;
-      bombCooldown = BOMB_COOLDOWN;
+  const salvoRockets: Rocket[] = [];
+  const wantSalvo = playerCommand.special === true || playerCommand.bomb === true;
+  if (!playerPilotActive && player.state === 'flying' && player.alive) {
+    specialCooldown = Math.max(0, specialCooldown - TICK_DT);
+    if (wantSalvo && specialCooldown <= 0) {
+      const count = salvoRocketCount(state.appliedUpgradeIds);
+      const dmg = salvoRocketDamage(state.appliedUpgradeIds, state.damageMultiplier);
+      const baseHeading = player.kinematic.heading;
+      for (let i = 0; i < count; i++) {
+        const t = count > 1 ? (i / (count - 1) - 0.5) : 0; // -0.5..0.5
+        const heading = baseHeading + t * SALVO_SPREAD;
+        salvoRockets.push({
+          id: nextEntityId,
+          ownerId: player.id,
+          ownerFaction: 'player',
+          position: { ...player.kinematic.position },
+          velocity: {
+            x: Math.cos(heading) * SALVO_ROCKET_SPEED,
+            y: Math.sin(heading) * SALVO_ROCKET_SPEED,
+          },
+          heading,
+          lifetime: SALVO_ROCKET_LIFETIME,
+          alive: true,
+          damage: dmg,
+        });
+        nextEntityId++;
+      }
+      specialCooldown = SALVO_COOLDOWN;
     }
   } else {
-    bombCooldown = Math.max(0, bombCooldown - TICK_DT);
+    specialCooldown = Math.max(0, specialCooldown - TICK_DT);
   }
-  player = { ...player, bombCooldown };
+  player = { ...player, specialCooldown };
+
+  // === Field repair: passive HP regen (repurposed magnet upgrade) ===
+  if (state.hpRegenPerSec > 0 && !playerPilotActive && player.alive && player.state === 'flying' && player.hp < player.maxHp) {
+    player = { ...player, hp: Math.min(player.maxHp, player.hp + state.hpRegenPerSec * TICK_DT) };
+  }
 
   // === Player Companion Drone Firing ===
   let droneTimer = state.droneTimer;
@@ -890,7 +927,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
       const explodeRes = applyExplosionDamage(
         nextPos,
         ROCKET_EXPLOSION_RADIUS,
-        ROCKET_DAMAGE,
+        r.damage || ROCKET_DAMAGE,
         r.ownerFaction,
         player,
         enemies,
@@ -911,6 +948,11 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
         lifetime: nextLifetime,
       });
     }
+  }
+
+  // 2b. Inject this tick's manual salvo rockets (fired in the special-weapon block).
+  for (const sr of salvoRockets) {
+    activeRockets.push(sr);
   }
 
   // 3. Player homing rocket auto-firing

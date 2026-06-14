@@ -552,13 +552,11 @@ export function createHud(width: number, height: number) {
       const enemyAlive = s.enemies.filter(e => e.state !== 'crashed').length;
       const h = s.player.kinematic.heading;
       const inverted = s.player.state === 'flying' && Math.abs(h) > Math.PI / 2 + 0.4 && Math.abs(h) < Math.PI - 0.4;
-      const hasBomb = s.appliedUpgradeIds.includes('heavy_bomb')
-        || s.appliedUpgradeIds.includes('cluster_bomb')
-        || s.appliedUpgradeIds.includes('fire_screen');
+      const salvoReady = (s.player.specialCooldown ?? 0) <= 0.001;
       const weaponTags = [
         'MG',
         s.hasHeavyCannon ? 'CANNON' : null,
-        hasBomb ? `BOMB${(s.player.bombCooldown ?? 0) > 0 ? ' RELOAD' : ' READY'}` : null,
+        `SALVO ${salvoReady ? 'READY' : 'RLD'}`,
         s.hasHomingRockets ? 'ROCKETS' : null,
         s.hasDrone ? 'WINGMAN' : null,
       ].filter(Boolean).join('  |  ');
@@ -621,36 +619,36 @@ export function createHud(width: number, height: number) {
       if (playerPilot) {
         overlay.style.fontSize = 36;
         if (playerPilot.state === 'parachute') {
-          overlay.text = 'EJECTED - STEER LEFT/RIGHT';
+          overlay.text = 'КАТАПУЛЬТА — РУЛИ ВЛЕВО/ВПРАВО';
           if (!showCaravanArrow) arrow.visible = false;
         } else if (playerPilot.state === 'walking' || playerPilot.state === 'safe') {
-          overlay.text = 'RUN TO HANGAR - SPACE TO JUMP';
+          overlay.text = 'БЕГИ К АНГАРУ — ПРЫЖОК НА SPACE';
           const dir: 1 | -1 = playerPilot.position.x > PLAYER_HANGAR_X ? -1 : 1;
           drawArrow(dir, width, height);
         } else if (playerPilot.state === 'dead') {
           const remaining = Math.max(0, 5.0 - s.pilotEjectTimeSec);
-          overlay.text = `PILOT DOWN\nrespawn in ${remaining.toFixed(1)}`;
+          overlay.text = `ПИЛОТ ВЫБЫЛ\nвозврат через ${remaining.toFixed(1)}`;
           if (!showCaravanArrow) arrow.visible = false;
         }
         overlay.visible = true;
         centerOverlay(width, height);
       } else if (s.player.state === 'crashed') {
-        overlay.text = `CRASHED\nrespawn in ${Math.max(0, s.player.respawnTimer).toFixed(1)}`;
+        overlay.text = `СБИТ\nвозврат через ${Math.max(0, s.player.respawnTimer).toFixed(1)}`;
         overlay.style.fontSize = 42;
         overlay.visible = true;
         if (!showCaravanArrow) arrow.visible = false;
         centerOverlay(width, height);
       } else if (s.player.state === 'taxi') {
         overlay.text = compactHud
-          ? (throttle < 0.15 ? 'GAS+' : 'PITCH UP')
-          : (throttle < 0.15 ? 'ENGINE IDLE\nTHROTTLE UP' : 'ROLLING\nPITCH UP');
+          ? (throttle < 0.15 ? 'ДАЙ ГАЗ' : 'ТЯНИ ВВЕРХ')
+          : (throttle < 0.15 ? 'МОТОР НА ХОЛОСТОМ\nПОДНИМИ РЫЧАГ ГАЗА' : 'РАЗБЕГ\nТЯНИ НОС ВВЕРХ');
         overlay.style.fontSize = compactHud ? 18 : 24;
         overlay.visible = true;
         if (!showCaravanArrow) arrow.visible = false;
         centerOverlay(width, height);
         overlay.y = height * (compactHud ? 0.44 : 0.68);
       } else if (stalling) {
-        overlay.text = 'STALL\nDIVE TO RECOVER';
+        overlay.text = 'СВАЛИВАНИЕ\nПИКИРУЙ ДЛЯ ВЫХОДА';
         overlay.style.fontSize = 24;
         overlay.alpha = 0.65 + 0.35 * Math.abs(Math.sin(pulseT));
         overlay.visible = true;

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveJoystickKnob, resolveJoystickRotate, resolveTouchZones } from './touch.js';
+import { resolveJoystickKnob, resolveJoystickRotate, resolveThrottleValue, resolveTouchZones } from './touch.js';
 
 describe('touch control layout', () => {
   it('keeps the flight stick alone on the left and combat buttons on the right', () => {
@@ -9,23 +9,30 @@ describe('touch control layout', () => {
     expect(zones.joystick.x).toBeLessThan(leftHalf);
     expect(zones.fire.x).toBeGreaterThan(leftHalf);
     expect(zones.special.x).toBeGreaterThan(leftHalf);
+    expect(zones.boost.x).toBeGreaterThan(leftHalf);
     expect(zones.eject.x).toBeGreaterThan(leftHalf);
-    expect(zones.throttleUp.x).toBeGreaterThan(leftHalf);
-    expect(zones.throttleDown.x).toBeGreaterThan(leftHalf);
+    expect(zones.throttle.x).toBeGreaterThan(leftHalf);
   });
 
-  it('stacks throttle up above throttle down near the right edge', () => {
+  it('puts the throttle lever on the far right edge, right of the fire button', () => {
     const zones = resolveTouchZones(932, 430);
 
-    expect(zones.throttleUp.x).toBeGreaterThan(zones.special.x);
-    expect(zones.throttleDown.x).toBe(zones.throttleUp.x);
-    expect(zones.throttleUp.y).toBeLessThan(zones.throttleDown.y);
-    expect(zones.throttleDown.y).toBeLessThan(zones.fire.y);
+    expect(zones.throttle.x).toBeGreaterThan(zones.fire.x);
+    expect(zones.throttle.yTop).toBeLessThan(zones.throttle.yBottom);
+    // Lever spans a tall vertical range.
+    expect(zones.throttle.yBottom - zones.throttle.yTop).toBeGreaterThan(120);
+  });
+
+  it('maps lever top to full gas and bottom to idle', () => {
+    const { throttle } = resolveTouchZones(932, 430);
+    expect(resolveThrottleValue(throttle, throttle.yTop)).toBeCloseTo(1, 2);
+    expect(resolveThrottleValue(throttle, throttle.yBottom)).toBeCloseTo(0, 2);
+    expect(resolveThrottleValue(throttle, (throttle.yTop + throttle.yBottom) / 2)).toBeCloseTo(0.5, 1);
   });
 
   it('does not overlap right-side buttons on a short mobile viewport', () => {
     const zones = resolveTouchZones(910, 332);
-    const rightButtons = [zones.fire, zones.special, zones.eject, zones.throttleUp, zones.throttleDown];
+    const rightButtons = [zones.fire, zones.special, zones.boost, zones.eject];
 
     for (let i = 0; i < rightButtons.length; i++) {
       for (let j = i + 1; j < rightButtons.length; j++) {
@@ -43,9 +50,10 @@ describe('touch control layout', () => {
     const landscapeSafeLeft = 59;
     const landscapeSafeRight = 59;
     const landscapeSafeBottom = 21;
-    const rightButtons = [zones.fire, zones.special, zones.eject, zones.throttleUp, zones.throttleDown];
+    const rightButtons = [zones.fire, zones.special, zones.boost, zones.eject];
 
     expect(zones.joystick.x - zones.joystick.r).toBeGreaterThanOrEqual(landscapeSafeLeft);
+    expect(zones.throttle.x + zones.throttle.w / 2).toBeLessThanOrEqual(932 - landscapeSafeRight);
     for (const zone of rightButtons) {
       expect(zone.x + zone.r).toBeLessThanOrEqual(932 - landscapeSafeRight);
       expect(zone.y + zone.r).toBeLessThanOrEqual(430 - landscapeSafeBottom);

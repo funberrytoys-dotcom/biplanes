@@ -32,8 +32,8 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
     fill: 0x9fb5c4,
     letterSpacing: 0,
   });
-  const title = new Text({ text: 'MODIFICATION BAY', style: titleStyle });
-  const subtitle = new Text({ text: 'Install one field module before the next wave', style: subtitleStyle });
+  const title = new Text({ text: 'МАСТЕРСКАЯ ЧИКО', style: titleStyle });
+  const subtitle = new Text({ text: 'Установи один модуль перед следующей волной', style: subtitleStyle });
   c.addChild(title, subtitle);
 
   interface CardHandle {
@@ -147,7 +147,7 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
     const categoryText = new Text({ text: '', style: labelStyle });
     const titleText = new Text({ text: '', style: cardTitleStyle });
     const descText = new Text({ text: '', style: cardDescStyle });
-    const pickText = new Text({ text: 'TAP TO INSTALL', style: pickStyle });
+    const pickText = new Text({ text: 'ВЫБРАТЬ', style: pickStyle });
 
     btn.addChild(bg, shine, badge, categoryText, rarityText, titleText, descText, pickText);
 
@@ -267,7 +267,7 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
           card.rarityText.text = rarityLabel(card.rarity);
           card.titleText.text = upgrade.title;
           card.descText.text = upgrade.description;
-          card.pickText.text = card.rarity === 'ace' ? 'INSTALL EVOLUTION' : 'INSTALL MODULE';
+          card.pickText.text = card.rarity === 'ace' ? 'СТАВИТЬ ЭВОЛЮЦИЮ' : 'СТАВИТЬ МОДУЛЬ';
           card.rarityText.x = card.width - card.rarityText.width - 16;
           card.animTimer = -i * 0.12;
           card.container.x = card.targetX;

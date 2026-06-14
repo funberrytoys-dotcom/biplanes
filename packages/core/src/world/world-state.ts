@@ -69,7 +69,8 @@ export interface WorldState {
   boostCoolingMultiplier: number;   // >1 means boost cools faster
   boostPowerMultiplier: number;     // >1 means boost pushes harder
   collisionDamageMultiplier: number;// <1 means rams are less lethal
-  xpMagnetRange: number;            // base XP_PICKUP_MAGNET_RANGE
+  xpMagnetRange: number;            // base XP_PICKUP_MAGNET_RANGE (legacy, unused)
+  hpRegenPerSec: number;            // passive HP regen/sec while flying (field_repair upgrade)
   hasDrone: boolean;                // future flag for drone companion
   hasHomingRockets: boolean;
   hasFlameTrail: boolean;
@@ -137,6 +138,7 @@ export function createWorldState(seed: number, player: Plane): WorldState {
     boostPowerMultiplier: 1,
     collisionDamageMultiplier: 1,
     xpMagnetRange: XP_PICKUP_MAGNET_RANGE,
+    hpRegenPerSec: 0,
     hasDrone: false,
     hasHomingRockets: false,
     hasFlameTrail: false,

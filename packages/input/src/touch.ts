@@ -3,16 +3,20 @@ import type { PlayerCommand } from '@biplanes/shared';
 type RoundZone = { x: number; y: number; r: number };
 type TouchPoint = { x: number; y: number };
 
+/** Vertical throttle lever. Drag up = more gas. Value persists when released. */
+export type SliderZone = { x: number; yTop: number; yBottom: number; w: number };
+
 const JOYSTICK_DEADZONE_RATIO = 0.055;
 const JOYSTICK_CAPTURE_RATIO = 1.92;
+const DEFAULT_THROTTLE = 0.85;
 
 export interface TouchZones {
   joystick: RoundZone;
   fire: RoundZone;
   special: RoundZone;
+  boost: RoundZone;
   eject: RoundZone;
-  throttleUp: RoundZone;
-  throttleDown: RoundZone;
+  throttle: SliderZone;
 }
 
 export interface TouchController {
@@ -21,6 +25,10 @@ export interface TouchController {
   // expose for render to draw the buttons
   zones: TouchZones;
   joystickKnob(): TouchPoint;
+  /** 0..1 lever position, for the on-screen knob. */
+  throttleValue(): number;
+  /** When true, current() reports throttleTarget (touch device using the lever). */
+  setThrottleEngaged(engaged: boolean): void;
   updateZones(viewportW: number, viewportH: number): void;
 }
 
@@ -28,14 +36,27 @@ export function resolveTouchZones(w: number, h: number): TouchZones {
   const base = Math.min(w, h);
   const landscape = w > h;
   const stickR = Math.max(62, Math.min(102, base * 0.158));
-  const buttonR = Math.max(31, Math.min(52, base * 0.084));
+  const buttonR = Math.max(31, Math.min(50, base * 0.082));
   const marginX = Math.max(22, base * 0.055, landscape ? Math.min(76, w * 0.075) : 0);
-  const bottomGuard = Math.max(22 + buttonR, base * 0.115, landscape ? Math.min(80, h * 0.155) : 0);
-  const lowerY = h - bottomGuard;
-  const midY = lowerY - buttonR * 2.3;
-  const upperY = midY - buttonR * 2.3;
-  const farRightX = w - marginX - buttonR;
-  const innerRightX = farRightX - buttonR * 2.38;
+  const safeBottom = landscape ? Math.min(78, h * 0.15) : Math.max(22, base * 0.1);
+
+  const fireR = buttonR * 1.18;
+  // Keep the big fire button fully above the bottom safe inset.
+  const lowerY = h - Math.max(safeBottom + fireR, base * 0.13);
+
+  // Vertical throttle lever hugs the right edge.
+  const sliderW = buttonR * 0.92;
+  const sliderX = w - marginX - sliderW * 0.5;
+  const sliderTop = Math.max(h * 0.14, base * 0.12);
+  const sliderBottom = lowerY + fireR * 0.2;
+
+  // Combat cluster sits to the LEFT of the lever (fire dominant, bottom-inner).
+  // Keep a clear gap so a thumb on fire never spills into the lever's hit band.
+  const fireX = sliderX - sliderW * 0.5 - buttonR * 1.25 - fireR;
+  const colGapX = fireR + buttonR + Math.max(12, buttonR * 0.34);
+  const rowGapY = fireR + buttonR + Math.max(12, buttonR * 0.3);
+  const leftColX = fireX - colGapX;
+  const upperY = lowerY - rowGapY;
 
   return {
     joystick: {
@@ -43,11 +64,11 @@ export function resolveTouchZones(w: number, h: number): TouchZones {
       y: h - Math.max(stickR + 18, base * 0.18),
       r: stickR,
     },
-    fire: { x: farRightX, y: lowerY, r: buttonR * 1.16 },
-    special: { x: innerRightX, y: lowerY, r: buttonR },
-    eject: { x: innerRightX, y: upperY, r: buttonR * 0.92 },
-    throttleUp: { x: farRightX, y: upperY, r: buttonR * 0.94 },
-    throttleDown: { x: farRightX, y: midY, r: buttonR * 0.94 },
+    fire: { x: fireX, y: lowerY, r: fireR },
+    boost: { x: leftColX, y: lowerY, r: buttonR },
+    special: { x: fireX, y: upperY, r: buttonR },
+    eject: { x: leftColX, y: upperY, r: buttonR * 0.88 },
+    throttle: { x: sliderX, yTop: sliderTop, yBottom: sliderBottom, w: sliderW },
   };
 }
 
@@ -83,23 +104,24 @@ export function resolveJoystickKnob(
   return { x: joystick.x + dx * scale, y: joystick.y + dy * scale };
 }
 
+/** Map a touch Y inside the lever to a 0..1 throttle value (top = full gas). */
+export function resolveThrottleValue(slider: SliderZone, y: number): number {
+  const span = slider.yBottom - slider.yTop;
+  if (span <= 0) return DEFAULT_THROTTLE;
+  return Math.max(0, Math.min(1, (slider.yBottom - y) / span));
+}
+
 export function createTouchController(canvas: HTMLElement): TouchController {
   const state = {
     joystickPoint: null as TouchPoint | null,
     fire: false,
     special: false,
+    boost: false,
     eject: false,
-    throttleUp: false,
-    throttleDown: false,
+    throttleValue: DEFAULT_THROTTLE,
+    throttleEngaged: false,
   };
-  let zones: TouchZones = {
-    joystick: { x: 0, y: 0, r: 0 },
-    fire: { x: 0, y: 0, r: 0 },
-    special: { x: 0, y: 0, r: 0 },
-    eject: { x: 0, y: 0, r: 0 },
-    throttleUp: { x: 0, y: 0, r: 0 },
-    throttleDown: { x: 0, y: 0, r: 0 },
-  };
+  let zones: TouchZones = resolveTouchZones(0, 0);
 
   function updateZones(w: number, h: number) {
     Object.assign(zones, resolveTouchZones(w, h));
@@ -117,9 +139,17 @@ export function createTouchController(canvas: HTMLElement): TouchController {
     });
   }
 
+  // Generous hit band around the lever so it's easy to grab with a thumb.
+  function inThrottle(px: number, py: number) {
+    const s = zones.throttle;
+    const halfW = s.w * 1.1;
+    const pad = s.w * 0.5;
+    return Math.abs(px - s.x) <= halfW && py >= s.yTop - pad && py <= s.yBottom + pad;
+  }
+
   function handleTouches(touches: TouchList) {
     state.joystickPoint = null;
-    state.fire = state.special = state.eject = state.throttleUp = state.throttleDown = false;
+    state.fire = state.special = state.boost = state.eject = false;
     const rect = canvas.getBoundingClientRect();
     for (let i = 0; i < touches.length; i++) {
       const t = touches[i]!;
@@ -128,9 +158,12 @@ export function createTouchController(canvas: HTMLElement): TouchController {
       if (inJoystickCapture(x, y)) state.joystickPoint = { x, y };
       if (inZone(x, y, zones.fire)) state.fire = true;
       if (inZone(x, y, zones.special)) state.special = true;
+      if (inZone(x, y, zones.boost)) state.boost = true;
       if (inZone(x, y, zones.eject)) state.eject = true;
-      if (inZone(x, y, zones.throttleUp)) state.throttleUp = true;
-      if (inZone(x, y, zones.throttleDown)) state.throttleDown = true;
+      if (inThrottle(x, y)) {
+        state.throttleValue = resolveThrottleValue(zones.throttle, y);
+        state.throttleEngaged = true;
+      }
     }
   }
 
@@ -147,17 +180,16 @@ export function createTouchController(canvas: HTMLElement): TouchController {
   return {
     current(): PlayerCommand {
       const rotate = resolveJoystickRotate(zones.joystick, state.joystickPoint);
-      let throttleDelta: -1 | 0 | 1 = 0;
-      if (state.throttleUp && !state.throttleDown) throttleDelta = 1;
-      else if (state.throttleDown && !state.throttleUp) throttleDelta = -1;
       return {
         rotate,
         fire: state.fire,
         bomb: false,
-        throttleDelta,
+        special: state.special,
+        throttleDelta: 0,
+        throttleTarget: state.throttleEngaged ? state.throttleValue : null,
         eject: state.eject,
         jump: false,
-        boost: state.special,
+        boost: state.boost,
       };
     },
     destroy() {
@@ -170,6 +202,8 @@ export function createTouchController(canvas: HTMLElement): TouchController {
     joystickKnob() {
       return resolveJoystickKnob(zones.joystick, state.joystickPoint);
     },
+    throttleValue() { return state.throttleValue; },
+    setThrottleEngaged(engaged: boolean) { state.throttleEngaged = engaged; },
     updateZones,
   };
 }
