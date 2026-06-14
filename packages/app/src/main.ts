@@ -303,19 +303,91 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
     stroke: { color: 0x000000, width: 3 },
   });
   const labels = {
-    fire: new Text({ text: 'ОГОНЬ', style: labelStyle }),
-    special: new Text({ text: 'ЗАЛП', style: labelStyle }),
-    boost: new Text({ text: 'ФОРС', style: labelStyle }),
-    eject: new Text({ text: 'КАТ', style: labelStyle }),
     throttle: new Text({ text: 'ГАЗ', style: labelStyle }),
+  };
+  // Glyph icons replace text on the action buttons: bullet, triple-shot, boost
+  // chevrons, parachute. Drawn once per layout into their own Graphics.
+  const icons = {
+    fire: new Graphics(),
+    special: new Graphics(),
+    boost: new Graphics(),
+    eject: new Graphics(),
   };
   c.addChild(
     rings.throttleTrack, rings.throttleFill, rings.throttleKnob,
     rings.stick, rings.stickKnob, rings.fire, rings.special, rings.specialArc, rings.boost, rings.eject,
-    labels.fire, labels.special, labels.boost, labels.eject, labels.throttle
+    icons.fire, icons.special, icons.boost, icons.eject, labels.throttle
   );
   let active = false;
   let touchLikely = false;
+
+  const ICON_INK = 0xfff6e8;
+  const ICON_EDGE = 0x10131a;
+
+  // → single bullet (fire)
+  function drawBulletIcon(g: Graphics, cx: number, cy: number, u: number) {
+    g.clear();
+    g.roundRect(cx - u * 0.7, cy - u * 0.32, u * 1.0, u * 0.64, u * 0.3)
+      .fill({ color: ICON_INK })
+      .stroke({ color: ICON_EDGE, width: 1.5, alpha: 0.5 });
+    g.poly([cx + u * 0.3, cy - u * 0.32, cx + u * 0.8, cy, cx + u * 0.3, cy + u * 0.32])
+      .fill({ color: ICON_INK });
+    g.roundRect(cx - u * 0.92, cy - u * 0.26, u * 0.22, u * 0.52, u * 0.1)
+      .fill({ color: 0xffae5a });
+  }
+
+  // → three fanned shots (salvo)
+  function drawSalvoIcon(g: Graphics, cx: number, cy: number, u: number) {
+    g.clear();
+    for (const dy of [-u * 0.62, 0, u * 0.62]) {
+      const ox = dy === 0 ? u * 0.2 : 0; // middle shot leads
+      g.roundRect(cx - u * 0.6 + ox, cy + dy - u * 0.16, u * 0.7, u * 0.32, u * 0.16)
+        .fill({ color: ICON_INK });
+      g.poly([
+        cx + u * 0.1 + ox, cy + dy - u * 0.16,
+        cx + u * 0.42 + ox, cy + dy,
+        cx + u * 0.1 + ox, cy + dy + u * 0.16,
+      ]).fill({ color: ICON_INK });
+    }
+  }
+
+  // → double chevron (boost / acceleration)
+  function drawBoostIcon(g: Graphics, cx: number, cy: number, u: number) {
+    g.clear();
+    const h = u * 0.62;
+    for (const ox of [-u * 0.5, u * 0.15]) {
+      g.moveTo(cx + ox - u * 0.18, cy - h)
+        .lineTo(cx + ox + u * 0.34, cy)
+        .lineTo(cx + ox - u * 0.18, cy + h)
+        .stroke({ color: ICON_INK, width: Math.max(2.5, u * 0.26), cap: 'round', join: 'round' });
+    }
+  }
+
+  // → parachute (eject)
+  function drawParachuteIcon(g: Graphics, cx: number, cy: number, u: number) {
+    g.clear();
+    const top = cy - u * 0.5;
+    const rad = u * 0.95;
+    const pilotY = cy + u * 0.85;
+    g.moveTo(cx - rad, top)
+      .arc(cx, top, rad, Math.PI, Math.PI * 2)
+      .closePath()
+      .fill({ color: ICON_INK })
+      .stroke({ color: ICON_EDGE, width: 1.2, alpha: 0.45 });
+    for (const sx of [-rad * 0.85, -rad * 0.28, rad * 0.28, rad * 0.85]) {
+      g.moveTo(cx + sx, top).lineTo(cx, pilotY - u * 0.18)
+        .stroke({ color: ICON_INK, width: Math.max(1.4, u * 0.1), alpha: 0.85 });
+    }
+    g.circle(cx, pilotY, u * 0.2).fill({ color: ICON_INK });
+  }
+
+  function drawIcons() {
+    const z = touch.zones;
+    drawBulletIcon(icons.fire, z.fire.x, z.fire.y, z.fire.r * 0.5);
+    drawSalvoIcon(icons.special, z.special.x, z.special.y, z.special.r * 0.5);
+    drawBoostIcon(icons.boost, z.boost.x, z.boost.y, z.boost.r * 0.5);
+    drawParachuteIcon(icons.eject, z.eject.x, z.eject.y, z.eject.r * 0.5);
+  }
 
   function drawRing(g: Graphics, x: number, y: number, r: number, color: number, activeRing = false, dim = false) {
     const baseAlpha = dim ? 0.05 : 0.12;
@@ -390,6 +462,7 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
         .lineTo(z.special.x, z.special.y)
         .fill({ color: 0x7be3ff, alpha: 0.22 });
     }
+    icons.special.alpha = ready ? 1 : 0.4;
     drawLever(touch.throttleValue());
   }
 
@@ -412,10 +485,7 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
     drawRing(rings.boost, z.boost.x, z.boost.y, z.boost.r, 0xffd34a);
     drawRing(rings.eject, z.eject.x, z.eject.y, z.eject.r, 0xff4949);
     drawLever(touch.throttleValue());
-    placeLabel(labels.fire, z.fire.x, z.fire.y);
-    placeLabel(labels.special, z.special.x, z.special.y);
-    placeLabel(labels.boost, z.boost.x, z.boost.y);
-    placeLabel(labels.eject, z.eject.x, z.eject.y);
+    drawIcons();
     placeLabel(labels.throttle, z.throttle.x, z.throttle.yTop - 14);
   }
 
