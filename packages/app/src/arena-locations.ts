@@ -26,6 +26,43 @@ export interface ArenaLocationTheme {
   background: string;
 }
 
+export type WeatherIcon = 'sun' | 'rain' | 'snow' | 'storm' | 'fog' | 'night';
+
+export interface WeatherGameplay {
+  wind: { x: number; y: number };  // base gust vector (px/sec), modulated by the host
+  lightning: boolean;
+  label: string;                   // short weather name for the HUD indicator
+  hazard: string | null;           // warning line, or null when calm
+  icon: WeatherIcon;
+}
+
+/** Maps a visual weather preset to its gameplay effect + HUD hazard text. */
+export function weatherGameplay(preset: ArenaWeatherPreset): WeatherGameplay {
+  switch (preset) {
+    case 'rain':
+      return { wind: { x: -72, y: 8 }, lightning: false, label: 'ДОЖДЬ', hazard: 'Ветер сносит — правь курс', icon: 'rain' };
+    case 'storm':
+      return { wind: { x: -120, y: 12 }, lightning: false, label: 'ШТОРМ', hazard: 'Сильный ветер! Держи газ', icon: 'storm' };
+    case 'thunder':
+      return { wind: { x: -140, y: 14 }, lightning: true, label: 'ГРОЗА', hazard: '⚡ Молнии — не зависай высоко', icon: 'storm' };
+    case 'snow':
+      return { wind: { x: -56, y: 10 }, lightning: false, label: 'СНЕГ', hazard: 'Снежный снос', icon: 'snow' };
+    case 'blizzard':
+      return { wind: { x: -128, y: 12 }, lightning: false, label: 'БУРАН', hazard: 'Буран — сильный снос!', icon: 'snow' };
+    case 'fog':
+      return { wind: { x: -18, y: 0 }, lightning: false, label: 'ТУМАН', hazard: 'Плохая видимость', icon: 'fog' };
+    case 'night':
+      return { wind: { x: -16, y: 0 }, lightning: false, label: 'НОЧЬ', hazard: null, icon: 'night' };
+    case 'dawn':
+      return { wind: { x: -10, y: 0 }, lightning: false, label: 'РАССВЕТ', hazard: null, icon: 'sun' };
+    case 'sunset':
+      return { wind: { x: -14, y: 0 }, lightning: false, label: 'ЗАКАТ', hazard: null, icon: 'sun' };
+    case 'clear':
+    default:
+      return { wind: { x: -8, y: 0 }, lightning: false, label: 'ЯСНО', hazard: null, icon: 'sun' };
+  }
+}
+
 export const ARENA_LOCATION_THEMES: ArenaLocationTheme[] = [
   { name: 'РОЗОВЫЙ ЗАКАТ', sky: 'sunset', weather: 'sunset', background: ARENA_BACKGROUND_URLS.roseSunset },
   { name: 'ГОРЯЩИЙ ГОРИЗОНТ', sky: 'sunset', weather: 'rain', background: ARENA_BACKGROUND_URLS.burningHorizon },

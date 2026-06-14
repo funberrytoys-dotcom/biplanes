@@ -96,7 +96,7 @@ import {
   shouldSpawnArenaFinalBossForRound,
   type ArenaRoundPhase,
 } from './arena-director.js';
-import { ARENA_BACKGROUND_URLS, ARENA_LOCATION_THEMES } from './arena-locations.js';
+import { ARENA_BACKGROUND_URLS, ARENA_LOCATION_THEMES, weatherGameplay, type WeatherGameplay, type WeatherIcon } from './arena-locations.js';
 import {
   resolveArenaCameraFocus,
   resolveArenaPlayerRunwayStart,
@@ -1018,6 +1018,100 @@ export async function startGame(container: HTMLElement) {
   arenaStatus.visible = false;
   uiLayer.addChild(arenaStatus);
 
+  // === Weather indicator (top-right): icon + name + hazard warning ===
+  const weatherPanel = new Container();
+  const weatherBg = new Graphics();
+  const weatherIcon = new Graphics();
+  const weatherLabel = new Text({
+    text: '',
+    style: new TextStyle({
+      fontFamily: 'monospace', fontSize: 14, fontWeight: 'bold',
+      fill: 0xeaf4ff, stroke: { color: 0x05080e, width: 3 },
+    }),
+  });
+  const weatherHazard = new Text({
+    text: '',
+    style: new TextStyle({
+      fontFamily: 'monospace', fontSize: 11, fontWeight: 'bold',
+      fill: 0xffd27a, stroke: { color: 0x05080e, width: 3 },
+    }),
+  });
+  weatherPanel.addChild(weatherBg, weatherIcon, weatherLabel, weatherHazard);
+  weatherPanel.visible = false;
+  uiLayer.addChild(weatherPanel);
+
+  function drawWeatherIcon(g: Graphics, icon: WeatherIcon, cx: number, cy: number, r: number) {
+    g.clear();
+    if (icon === 'sun') {
+      g.circle(cx, cy, r * 0.55).fill({ color: 0xffd86a });
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        g.moveTo(cx + Math.cos(a) * r * 0.75, cy + Math.sin(a) * r * 0.75)
+          .lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r)
+          .stroke({ color: 0xffd86a, width: 2, alpha: 0.9 });
+      }
+    } else if (icon === 'night') {
+      g.circle(cx, cy, r * 0.6).fill({ color: 0xcfe0ff });
+      g.circle(cx + r * 0.28, cy - r * 0.18, r * 0.5).fill({ color: 0x0c1530 });
+    } else if (icon === 'fog') {
+      for (let i = 0; i < 4; i++) {
+        const y = cy - r * 0.5 + i * r * 0.36;
+        g.moveTo(cx - r, y).lineTo(cx + r, y).stroke({ color: 0xc7d6e6, width: 2.4, alpha: 0.85 });
+      }
+    } else {
+      // cloud base for rain/snow/storm
+      g.circle(cx - r * 0.4, cy - r * 0.1, r * 0.42)
+        .circle(cx + r * 0.4, cy - r * 0.1, r * 0.46)
+        .circle(cx, cy - r * 0.35, r * 0.5)
+        .rect(cx - r * 0.8, cy - r * 0.12, r * 1.6, r * 0.5)
+        .fill({ color: icon === 'storm' ? 0x6b7790 : 0xb9c6d6 });
+      if (icon === 'rain' || icon === 'storm') {
+        for (let i = -1; i <= 1; i++) {
+          g.moveTo(cx + i * r * 0.42, cy + r * 0.35)
+            .lineTo(cx + i * r * 0.42 - r * 0.16, cy + r * 0.78)
+            .stroke({ color: 0x8ec8ff, width: 2, alpha: 0.95 });
+        }
+      }
+      if (icon === 'snow') {
+        for (let i = -1; i <= 1; i++) {
+          g.circle(cx + i * r * 0.42, cy + r * 0.55, r * 0.1).fill({ color: 0xffffff });
+        }
+      }
+      if (icon === 'storm') {
+        g.poly([cx + r * 0.1, cy + r * 0.2, cx - r * 0.2, cy + r * 0.6, cx + r * 0.05, cy + r * 0.6, cx - r * 0.15, cy + r * 1.0])
+          .stroke({ color: 0xffe14a, width: 3 });
+      }
+    }
+  }
+
+  function layoutWeatherIndicator(w: number, _h: number) {
+    const pw = 150, ph = 56;
+    weatherPanel.x = w - pw - 12;
+    weatherPanel.y = 12;
+    weatherBg.clear()
+      .roundRect(0, 0, pw, ph, 8)
+      .fill({ color: 0x091522, alpha: 0.66 })
+      .stroke({ color: 0x57ddff, width: 1.5, alpha: 0.5 });
+    weatherLabel.x = 44; weatherLabel.y = 9;
+    weatherHazard.x = 10; weatherHazard.y = 33;
+  }
+
+  let weatherIconKind: WeatherIcon = 'sun';
+  function updateWeatherIndicator(weather: WeatherGameplay, t: number) {
+    weatherLabel.text = weather.label;
+    if (weatherIconKind !== weather.icon) {
+      weatherIconKind = weather.icon;
+      drawWeatherIcon(weatherIcon, weather.icon, 24, 24, 13);
+    }
+    if (weather.hazard) {
+      weatherHazard.text = weather.hazard;
+      weatherHazard.alpha = 0.7 + 0.3 * Math.abs(Math.sin(t * 3));
+      weatherHazard.visible = true;
+    } else {
+      weatherHazard.visible = false;
+    }
+  }
+
   const arenaToast = new Container();
   const arenaToastBg = new Graphics();
   const arenaToastTitle = new Text({
@@ -1212,6 +1306,9 @@ export async function startGame(container: HTMLElement) {
 
   let arenaShownStage = 0;
   let arenaRound = 1;
+  let currentWeather: WeatherGameplay = weatherGameplay('clear');
+  let weatherBaseWind = { x: 0, y: 0 };
+  let lightningStrikeTimer = 4;
   let arenaRoundPhase: ArenaRoundPhase = 'takeoff';
   let arenaRoundStartScore = 0;
   let arenaDuelEnemyId: number | null = null;
@@ -1246,6 +1343,11 @@ export async function startGame(container: HTMLElement) {
     const location = ARENA_LOCATION_THEMES[Math.max(0, Math.min(ARENA_LOCATION_THEMES.length - 1, stage - 1))]!;
     setSkyTheme(location.sky, location.background);
     arenaWeather.setPreset(location.weather);
+    currentWeather = weatherGameplay(location.weather);
+    weatherBaseWind = { ...currentWeather.wind };
+    lightningStrikeTimer = 4 + Math.random() * 4;
+    weatherPanel.visible = runMode === 'arena';
+    layoutWeatherIndicator(app.screen.width, app.screen.height);
     syncAtmosphereLayers();
   }
 
@@ -2343,6 +2445,33 @@ export async function startGame(container: HTMLElement) {
       updateArenaDirector();
     }
 
+    // === Weather gameplay: gusty wind + lightning strikes + HUD indicator ===
+    if (runMode === 'arena') {
+      weatherPanel.visible = gameRunning;
+      // Gust ebbs and flows so wind is felt, not a constant pull.
+      const gust = 0.5 + 0.5 * Math.abs(Math.sin(renderTimeSec * 0.7) * Math.cos(renderTimeSec * 0.23 + 1.3));
+      state.wind = { x: weatherBaseWind.x * gust, y: weatherBaseWind.y * gust };
+      updateWeatherIndicator(currentWeather, renderTimeSec);
+      if (currentWeather.lightning && state.player.alive && state.player.state === 'flying' && !state.pendingLevelUp && !choicesShowing) {
+        lightningStrikeTimer -= realDt;
+        if (lightningStrikeTimer <= 0) {
+          lightningStrikeTimer = 5 + Math.random() * 6;
+          const highOpen = state.player.kinematic.position.y < ARENA_WORLD_HEIGHT * 0.42;
+          screenFx.flash(0xeaf4ff, 0.6, 0.22);
+          camera.shake(highOpen ? 15 : 6);
+          audio.playThunder();
+          if (highOpen) {
+            state.player = { ...state.player, hp: Math.max(1, state.player.hp - 14) };
+            damageFx.addSparks(state.player.kinematic.position, 22);
+            screenFx.triggerHitGlitch();
+          }
+        }
+      }
+    } else {
+      state.wind = undefined;
+      weatherPanel.visible = false;
+    }
+
     if (runMode === 'arena') {
       const playerPilot = findPilot(state.pilots, 'player');
       const focus = resolveArenaCameraFocus({
@@ -2675,6 +2804,7 @@ export async function startGame(container: HTMLElement) {
     camera.setScreen(w, h);
     hud.resize(w, h);
     arenaWeather.resize(w, h);
+    layoutWeatherIndicator(w, h);
     screenFx.resize(w, h);
     touch.updateZones(w, h);
     touchGuide.layout(w, h);

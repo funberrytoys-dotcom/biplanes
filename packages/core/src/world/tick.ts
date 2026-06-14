@@ -787,6 +787,24 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     });
   }
 
+  // === Weather wind: gust drift on flying planes ===
+  if (state.wind && (state.wind.x !== 0 || state.wind.y !== 0)) {
+    const wdx = state.wind.x * TICK_DT;
+    const wdy = state.wind.y * TICK_DT;
+    if (player.state === 'flying') {
+      player = {
+        ...player,
+        kinematic: {
+          ...player.kinematic,
+          position: { x: player.kinematic.position.x + wdx, y: player.kinematic.position.y + wdy },
+        },
+      };
+    }
+    enemies = enemies.map(e => e.state === 'flying'
+      ? { ...e, kinematic: { ...e.kinematic, position: { x: e.kinematic.position.x + wdx, y: e.kinematic.position.y + wdy } } }
+      : e);
+  }
+
   // === Bomb and Rocket stepping + explosions ===
   const nextExplosionEvents = [...state.explosionEvents];
   const groundY = worldHeight - 90;

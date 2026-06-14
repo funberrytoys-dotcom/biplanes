@@ -34,6 +34,9 @@ export interface WorldState {
   // the ceiling instead of crashing it.
   softFloor?: boolean;
   caravan?: CaravanState;
+  // Weather gust vector (px/sec) pushed onto flying planes. Set by the host from
+  // the current arena weather. Zero = calm.
+  wind?: Vec2;
   nextEntityId: EntityId;
   rngSeed: number;
   rngState: number;         // current PRNG state (for replay)
