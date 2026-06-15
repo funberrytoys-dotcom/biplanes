@@ -103,9 +103,6 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
 
   // Throttle bob tracking for pilot head (Task 2.4)
   let prevThrottle = 0;
-
-  // Heat shimmer accumulator (Task 2.6)
-  let heatAcc = 0;
   let shudderTime = 0;
 
   // Wind streak accumulator (Task 3.2 — player only at high g)
@@ -259,23 +256,8 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
         fuselageContainer.y = shakeY;
       }
 
-      // Heat shimmer at full throttle (Task 2.6)
-      {
-        const throttle = p.kinematic.throttleLevel ?? 0;
-        if (fx && aliveAndFlying && throttle >= 0.95) {
-          heatAcc += dt;
-          while (heatAcc >= 1 / 20) {
-            const cos = Math.cos(p.kinematic.heading);
-            const sin = Math.sin(p.kinematic.heading);
-            const nx = p.kinematic.position.x + cos * 18;
-            const ny = p.kinematic.position.y + sin * 18;
-            fx.addHeatWave({ x: nx, y: ny });
-            heatAcc -= 1 / 20;
-          }
-        } else {
-          heatAcc = 0;
-        }
-      }
+      // (Removed: full-throttle heat shimmer — its soft additive blobs over the
+      // nose made the plane read as blurry at full gas.)
 
       // Wind streaks at high g (Task 3.2 — player only)
       if (fx && p.kinematic.g > G_MAX_LEVEL * 0.85 && aliveAndFlying && p.faction === 'player') {
