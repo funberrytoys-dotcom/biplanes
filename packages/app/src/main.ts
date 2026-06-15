@@ -763,13 +763,21 @@ export async function startGame(container: HTMLElement) {
   // the huge world and magnified by the camera (which made it blurry).
   const backdropLayer = new Container();
   app.stage.addChildAt(backdropLayer, 0); // behind the world
+  // Opaque sky backstop — guarantees the (transparent-background) canvas is never
+  // see-through to the page color, even if the photo doesn't perfectly cover.
+  const backdropBackstop = new Graphics();
+  backdropLayer.addChild(backdropBackstop);
   const backdropSprite = new Sprite();
   backdropSprite.anchor.set(0.5);
   backdropLayer.addChild(backdropSprite);
   backdropLayer.visible = false;
   let backdropUrl: string | null = null;
-  const BACKDROP_OVER = 1.24; // oversize so parallax drift never reveals an edge
+  let backstopColor = 0x141a30;
+  const BACKDROP_OVER = 1.3; // oversize so parallax drift never reveals an edge
   function fitBackdrop() {
+    backdropBackstop.clear()
+      .rect(0, 0, app.screen.width, app.screen.height)
+      .fill({ color: backstopColor });
     const tex = backdropSprite.texture;
     if (!backdropUrl || !tex || tex.width < 2) return;
     const sw = app.screen.width, sh = app.screen.height;
@@ -778,12 +786,14 @@ export async function startGame(container: HTMLElement) {
     backdropSprite.x = sw / 2;
     backdropSprite.y = sh / 2;
   }
-  function setBackdrop(url: string | null) {
+  function setBackdrop(url: string | null, color?: number) {
+    if (typeof color === 'number') backstopColor = color;
     backdropLayer.visible = url !== null;
-    if (!url) { backdropUrl = null; return; }
-    if (url === backdropUrl) return;
-    backdropUrl = url;
-    backdropSprite.texture = Texture.from(url);
+    if (!url) { backdropUrl = null; fitBackdrop(); return; }
+    if (url !== backdropUrl) {
+      backdropUrl = url;
+      backdropSprite.texture = Texture.from(url);
+    }
     fitBackdrop();
   }
 
@@ -881,7 +891,13 @@ export async function startGame(container: HTMLElement) {
         ? { mode: 'layeredArena', transparentBase: isArena }
         : undefined,
     );
-    setBackdrop(isArena ? (imageUrl ?? null) : null);
+    // Backstop tone roughly matches each sky so any uncovered edge reads as sky, not page bg.
+    const backstop =
+      themeId === 'night' ? 0x0b1430 :
+      themeId === 'twilight' ? 0x231a3c :
+      themeId === 'sunset' ? 0x3a2238 :
+      0x224a68; // noon
+    setBackdrop(isArena ? (imageUrl ?? null) : null, backstop);
     worldLayer.addChildAt(sky.container, 0); // Keep sky behind all active elements
     lightning.setActive(themeId === 'twilight' || themeId === 'night');
     lensFlare.setActive(themeId === 'noon' || themeId === 'sunset');
