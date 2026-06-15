@@ -2119,6 +2119,15 @@ export async function startGame(container: HTMLElement) {
   }
 
   app.ticker.add((ticker) => {
+    // Heal any layout↔viewport desync — iOS Safari (and Telegram) settle the
+    // viewport *after* boot and don't reliably fire resize/observer events, which
+    // left the controls pinned to the boot-time width even when the canvas itself
+    // had grown. Compare the live container box against what we last laid out at
+    // (not just app.screen), so this catches both a stale renderer and stale HUD.
+    // Cheap per-frame guard: a no-op once they agree.
+    if (container.clientWidth !== laidOutW || container.clientHeight !== laidOutH) {
+      resyncLayout();
+    }
     const realDt = ticker.deltaMS / 1000;
     const dt = clock.tick(realDt);
     renderTimeSec += dt;
@@ -2984,5 +2993,38 @@ export async function startGame(container: HTMLElement) {
     radioPopup.resize(w, h);
     layoutCaravanGauge(w, h);
   };
-  window.addEventListener('resize', onResize);
+  // Re-sync the renderer to the real container box, then re-run the full layout.
+  // Pixi's resizeTo / app.resize() does NOT reliably re-measure when the container
+  // grows after boot (verified: container 932 but app.screen stuck at the 560 boot
+  // size). Resize the renderer explicitly to the container's true CSS box so
+  // app.screen — which every layout reads — always matches what's on screen.
+  let laidOutW = -1;
+  let laidOutH = -1;
+  const resyncLayout = () => {
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    if (w <= 0 || h <= 0) return;
+    if (w !== app.screen.width || h !== app.screen.height) {
+      app.renderer.resize(w, h);
+    }
+    onResize();
+    laidOutW = w;
+    laidOutH = h;
+  };
+  window.addEventListener('resize', resyncLayout);
+  window.addEventListener('orientationchange', resyncLayout);
+  window.visualViewport?.addEventListener('resize', resyncLayout);
+
+  // iOS Safari resolves 100dvw/100dvh (and Telegram resolves its viewport) *after*
+  // boot — the container grows to its true size without firing a window 'resize'.
+  // The canvas then stretched to full width while the controls stayed pinned to the
+  // tiny initial width (throttle stuck mid-screen, action buttons pushed off the
+  // edge). Observe the real container box so layout can never disagree with it.
+  if (typeof ResizeObserver !== 'undefined') {
+    new ResizeObserver(resyncLayout).observe(container);
+  }
+  // Belt-and-suspenders for the late settle: re-layout on the next frame and again
+  // shortly after boot, in case the size lands without firing any of the above.
+  requestAnimationFrame(resyncLayout);
+  setTimeout(resyncLayout, 350);
 }
