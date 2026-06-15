@@ -92,8 +92,8 @@ export const DIFFICULTIES: Record<Difficulty, AiParams> = {
   easy: {
     // Green rookie. Doesn't manage energy, often climbs into stalls, sloppy aim,
     // occasionally does silly things (kills throttle, jerks the stick).
-    stallAvoidEnabled: false,
-    groundClearance: 80,             // pulls up far too late
+    stallAvoidEnabled: true,         // basic self-preservation so rookies don't just faceplant
+    groundClearance: 240,            // sloppy, but pulls up before hitting the deck
     ceilingClearance: 60,
     postTakeoffStabilizationSec: 0.5, // barely stabilises before chasing
     positioningEnabled: false,        // dumb chase only
@@ -126,7 +126,7 @@ export const DIFFICULTIES: Record<Difficulty, AiParams> = {
   },
   medium: {
     stallAvoidEnabled: true,
-    groundClearance: 210,
+    groundClearance: 320,
     ceilingClearance: 120,
     postTakeoffStabilizationSec: 0.8,
     positioningEnabled: true,

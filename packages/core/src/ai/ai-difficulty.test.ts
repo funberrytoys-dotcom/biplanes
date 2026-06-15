@@ -50,19 +50,20 @@ describe('ai difficulty params', () => {
     expect(cmd.rotate).toBe(-1);
   });
 
-  it('hard AI pulls up MUCH earlier than Easy (350px clearance vs 80px)', () => {
-    // At y = GROUND_Y - 200 Easy is fine (target dead ahead, no override) but
-    // Hard (350 clearance) is already in pull-up mode.
+  it('hard AI pulls up earlier than Easy (350px clearance vs 240px)', () => {
+    // At y = GROUND_Y - 300 Easy is still fine (target dead ahead, above its 240px
+    // threshold) but Hard (350px clearance) is already in pull-up mode. Easy now has
+    // a real ground floor too (it no longer faceplants), just a tighter margin.
     const ai1 = settled(123);
     const ai2 = settled(123);
-    const enemyY = GROUND_Y - 200;
+    const enemyY = GROUND_Y - 300;
     const enemy = makePlane(500, enemyY, 0);
     const target = makePlane(700, enemyY, 0);
 
     const easyCmd = aiCommand(enemy, target, DIFFICULTIES.easy, ai1, 30, 1 / 60, 1.0, true).cmd;
     const hardCmd = aiCommand(enemy, target, DIFFICULTIES.hard, ai2, 30, 1 / 60, 1.0, true).cmd;
 
-    // Easy doesn't pull up (above its threshold)
+    // Easy doesn't pull up yet (above its 240px threshold)
     expect(easyCmd.rotate).not.toBe(-1);
     // Hard pulls up (inside its big-margin zone)
     expect(hardCmd.rotate).toBe(-1);
@@ -124,21 +125,18 @@ describe('ai difficulty params', () => {
     expect(cmd.fire).toBe(false);
   });
 
-  it('easy AI does NOT engage stall avoidance — climbs into death', () => {
-    // Same scenario but on Easy (stallAvoidEnabled=false). Target far above,
-    // AI is slow and nose-up. Easy should still try to chase (rotate toward
-    // target = up = -1) instead of recovering.
+  it('easy AI now engages basic stall avoidance (no longer climbs into death)', () => {
+    // Easy used to have stallAvoidEnabled=false and would climb itself into a stall
+    // and fall — a big source of "the enemy just killed itself". Rookies now have a
+    // basic self-preservation floor: slow + nose-up → flatten/dive to recover
+    // (rotate=+1), same direction as Hard. Their sloppiness now lives in aim,
+    // reaction time and altitude-safe mistakes — not suicide.
     const ai = settled(42);
-    // Place enemy where ground-avoid is NOT triggered (y is fine) and ceiling-
-    // avoid is NOT triggered (y > Easy ceilingClearance=60). Use y=400.
     const enemy = makePlane(800, 400, -1.2, { g: G_STALL * 1.0 });
-    const target = makePlane(800, 100, 0);
+    const target = makePlane(800, 100, 0); // target far above — combat would beg us to climb harder
     const { cmd } = aiCommand(enemy, target, DIFFICULTIES.easy, ai, 30, 1 / 60, 1.0, true);
-    // Easy is past its 0.5s post-takeoff buffer (we pass timeSec=1.0 + wasFlying=true),
-    // doesn't recognise stall, sees target above, keeps trying to climb (rotate=-1)
-    // OR sometimes a rookie mistake fires. The key assertion: it is NOT pulling
-    // the nose down to recover (NOT +1 from stall logic).
-    expect(cmd.rotate).not.toBe(1);
+    expect(cmd.rotate).toBe(1);
+    expect(cmd.fire).toBe(false); // not firing while recovering
   });
 
   it('hard AI manages throttle: diving on target below produces throttleDelta = -1', () => {

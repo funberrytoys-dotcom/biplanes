@@ -124,9 +124,11 @@ function collisionAvoidanceHeading(
   if (!headOn && (tClosest <= 0.05 || closestDist > 150 || currentDist > 520)) return null;
 
   const roomAbove = self.kinematic.position.y;
-  const roomBelow = (worldHeight - 90) - self.kinematic.position.y;
+  // Break UP to dodge — climbing away from the ground is always safer than diving
+  // toward it. Only break downward if we're genuinely pinned near the ceiling.
+  const breakUp = roomAbove > 220;
   return {
-    heading: facingHeading(self.kinematic.facing, roomAbove > roomBelow ? -0.72 : 0.72),
+    heading: facingHeading(self.kinematic.facing, breakUp ? -0.72 : 0.72),
     throttle: headOn ? 0.25 : 0.45,
   };
 }
@@ -213,11 +215,17 @@ export function aiCommand(
   }
   // 1b. Ground crash imminent — pull up. Always wins over stall avoid because
   // hitting the ground is more immediately fatal than a recoverable stall.
-  else if (y > groundY - params.groundClearance) {
+  // Trigger on raw proximity, OR earlier if we're moderately low AND already
+  // diving (sinH > 0.45 ≈ >27° nose-down): a fast plane can't reverse a steep
+  // dive within one ground-clearance, so start the pull-out while there's height.
+  else if (
+    y > groundY - params.groundClearance
+    || (sinH > 0.45 && y > groundY - params.groundClearance * 2.4)
+  ) {
     // Pull up, but if we're very slow AND nose-up, ease the climb angle to
     // avoid trading ground impact for stall fall.
     const slow = g < G_STALL * 1.05;
-    overrideHeading = facingHeading(self.kinematic.facing, slow ? -0.15 : -0.45);
+    overrideHeading = facingHeading(self.kinematic.facing, slow ? -0.3 : -0.85);
     overrideThrottle = 1.0;
     inSurvival = true;
   }
@@ -320,6 +328,12 @@ export function aiCommand(
       targetThrottle = Math.min(targetThrottle, 0.35);
     }
 
+    // Never aim below the ground-avoidance line: if the target skims the deck the
+    // AI gives up the low shot and levels off, instead of diving in after it and
+    // pancaking. (groundY/groundClearance match the Layer-1 pull-up trigger.)
+    const aimFloorY = groundY - params.groundClearance;
+    if (aimY > aimFloorY) aimY = aimFloorY;
+
     // --- Layer 3: Aiming with lead ---
     const dx0 = aimX - self.kinematic.position.x;
     const dy0 = aimY - self.kinematic.position.y;
@@ -378,14 +392,38 @@ export function aiCommand(
       newState.rookieMistakeAction = 'none';
     }
 
+    // Don't let a rookie's silly mistake drive it into the dirt: when low, suppress
+    // the downward/disorienting ones (dive, wrong-turn). Climbing away is safe.
+    const lowForMistakes = self.kinematic.position.y > groundY - params.groundClearance * 1.6;
     if (newState.rookieMistakeTimer > 0) {
       if (newState.rookieMistakeAction === 'climb') targetHeading = -1.2;
-      else if (newState.rookieMistakeAction === 'dive') targetHeading = 0.8;
-      else if (newState.rookieMistakeAction === 'wrong-turn') {
+      else if (newState.rookieMistakeAction === 'dive' && !lowForMistakes) targetHeading = 0.4;
+      else if (newState.rookieMistakeAction === 'wrong-turn' && !lowForMistakes) {
         targetHeading = self.kinematic.heading + 1.2;
       } else if (newState.rookieMistakeAction === 'throttle-off') {
         // handled below where we resolve throttle
       }
+    }
+  }
+
+  // ============================================================
+  // ANTI-DIVE FLOOR (tier-agnostic ground safety)
+  // ============================================================
+  // The real killer isn't aim — it's that a fast plane can't pull out of a steep
+  // dive in time (and a rookie's throttle is stuck full, so it can't even slow to
+  // tighten the turn). So in the lower arena we cap how far below the horizon any
+  // combat heading may point: planes can still descend to engage, just not plunge.
+  {
+    // Altitude-aware anti-dive: the plane can't pull out of a steep dive faster
+    // than its turn rate, so the dive angle it's ALLOWED to command must shrink as
+    // the ground gets closer. With lots of height, steep dives are fine; near the
+    // deck, only a shallow descent. This stops a committed plunge from ever building
+    // up (the real cause of enemies flying themselves into the ground). It only
+    // caps DOWNWARD pitch, so it never fights a ground-avoid pull-up (which is up).
+    const gap = groundY - self.kinematic.position.y;
+    const maxDescend = Math.max(0.12, Math.min(0.6, gap / 750));
+    if (Math.sin(targetHeading) > Math.sin(maxDescend)) {
+      targetHeading = Math.cos(targetHeading) >= 0 ? maxDescend : Math.PI - maxDescend;
     }
   }
 
