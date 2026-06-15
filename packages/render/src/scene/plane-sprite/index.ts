@@ -259,12 +259,17 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
       // (Removed: full-throttle heat shimmer — its soft additive blobs over the
       // nose made the plane read as blurry at full gas.)
 
-      // Wind streaks at high g (Task 3.2 — player only)
+      // Wind streaks at high g (Task 3.2 — player only). Spawn BEHIND the plane
+      // so they read as a speed trail, never a haze over the fuselage.
       if (fx && p.kinematic.g > G_MAX_LEVEL * 0.85 && aliveAndFlying && p.faction === 'player') {
         windAcc += dt;
+        const cos = Math.cos(p.kinematic.heading);
+        const sin = Math.sin(p.kinematic.heading);
         while (windAcc >= 1 / 30) {
-          const px = p.kinematic.position.x + (Math.random() - 0.5) * 40;
-          const py = p.kinematic.position.y + (Math.random() - 0.5) * 40;
+          const back = 46 + Math.random() * 54;       // 46–100px behind the nose
+          const lateral = (Math.random() - 0.5) * 64;  // spread across the wings
+          const px = p.kinematic.position.x - cos * back - sin * lateral;
+          const py = p.kinematic.position.y - sin * back + cos * lateral;
           fx.addWindStreak({ x: px, y: py }, p.kinematic.heading);
           windAcc -= 1 / 30;
         }

@@ -2,8 +2,6 @@ import { Application } from 'pixi.js';
 
 export async function createPixiApp(container: HTMLElement): Promise<Application> {
   const app = new Application();
-  const phoneLike = Math.min(window.innerWidth, window.innerHeight) <= 520
-    && Math.max(window.innerWidth, window.innerHeight) <= 1100;
   await app.init({
     preference: 'webgl',
     powerPreference: 'high-performance',
@@ -11,7 +9,10 @@ export async function createPixiApp(container: HTMLElement): Promise<Application
     resizeTo: container,
     antialias: true,
     autoDensity: true,
-    resolution: phoneLike ? Math.min(window.devicePixelRatio || 1, 2) : window.devicePixelRatio || 1,
+    // Render at the device's native pixel density (capped at 3× so absurd DPRs
+    // don't tank perf). Previously phones were forced to 2×, which upscaled to a
+    // 3× screen like the iPhone 15 Pro Max → everything looked slightly soft.
+    resolution: Math.min(window.devicePixelRatio || 1, 3),
   });
   app.canvas.style.position = 'absolute';
   app.canvas.style.inset = '0';
