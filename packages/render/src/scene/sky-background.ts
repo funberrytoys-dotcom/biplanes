@@ -14,6 +14,8 @@ export interface SkyBackgroundHandle {
 
 export interface SkyBackgroundOptions {
   mode?: 'classic' | 'layeredArena';
+  /** Skip the opaque sky gradient + photo so an external screen-space backdrop shows through. */
+  transparentBase?: boolean;
 }
 
 interface ThemeConfig {
@@ -745,19 +747,22 @@ export function createSkyBackground(
   const cfg = THEMES[themeId];
   const groundY = height - 90;
   const isLayeredArena = options.mode === 'layeredArena';
+  const transparentBase = options.transparentBase === true;
 
-  // 1. Sky Gradient Layers
-  const skyTop = new Graphics().rect(0, 0, width, height * 0.35).fill(cfg.skyTop);
-  const skyMid = new Graphics().rect(0, height * 0.35, width, height * 0.35).fill(cfg.skyMid);
-  const skyLow = new Graphics().rect(0, height * 0.7, width, groundY - height * 0.7).fill(cfg.skyLow);
-  c.addChild(skyTop, skyMid, skyLow);
+  // 1. Sky Gradient Layers (skipped when an external screen-space backdrop is used)
+  if (!transparentBase) {
+    const skyTop = new Graphics().rect(0, 0, width, height * 0.35).fill(cfg.skyTop);
+    const skyMid = new Graphics().rect(0, height * 0.35, width, height * 0.35).fill(cfg.skyMid);
+    const skyLow = new Graphics().rect(0, height * 0.7, width, groundY - height * 0.7).fill(cfg.skyLow);
+    c.addChild(skyTop, skyMid, skyLow);
+  }
 
-  const tiledSky = isLayeredArena || imageUrl ? null : new TilingSprite({
+  const tiledSky = (isLayeredArena || imageUrl || transparentBase) ? null : new TilingSprite({
       texture: Texture.from(SKY_IMAGE_BY_THEME[themeId]),
       width: width,
       height: height,
     });
-  const skyImage = imageUrl ? Sprite.from(imageUrl) : tiledSky;
+  const skyImage = transparentBase ? null : (imageUrl ? Sprite.from(imageUrl) : tiledSky);
   if (skyImage && imageUrl) {
     skyImage.width = width;
     skyImage.height = height;
@@ -767,7 +772,7 @@ export function createSkyBackground(
   const storySkySoftener = hideGround ? makeStorySkySoftener(width, height, cfg) : null;
   if (storySkySoftener) c.addChild(storySkySoftener);
 
-  const layeredArena = isLayeredArena ? createLayeredArenaDecor(width, height, !imageUrl) : null;
+  const layeredArena = isLayeredArena ? createLayeredArenaDecor(width, height, !imageUrl && !transparentBase) : null;
   if (layeredArena) c.addChild(layeredArena.container);
 
   // Faint ceiling hint

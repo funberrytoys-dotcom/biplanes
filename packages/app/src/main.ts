@@ -1,4 +1,4 @@
-import { Assets, Container, Graphics, Sprite, Text, TextStyle } from 'pixi.js';
+import { Assets, Container, Graphics, Sprite, Text, TextStyle, Texture } from 'pixi.js';
 import { assetUrl } from './asset-url.js';
 import {
   TICK_DT,
@@ -744,6 +744,36 @@ export async function startGame(container: HTMLElement) {
   app.stage.addChild(worldLayer);
   worldLayer.visible = false;
 
+  // === Screen-space far backdrop ===
+  // The scenic panorama renders here, sized to the viewport (downsampled from the
+  // source → sharp) with a gentle parallax drift — instead of being stretched onto
+  // the huge world and magnified by the camera (which made it blurry).
+  const backdropLayer = new Container();
+  app.stage.addChildAt(backdropLayer, 0); // behind the world
+  const backdropSprite = new Sprite();
+  backdropSprite.anchor.set(0.5);
+  backdropLayer.addChild(backdropSprite);
+  backdropLayer.visible = false;
+  let backdropUrl: string | null = null;
+  const BACKDROP_OVER = 1.24; // oversize so parallax drift never reveals an edge
+  function fitBackdrop() {
+    const tex = backdropSprite.texture;
+    if (!backdropUrl || !tex || tex.width < 2) return;
+    const sw = app.screen.width, sh = app.screen.height;
+    const scale = Math.max((sw * BACKDROP_OVER) / tex.width, (sh * BACKDROP_OVER) / tex.height);
+    backdropSprite.scale.set(scale);
+    backdropSprite.x = sw / 2;
+    backdropSprite.y = sh / 2;
+  }
+  function setBackdrop(url: string | null) {
+    backdropLayer.visible = url !== null;
+    if (!url) { backdropUrl = null; return; }
+    if (url === backdropUrl) return;
+    backdropUrl = url;
+    backdropSprite.texture = Texture.from(url);
+    fitBackdrop();
+  }
+
   // Screen effects must be created before lightning (lightning triggers screenFx.flash).
   // Layout: uiLayer/screenFx is added later — we just need the handle to pass into lightning.
   const screenFx = createScreenEffects(app.screen.width, app.screen.height);
@@ -779,14 +809,20 @@ export async function startGame(container: HTMLElement) {
       worldLayer.removeChild(sky.container);
       sky.container.destroy({ children: true });
     }
+    // Arena: the scenic photo goes to the sharp screen-space backdrop, and the
+    // world sky uses a transparent base + parallax decor (no giant stretched photo).
+    const isArena = runMode === 'arena';
     sky = createSkyBackground(
       worldW,
       worldH,
       themeId,
       runMode === 'story' || runMode === 'skytest' || runMode === 'gunfeelLab' || runMode === 'flightLab' || runMode === 'oilshot',
-      (runMode === 'skytest' || runMode === 'gunfeelLab' || runMode === 'flightLab' || runMode === 'oilshot') ? SKY_TEST_IMAGE_URL : imageUrl,
-      (runMode === 'skytest' || runMode === 'arena' || runMode === 'gunfeelLab' || runMode === 'flightLab' || runMode === 'oilshot') ? { mode: 'layeredArena' } : undefined,
+      isArena ? undefined : ((runMode === 'skytest' || runMode === 'gunfeelLab' || runMode === 'flightLab' || runMode === 'oilshot') ? SKY_TEST_IMAGE_URL : imageUrl),
+      (runMode === 'skytest' || runMode === 'arena' || runMode === 'gunfeelLab' || runMode === 'flightLab' || runMode === 'oilshot')
+        ? { mode: 'layeredArena', transparentBase: isArena }
+        : undefined,
     );
+    setBackdrop(isArena ? (imageUrl ?? null) : null);
     worldLayer.addChildAt(sky.container, 0); // Keep sky behind all active elements
     lightning.setActive(themeId === 'twilight' || themeId === 'night');
     lensFlare.setActive(themeId === 'noon' || themeId === 'sunset');
@@ -2500,6 +2536,13 @@ export async function startGame(container: HTMLElement) {
         facing: playerPilot?.facing ?? state.player.kinematic.facing,
       });
       camera.setFocus(focus.x, focus.y, cameraZoom(focus.zoom));
+      // Gentle parallax on the screen-space backdrop (distant sky barely shifts).
+      if (backdropLayer.visible) {
+        const fx = focus.x / ARENA_WORLD_WIDTH - 0.5;
+        const fy = focus.y / ARENA_WORLD_HEIGHT - 0.5;
+        backdropSprite.x = app.screen.width / 2 - fx * app.screen.width * 0.09;
+        backdropSprite.y = app.screen.height / 2 - fy * app.screen.height * 0.08;
+      }
     } else if (runMode === 'skytest' || runMode === 'gunfeelLab' || runMode === 'flightLab' || runMode === 'oilshot') {
       camera.setFocus(
         state.player.kinematic.position.x + state.player.kinematic.facing * 220,
@@ -2852,6 +2895,7 @@ export async function startGame(container: HTMLElement) {
     camera.setScreen(w, h);
     hud.resize(w, h);
     arenaWeather.resize(w, h);
+    fitBackdrop();
     layoutWeatherIndicator(w, h);
     screenFx.resize(w, h);
     touch.updateZones(w, h);
