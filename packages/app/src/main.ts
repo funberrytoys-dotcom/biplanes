@@ -154,10 +154,23 @@ const HUD_ICON_URLS = {
   eject: assetUrl('assets/biplanes/hud/icons/icon_eject.png'),
 };
 
+// Soft cloud sprites for the drifting screen-space sky strata (Path B).
+const SKY_CLOUD_URLS = [
+  assetUrl('assets/biplanes/arena/day/clouds/cloud_cumulus_01.png'),
+  assetUrl('assets/biplanes/arena/day/clouds/cloud_cumulus_02.png'),
+  assetUrl('assets/biplanes/arena/day/clouds/cloud_cumulus_03.png'),
+  assetUrl('assets/biplanes/arena/day/clouds/cloud_cumulus_04.png'),
+  assetUrl('assets/biplanes/arena/day/clouds/cloud_cumulus_05.png'),
+  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_01.png'),
+  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_03.png'),
+  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_05.png'),
+];
+
 const VISUAL_ASSET_URLS = [
   SKY_TEST_IMAGE_URL,
   ...Object.values(ARENA_BACKGROUND_URLS),
   ...Object.values(HUD_ICON_URLS),
+  ...SKY_CLOUD_URLS,
   ...SKY_TEST_LAYER_ASSET_URLS,
   assetUrl('assets/biplanes/sky_noon.jpg'),
   assetUrl('assets/biplanes/sky_sunset.jpg'),
@@ -773,6 +786,52 @@ export async function startGame(container: HTMLElement) {
     backdropSprite.texture = Texture.from(url);
     fitBackdrop();
   }
+
+  // === Drifting sky strata (Path B) — living, layered distant clouds ===
+  // Two bands of soft clouds cross the screen at different speeds/depths, just in
+  // front of the photo backdrop and behind the world. Always alive regardless of
+  // where the plane is in the world.
+  interface SkyCloud { sprite: Sprite; speed: number; baseY: number; depth: number; }
+  const skyClouds: SkyCloud[] = [];
+  const SKY_STRATA = [
+    { count: 4, scaleMin: 0.55, scaleMax: 0.95, alpha: 0.16, speed: 5, yMin: 0.04, yMax: 0.5, depth: 0.03 },
+    { count: 5, scaleMin: 0.35, scaleMax: 0.6, alpha: 0.26, speed: 13, yMin: 0.08, yMax: 0.62, depth: 0.06 },
+  ];
+  function buildSkyStrata() {
+    for (const c of skyClouds) backdropLayer.removeChild(c.sprite);
+    skyClouds.length = 0;
+    const sw = app.screen.width, sh = app.screen.height;
+    for (const s of SKY_STRATA) {
+      for (let i = 0; i < s.count; i++) {
+        const url = SKY_CLOUD_URLS[Math.floor(Math.random() * SKY_CLOUD_URLS.length)]!;
+        const sp = new Sprite(Texture.from(url));
+        sp.anchor.set(0.5);
+        sp.alpha = s.alpha;
+        const targetW = sw * (s.scaleMin + Math.random() * (s.scaleMax - s.scaleMin));
+        sp.width = targetW;
+        sp.scale.y = Math.abs(sp.scale.x);
+        sp.x = Math.random() * (sw * 1.4) - sw * 0.2;
+        sp.y = sh * (s.yMin + Math.random() * (s.yMax - s.yMin));
+        // place mid band in front of far band
+        backdropLayer.addChild(sp);
+        skyClouds.push({ sprite: sp, speed: s.speed, baseY: sp.y, depth: s.depth });
+      }
+    }
+  }
+  function updateSkyStrata(dt: number, focusX: number, focusY: number) {
+    if (!backdropLayer.visible || skyClouds.length === 0) return;
+    const sw = app.screen.width, sh = app.screen.height;
+    const pY = (focusY / ARENA_WORLD_HEIGHT - 0.5);
+    const pX = (focusX / ARENA_WORLD_WIDTH - 0.5);
+    for (const c of skyClouds) {
+      c.sprite.x -= c.speed * dt;
+      const halfW = c.sprite.width * 0.5;
+      if (c.sprite.x < -halfW) c.sprite.x = sw + halfW + Math.random() * sw * 0.3;
+      c.sprite.y = c.baseY - pY * sh * c.depth * 2.4;
+      c.sprite.x -= pX * sw * c.depth; // subtle horizontal parallax
+    }
+  }
+  buildSkyStrata();
 
   // Screen effects must be created before lightning (lightning triggers screenFx.flash).
   // Layout: uiLayer/screenFx is added later — we just need the handle to pass into lightning.
@@ -2542,6 +2601,7 @@ export async function startGame(container: HTMLElement) {
         const fy = focus.y / ARENA_WORLD_HEIGHT - 0.5;
         backdropSprite.x = app.screen.width / 2 - fx * app.screen.width * 0.09;
         backdropSprite.y = app.screen.height / 2 - fy * app.screen.height * 0.08;
+        updateSkyStrata(realDt, focus.x, focus.y);
       }
     } else if (runMode === 'skytest' || runMode === 'gunfeelLab' || runMode === 'flightLab' || runMode === 'oilshot') {
       camera.setFocus(
@@ -2896,6 +2956,7 @@ export async function startGame(container: HTMLElement) {
     hud.resize(w, h);
     arenaWeather.resize(w, h);
     fitBackdrop();
+    buildSkyStrata();
     layoutWeatherIndicator(w, h);
     screenFx.resize(w, h);
     touch.updateZones(w, h);
