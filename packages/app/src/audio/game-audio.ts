@@ -17,17 +17,20 @@ type SoundKey =
   | 'victory'
   | 'defeat';
 
+// Core combat sounds use real recordings (public-domain + one CC-BY) for a less
+// "toy" feel — see assets/audio/realistic/CREDITS.md for sources/licenses. UI
+// stings and ambient loops stay on the stylized war-on-water pack.
 const SOUND_URLS: Record<SoundKey, string> = {
-  engine: assetUrl('assets/audio/war-on-water/engine.ogg'),
+  engine: assetUrl('assets/audio/realistic/engine_prop.ogg'),
   boost: assetUrl('assets/audio/war-on-water/boost.ogg'),
   dive: assetUrl('assets/audio/war-on-water/dive.ogg'),
   uiSelect: assetUrl('assets/audio/war-on-water/button-click.ogg'),
   upgradePick: assetUrl('assets/audio/war-on-water/cartridges.ogg'),
   warning: assetUrl('assets/audio/war-on-water/call-help.ogg'),
-  machineGun: assetUrl('assets/audio/war-on-water/machine-gun.ogg'),
-  heavyGun: assetUrl('assets/audio/war-on-water/heavy-gun.ogg'),
-  airplaneExplosion: assetUrl('assets/audio/war-on-water/airplane-explosion.ogg'),
-  heavyExplosion: assetUrl('assets/audio/war-on-water/heavy-explosion.ogg'),
+  machineGun: assetUrl('assets/audio/realistic/gunshot.ogg'),
+  heavyGun: assetUrl('assets/audio/realistic/heavygun.ogg'),
+  airplaneExplosion: assetUrl('assets/audio/realistic/explosion_small.ogg'),
+  heavyExplosion: assetUrl('assets/audio/realistic/explosion_big.ogg'),
   victory: assetUrl('assets/audio/war-on-water/victory.ogg'),
   defeat: assetUrl('assets/audio/war-on-water/defeat.ogg'),
 };
@@ -295,7 +298,9 @@ export function createGameAudio(): GameAudioHandle {
       playBuffer('upgradePick', 0.42, 0.98);
     },
     playGunshot(heavy: boolean, ownerIsPlayer: boolean) {
-      const vol = ownerIsPlayer ? 0.68 : 0.3;
+      // Real gunshot cracks are sharper than the old stylized sample; keep rapid
+      // fire from a full mag punchy but not fatiguing.
+      const vol = ownerIsPlayer ? 0.5 : 0.24;
       playBuffer(heavy ? 'heavyGun' : 'machineGun', heavy ? vol * 1.18 : vol, heavy ? 0.9 + Math.random() * 0.08 : 0.96 + Math.random() * 0.08);
       if (ownerIsPlayer && !heavy && Math.random() < 0.35) {
         playBuffer('upgradePick', 0.1, 1.4 + Math.random() * 0.25);
