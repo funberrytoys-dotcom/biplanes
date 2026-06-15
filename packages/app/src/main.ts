@@ -1199,9 +1199,9 @@ export async function startGame(container: HTMLElement) {
 
   function layoutWeatherIndicator(w: number, _h: number) {
     const pw = 142, ph = 54;
-    // Sit left of the throttle lever (which hugs the far-right edge).
+    // Sit left of the throttle lever (far-right edge) and below the status row.
     weatherPanel.x = Math.max(12, w - pw - Math.max(108, w * 0.12));
-    weatherPanel.y = 12;
+    weatherPanel.y = 40;
     weatherBg.clear()
       .roundRect(0, 0, pw, ph, 8)
       .fill({ color: 0x091522, alpha: 0.66 })
@@ -2562,7 +2562,7 @@ export async function startGame(container: HTMLElement) {
 
     // === Weather gameplay: gusty wind + lightning strikes + HUD indicator ===
     if (runMode === 'arena') {
-      weatherPanel.visible = gameRunning;
+      weatherPanel.visible = gameRunning && !choicesShowing;
       // Gust ebbs and flows so wind is felt, not a constant pull.
       const gust = 0.5 + 0.5 * Math.abs(Math.sin(renderTimeSec * 0.7) * Math.cos(renderTimeSec * 0.23 + 1.3));
       state.wind = { x: weatherBaseWind.x * gust, y: weatherBaseWind.y * gust };
