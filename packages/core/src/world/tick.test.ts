@@ -238,6 +238,21 @@ describe('world tick', () => {
     expect(after.bombs).toHaveLength(0);
   });
 
+  it('empties the magazine on the last shot and starts a reload', () => {
+    const player = { ...makePlayer(), ammo: 1, weaponCooldown: 0 };
+    const s = createWorldState(42, player);
+    const cmd = { rotate: 0 as const, fire: true, bomb: false, throttleDelta: 0 as const, eject: false, jump: false };
+
+    const after = tick(s, cmd);
+    expect(after.player.ammo).toBe(0);
+    expect(after.player.reloadTimer).toBeGreaterThan(0);
+
+    // While reloading, the trigger does nothing and the timer ticks down.
+    const after2 = tick(after, cmd);
+    expect(after2.player.reloadTimer!).toBeLessThan(after.player.reloadTimer!);
+    expect(after2.player.ammo).toBe(0);
+  });
+
   it('rocket-pod upgrade adds rockets to the salvo', () => {
     const player = makePlayer();
     const s = {

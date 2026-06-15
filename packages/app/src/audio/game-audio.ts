@@ -64,6 +64,8 @@ export interface GameAudioHandle {
   playBoostKick(): void;
   playLevelUp(): void;
   playWaveClear(): void;
+  playReload(): void;
+  playReloadReady(): void;
   destroy(): void;
 }
 
@@ -337,6 +339,18 @@ export function createGameAudio(): GameAudioHandle {
       synthTone(392, 0.14, 0.13, 'triangle', undefined, 0);
       synthTone(523, 0.26, 0.15, 'triangle', undefined, 0.12);
       playBuffer('upgradePick', 0.28, 1.0);
+    },
+    playReload() {
+      // Empty-mag "click" + a magazine rack (cartridges) sound.
+      synthTone(900, 0.05, 0.08, 'square');
+      playBuffer('upgradePick', 0.4, 0.85);
+      playBuffer('upgradePick', 0.3, 0.7);
+    },
+    playReloadReady() {
+      // Fresh mag seated — a crisp two-tone ready chime.
+      synthTone(660, 0.07, 0.12, 'square', undefined, 0);
+      synthTone(990, 0.12, 0.13, 'square', undefined, 0.06);
+      playBuffer('upgradePick', 0.35, 1.05);
     },
     destroy() {
       disposed = true;

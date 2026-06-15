@@ -20,10 +20,14 @@ export const ENEMY_INITIAL_HP_LIGHT = 30;
 export const ENEMY_INITIAL_HP_HEAVY = 90;
 export const BULLET_SPEED = 1000;            // px/sec (~1.5× max plane level speed)
 export const BULLET_LIFETIME = 1.2;
-// Ballistics: bullets bleed speed (air drag) and arc downward (gravity), so fire
-// leads and the parabola matter. Tuned so close-range stays accurate, long-range drops.
-export const BULLET_DRAG = 0.34;             // fractional speed loss per second
-export const BULLET_GRAVITY = 250;           // px/sec² downward pull on bullets
+// Ballistics: a gentle lead/arc — noticeable but not punishing. (Halved from the
+// first pass, which made hits too hard.)
+export const BULLET_DRAG = 0.15;             // fractional speed loss per second
+export const BULLET_GRAVITY = 110;           // px/sec² downward pull on bullets
+
+// Magazine / reload
+export const MAG_SIZE = 100;                 // shots per magazine
+export const RELOAD_SEC = 10;                // seconds to reload an empty magazine
 export const MACHINE_GUN_COOLDOWN = 0.12;
 export const MACHINE_GUN_DAMAGE = 10;
 export const XP_PER_KILL_LIGHT = 5;

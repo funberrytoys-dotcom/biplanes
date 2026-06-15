@@ -1103,8 +1103,9 @@ export async function startGame(container: HTMLElement) {
   }
 
   function layoutWeatherIndicator(w: number, _h: number) {
-    const pw = 150, ph = 56;
-    weatherPanel.x = w - pw - 12;
+    const pw = 142, ph = 54;
+    // Sit left of the throttle lever (which hugs the far-right edge).
+    weatherPanel.x = Math.max(12, w - pw - Math.max(108, w * 0.12));
     weatherPanel.y = 12;
     weatherBg.clear()
       .roundRect(0, 0, pw, ph, 8)
@@ -1114,7 +1115,7 @@ export async function startGame(container: HTMLElement) {
     weatherHazard.x = 10; weatherHazard.y = 33;
   }
 
-  let weatherIconKind: WeatherIcon = 'sun';
+  let weatherIconKind: WeatherIcon | null = null;
   function updateWeatherIndicator(weather: WeatherGameplay, t: number) {
     weatherLabel.text = weather.label;
     if (weatherIconKind !== weather.icon) {
@@ -1969,6 +1970,7 @@ export async function startGame(container: HTMLElement) {
   let prevExplosionEventCount = state.explosionEvents.length;
   let prevBoostActive = false;
   let prevSpecialCooldown = 0;
+  let prevReloading = false;
   const enemyHpForFx = new Map<number, number>();
   let gunfeelLabShotWasActive = false;
   let flightLabWasStalling = false;
@@ -2625,14 +2627,22 @@ export async function startGame(container: HTMLElement) {
       audio.playBoostKick();
     }
     if (boosting) {
+      // White vapor/speed-line plume (NOT fire — fire reads as "we got hit").
       const h = state.player.kinematic.heading;
       const pos = state.player.kinematic.position;
       const tail = { x: pos.x - Math.cos(h) * 26, y: pos.y - Math.sin(h) * 26 };
-      damageFx.addFireTrail(tail, 2);
-      damageFx.addEngineExhaust(tail, 1);
-      if (Math.random() < 0.6) damageFx.addWindStreak(pos, h);
+      const tail2 = { x: pos.x - Math.cos(h) * 66, y: pos.y - Math.sin(h) * 66 };
+      damageFx.addVaporSegment(tail, tail2, 5.5);
+      damageFx.addWindStreak(pos, h);
+      if (Math.random() < 0.5) damageFx.addWindStreak(tail, h);
     }
     prevBoostActive = boosting;
+
+    // Reload audio: rack on empty, ready-chime when the fresh mag seats.
+    const reloadingNow = (state.player.reloadTimer ?? 0) > 0;
+    if (reloadingNow && !prevReloading) audio.playReload();
+    if (!reloadingNow && prevReloading) audio.playReloadReady();
+    prevReloading = reloadingNow;
 
     floatingNumbers.update(dt);
 

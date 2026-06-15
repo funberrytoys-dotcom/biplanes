@@ -24,6 +24,8 @@ export interface Plane {
   weaponCooldown: number; // seconds until next shot allowed
   bombCooldown?: number;  // seconds until next bomb allowed (legacy)
   specialCooldown?: number; // seconds until next rocket salvo allowed
+  ammo?: number;          // rounds left in the magazine (player only)
+  reloadTimer?: number;   // seconds left while reloading (player only); >0 = reloading
   alive: boolean;
 
   state: PlaneState;

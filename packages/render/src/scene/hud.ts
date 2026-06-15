@@ -8,6 +8,7 @@ import {
   LEVEL_UP_THRESHOLDS,
   PLAYER_HANGAR_X,
   WORLD_WIDTH,
+  MAG_SIZE,
 } from '@biplanes/shared';
 
 const G_MAX_REF = 950;      // max speed for gauge scale
@@ -553,8 +554,11 @@ export function createHud(width: number, height: number) {
       const h = s.player.kinematic.heading;
       const inverted = s.player.state === 'flying' && Math.abs(h) > Math.PI / 2 + 0.4 && Math.abs(h) < Math.PI - 0.4;
       const salvoReady = (s.player.specialCooldown ?? 0) <= 0.001;
+      const ammo = s.player.ammo ?? MAG_SIZE;
+      const reloadLeft = s.player.reloadTimer ?? 0;
+      const mgTag = reloadLeft > 0 ? `ПЕРЕЗАРЯДКА ${Math.ceil(reloadLeft)}С` : `ПАТРОНЫ ${ammo}`;
       const weaponTags = [
-        'MG',
+        mgTag,
         s.hasHeavyCannon ? 'CANNON' : null,
         `SALVO ${salvoReady ? 'READY' : 'RLD'}`,
         s.hasHomingRockets ? 'ROCKETS' : null,

@@ -32,6 +32,8 @@ import {
   SALVO_ROCKET_SPEED,
   SALVO_ROCKET_LIFETIME,
   HP_REGEN_PER_SEC,
+  MAG_SIZE,
+  RELOAD_SEC,
   DRONE_COOLDOWN,
   DRONE_DAMAGE,
   DRONE_RANGE,
@@ -484,24 +486,37 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
   // Bullets step
   const newBulletList = stepBullets(state.bullets);
 
-  // Player weapon
+  // Player weapon (with magazine + reload)
   if (!playerPilotActive && player.state === 'flying' && player.alive) {
+    let ammo = player.ammo ?? MAG_SIZE;
+    let reloadTimer = player.reloadTimer ?? 0;
     const decrementedPlayerCooldown = Math.max(0, player.weaponCooldown - TICK_DT);
-    const fireResult = firePlayerWeapon(
-      { ...player, weaponCooldown: decrementedPlayerCooldown },
-      playerCommand.fire,
-      nextEntityId,
-      state.damageMultiplier,
-      state.fireRateMultiplier,
-      state.hasHeavyCannon,
-      state.appliedUpgradeIds.includes('piercing_bullets'),
-      state.multishotExtra,
-    );
-    for (const b of fireResult.bullets) {
-      newBulletList.push(b);
-      nextEntityId++;
+    if (reloadTimer > 0) {
+      // Reloading — no firing; refill when the timer runs out.
+      reloadTimer = Math.max(0, reloadTimer - TICK_DT);
+      if (reloadTimer === 0) ammo = MAG_SIZE;
+      player = { ...player, weaponCooldown: decrementedPlayerCooldown, ammo, reloadTimer };
+    } else {
+      const fireResult = firePlayerWeapon(
+        { ...player, weaponCooldown: decrementedPlayerCooldown },
+        playerCommand.fire && ammo > 0,
+        nextEntityId,
+        state.damageMultiplier,
+        state.fireRateMultiplier,
+        state.hasHeavyCannon,
+        state.appliedUpgradeIds.includes('piercing_bullets'),
+        state.multishotExtra,
+      );
+      for (const b of fireResult.bullets) {
+        newBulletList.push(b);
+        nextEntityId++;
+      }
+      if (fireResult.bullets.length > 0) {
+        ammo = Math.max(0, ammo - 1);           // one trigger pull = one round
+        if (ammo === 0) reloadTimer = RELOAD_SEC;
+      }
+      player = { ...player, weaponCooldown: fireResult.newCooldown, ammo, reloadTimer };
     }
-    player = { ...player, weaponCooldown: fireResult.newCooldown };
   } else {
     player = { ...player, weaponCooldown: Math.max(0, player.weaponCooldown - TICK_DT) };
   }
