@@ -32,6 +32,8 @@ export interface TouchController {
   throttleValue(): number;
   /** When true, current() reports throttleTarget (touch device using the lever). */
   setThrottleEngaged(engaged: boolean): void;
+  /** Snap the lever (and reported throttle) back to zero — e.g. at a round start. */
+  resetThrottle(): void;
   updateZones(viewportW: number, viewportH: number): void;
 }
 
@@ -256,6 +258,7 @@ export function createTouchController(canvas: HTMLElement): TouchController {
     },
     throttleValue() { return state.throttleValue; },
     setThrottleEngaged(engaged: boolean) { state.throttleEngaged = engaged; },
+    resetThrottle() { state.throttleValue = 0; },
     updateZones,
   };
 }

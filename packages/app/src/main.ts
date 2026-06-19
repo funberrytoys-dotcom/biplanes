@@ -346,8 +346,11 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
     eject: Sprite.from(HUD_ICON_URLS.eject),
   };
   for (const sp of Object.values(icons)) sp.anchor.set(0.5);
+  // Dieselpunk throttle handle art (slides along the lever track).
+  const leverKnob = Sprite.from(assetUrl('assets/biplanes/hud/lever_knob.png'));
+  leverKnob.anchor.set(0.5, 0.5);
   c.addChild(
-    rings.throttleTrack, rings.throttleFill, rings.throttleKnob,
+    rings.throttleTrack, rings.throttleFill, rings.throttleKnob, leverKnob,
     rings.stick, rings.stickKnob, rings.fire, rings.special, rings.specialArc, rings.boost, rings.eject,
     icons.fire, icons.special, icons.boost, icons.eject, labels.throttle
   );
@@ -407,10 +410,13 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
     rings.throttleFill.clear()
       .roundRect(left + 3, fillTopY, s.w - 6, s.yBottom - fillTopY, Math.max(2, (s.w - 6) / 2))
       .fill({ color: gasColor, alpha: 0.42 });
-    rings.throttleKnob.clear()
-      .roundRect(s.x - s.w * 0.92, fillTopY - s.w * 0.46, s.w * 1.84, s.w * 0.92, s.w * 0.46)
-      .fill({ color: 0xf6fbff, alpha: 0.34 })
-      .stroke({ color: 0xffffff, width: 2, alpha: 0.62 });
+    rings.throttleKnob.clear();
+    // Art knob slides along the track to the current throttle position.
+    const knobW = s.w * 2.6;
+    leverKnob.width = knobW;
+    leverKnob.height = knobW * (667 / 718);
+    leverKnob.x = s.x;
+    leverKnob.y = fillTopY;
   }
 
   function updateStickKnob() {
@@ -1148,56 +1154,52 @@ export async function startGame(container: HTMLElement) {
   hud.container.visible = false;
   uiLayer.addChild(hud.container);
 
-  // === Ammo counter — clear, always-visible during a fight ============
-  const AMMO_PANEL_W = 180;
-  const AMMO_PANEL_H = 56;
+  // === Ammo counter — compact, bottom-right under the action icons ====
+  const AMMO_PANEL_W = 104;
+  const AMMO_PANEL_H = 38;
   const ammoHud = new Container();
   const ammoBg = new Graphics();
   const ammoIcon = new Graphics();
   const ammoBar = new Graphics();
-  const ammoText = new Text({ text: '', style: new TextStyle({ fontFamily: 'monospace', fontSize: 28, fontWeight: 'bold', fill: 0xffffff, stroke: { color: 0x05080e, width: 4 } }) });
-  const ammoLabel = new Text({ text: 'ПАТРОНЫ', style: new TextStyle({ fontFamily: 'monospace', fontSize: 11, fontWeight: 'bold', fill: 0xcfe0ff, stroke: { color: 0x05080e, width: 3 } }) });
-  ammoHud.addChild(ammoBg, ammoBar, ammoIcon, ammoText, ammoLabel);
+  const ammoText = new Text({ text: '', style: new TextStyle({ fontFamily: 'monospace', fontSize: 22, fontWeight: 'bold', fill: 0xffffff, stroke: { color: 0x05080e, width: 4 } }) });
+  ammoHud.addChild(ammoBg, ammoBar, ammoIcon, ammoText);
   ammoHud.visible = false;
   uiLayer.addChild(ammoHud);
 
   function layoutAmmoHud(w: number, h: number) {
-    ammoHud.x = Math.round(w / 2 - AMMO_PANEL_W / 2);
-    // Lift it clear of the plane sitting on the runway at the bottom-centre.
-    ammoHud.y = Math.round(h - AMMO_PANEL_H - Math.max(72, h * 0.17));
+    // Bottom-right corner, just left of the far-right throttle lever.
+    ammoHud.x = Math.round(w - AMMO_PANEL_W - Math.max(94, w * 0.14));
+    ammoHud.y = Math.round(h - AMMO_PANEL_H - 10);
     ammoBg.clear()
-      .roundRect(0, 0, AMMO_PANEL_W, AMMO_PANEL_H, 11)
-      .fill({ color: 0x0a1422, alpha: 0.62 })
-      .stroke({ color: 0x3f5e8c, width: 1.5, alpha: 0.7 });
-    // brass cartridge glyph on the left
+      .roundRect(0, 0, AMMO_PANEL_W, AMMO_PANEL_H, 9)
+      .fill({ color: 0x0a1422, alpha: 0.58 })
+      .stroke({ color: 0x3f5e8c, width: 1.4, alpha: 0.6 });
+    // small brass cartridge glyph
+    const cy = AMMO_PANEL_H / 2 - 3;
     ammoIcon.clear()
-      .roundRect(16, AMMO_PANEL_H / 2 - 11, 11, 22, 2).fill({ color: 0xd8a93f })
-      .moveTo(27, AMMO_PANEL_H / 2 - 11).lineTo(34, AMMO_PANEL_H / 2).lineTo(27, AMMO_PANEL_H / 2 + 11).closePath().fill({ color: 0xb9892b })
-      .rect(16, AMMO_PANEL_H / 2 - 11, 11, 4).fill({ color: 0xf1d27a });
-    ammoLabel.x = 46;
-    ammoLabel.y = 9;
-    ammoText.x = 46;
-    ammoText.y = 21;
+      .roundRect(12, cy - 8, 8, 16, 1.6).fill({ color: 0xd8a93f })
+      .moveTo(20, cy - 8).lineTo(26, cy).lineTo(20, cy + 8).closePath().fill({ color: 0xb9892b })
+      .rect(12, cy - 8, 8, 3).fill({ color: 0xf1d27a });
+    ammoText.x = 34;
+    ammoText.y = 5;
   }
 
   function updateAmmoHud(state: WorldState) {
     const ammo = state.player.ammo ?? MAG_SIZE;
     const reloadLeft = state.player.reloadTimer ?? 0;
-    const barX = 46, barY = AMMO_PANEL_H - 12, barW = AMMO_PANEL_W - 60, barH = 5;
-    ammoBar.clear().roundRect(barX, barY, barW, barH, 2.5).fill({ color: 0x05080e, alpha: 0.6 });
+    const barX = 12, barY = AMMO_PANEL_H - 8, barW = AMMO_PANEL_W - 24, barH = 4;
+    ammoBar.clear().roundRect(barX, barY, barW, barH, 2).fill({ color: 0x05080e, alpha: 0.6 });
     if (reloadLeft > 0) {
-      ammoLabel.text = 'ПЕРЕЗАРЯДКА';
       ammoText.text = `${Math.ceil(reloadLeft)}с`;
       ammoText.tint = 0xffb15a;
       const frac = Math.max(0, Math.min(1, 1 - reloadLeft / RELOAD_SEC));
-      if (frac > 0) ammoBar.roundRect(barX, barY, barW * frac, barH, 2.5).fill({ color: 0xff9a4a });
+      if (frac > 0) ammoBar.roundRect(barX, barY, barW * frac, barH, 2).fill({ color: 0xff9a4a });
     } else {
       const low = ammo <= 15;
-      ammoLabel.text = 'ПАТРОНЫ';
       ammoText.text = `${ammo}`;
       ammoText.tint = low ? 0xff5a4a : 0xffe08a;
       const frac = Math.max(0, Math.min(1, ammo / MAG_SIZE));
-      if (frac > 0) ammoBar.roundRect(barX, barY, barW * frac, barH, 2.5).fill({ color: low ? 0xff5a4a : 0x7cff8f });
+      if (frac > 0) ammoBar.roundRect(barX, barY, barW * frac, barH, 2).fill({ color: low ? 0xff5a4a : 0x7cff8f });
     }
   }
   layoutAmmoHud(app.screen.width, app.screen.height);
@@ -1664,6 +1666,7 @@ export async function startGame(container: HTMLElement) {
     supplyBalloons.sync([]);
     supplyPickups.sync([]);
     supplyFx.clear();
+    touch.resetThrottle(); // each round starts at zero throttle — the player must throttle up
     tracers.update(10);
     groundFx.clear();
     screenFx.disableDeathTint();
@@ -1884,6 +1887,7 @@ export async function startGame(container: HTMLElement) {
     missionOne.reset();
     storyScene.reset();
     resetRunState(arenaDifficultyForRound(arenaRound) as Difficulty, makeArenaRunwayPlayer());
+    touch.resetThrottle(); // start the run sitting still — the player gives gas
     state.worldWidth = ARENA_WORLD_WIDTH;
     state.worldHeight = ARENA_WORLD_HEIGHT;
     state.disableAutoEnemySpawn = true;

@@ -1,6 +1,7 @@
-import { Container, Graphics, Text, TextStyle } from 'pixi.js';
+import { Container, Graphics, Sprite, Text, TextStyle } from 'pixi.js';
 import type { WorldState } from '@biplanes/core';
 import { findPilot } from '@biplanes/core';
+import { assetUrl } from '../asset-url.js';
 import { formatHudReadout, type HudStatus } from './hud-readout.js';
 import { getHudChromeLayout } from './hud-layout.js';
 import {
@@ -64,9 +65,16 @@ export function createHud(width: number, height: number) {
   spdGaugeLabel.y = SPD_CY + 14;
   dashboard.addChild(spdGaugeLabel);
 
-  // 4. Needles Nodes
-  const hpNeedle = new Graphics();
-  const spdNeedle = new Graphics();
+  // 4. Needle sprites (brass needle art) — pivot disc sits at the gauge centre.
+  const NEEDLE_URL = assetUrl('assets/biplanes/hud/needle.png');
+  const NEEDLE_PIVOT_Y = 0.86; // pivot disc is ~86% down the art
+  const NEEDLE_SCALE = (GAUGE_R - 3) / (708 * NEEDLE_PIVOT_Y);
+  const hpNeedle = Sprite.from(NEEDLE_URL);
+  const spdNeedle = Sprite.from(NEEDLE_URL);
+  for (const nd of [hpNeedle, spdNeedle]) {
+    nd.anchor.set(0.5, NEEDLE_PIVOT_Y);
+    nd.scale.set(NEEDLE_SCALE);
+  }
   dashboard.addChild(hpNeedle, spdNeedle);
 
   // 5. Vertical Mechanical Throttle Slot & Slider Lever
@@ -465,26 +473,17 @@ export function createHud(width: number, height: number) {
       // Speed Label
       spdGauge.circle(SPD_CX, SPD_CY + 18, 5).fill(0x05070a);
 
-      // 3. Render Needles with physical behavior (trembling on stall/low-HP)
-      hpNeedle.clear();
+      // 3. Point the needle sprites at the gauge values (the art points "up", so
+      // rotation = value angle + 90°). Trembling on stall / low-HP stays.
       const hpAngle = SWEEP_START + hpPct * SWEEP_LEN;
-      // Trembling oil pressure needle at low HP
       const hpTremble = isHpCritical ? (Math.random() - 0.5) * 0.08 : 0;
-      const hpNeedleLength = GAUGE_R - 6;
-      hpNeedle.moveTo(HP_CX, HP_CY)
-              .lineTo(HP_CX + Math.cos(hpAngle + hpTremble) * hpNeedleLength, HP_CY + Math.sin(hpAngle + hpTremble) * hpNeedleLength)
-              .stroke({ color: 0xe74c3c, width: 2.2 });
-      hpNeedle.circle(HP_CX, HP_CY, 4.5).fill(0x8b5a2b); // Copper needle cap
+      hpNeedle.x = HP_CX; hpNeedle.y = HP_CY;
+      hpNeedle.rotation = hpAngle + hpTremble + Math.PI / 2;
 
-      spdNeedle.clear();
       const spdAngle = SWEEP_START + speedPct * SWEEP_LEN;
-      // Tremble needle aggressively when stalling!
       const spdTremble = stalling ? (Math.random() - 0.5) * 0.16 : 0;
-      const spdNeedleLength = GAUGE_R - 6;
-      spdNeedle.moveTo(SPD_CX, SPD_CY)
-              .lineTo(SPD_CX + Math.cos(spdAngle + spdTremble) * spdNeedleLength, SPD_CY + Math.sin(spdAngle + spdTremble) * spdNeedleLength)
-              .stroke({ color: 0x66d9ef, width: 2.2 });
-      spdNeedle.circle(SPD_CX, SPD_CY, 4.5).fill(0x8b5a2b); // Copper needle cap
+      spdNeedle.x = SPD_CX; spdNeedle.y = SPD_CY;
+      spdNeedle.rotation = spdAngle + spdTremble + Math.PI / 2;
 
       // 4. Render Throttle Slider Lever Knob
       const throttle = s.player.kinematic.throttleLevel ?? 0.0;
