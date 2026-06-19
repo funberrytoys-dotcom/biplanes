@@ -445,23 +445,26 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
             smokeAcc -= 1 / 25;
           }
         } else if (aliveAndFlying) {
+          // Emission rates are halved vs. the original tuning to cap particle
+          // churn on mobile (fire ~26/sec, smoke ~14/sec at fire threshold;
+          // smoke ~16/sec at smoke threshold).
           const hpFrac = p.hp / p.maxHp;
           if (hpFrac <= FIRE_THRESHOLD) {
             fireAcc += dt;
-            while (fireAcc >= 1 / 50) {
+            while (fireAcc >= 1 / 26) {
               fx.addFireTrail({ x: tailX, y: tailY }, 1);
-              fireAcc -= 1 / 50;
+              fireAcc -= 1 / 26;
             }
             smokeAcc += dt;
-            while (smokeAcc >= 1 / 25) {
+            while (smokeAcc >= 1 / 14) {
               fx.addSmokeTrail({ x: tailX, y: tailY }, 1);
-              smokeAcc -= 1 / 25;
+              smokeAcc -= 1 / 14;
             }
           } else if (hpFrac <= SMOKE_THRESHOLD) {
             smokeAcc += dt;
-            while (smokeAcc >= 1 / 30) {
+            while (smokeAcc >= 1 / 16) {
               fx.addSmokeTrail({ x: tailX, y: tailY }, 1);
-              smokeAcc -= 1 / 30;
+              smokeAcc -= 1 / 16;
             }
           } else {
             smokeAcc = 0;

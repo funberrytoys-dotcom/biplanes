@@ -209,7 +209,13 @@ export function createScreenEffects(width: number, height: number): ScreenEffect
     resize(nw, nh) {
       w = nw;
       h = nh;
-      rebuildRadialVignette();
+      // Reuse the existing vignette texture — the radial gradient is
+      // scale-independent, so we only stretch the sprite instead of rebuilding
+      // a fresh 512x512 canvas + Texture every resize.
+      if (vignetteSprite) {
+        vignetteSprite.width = w;
+        vignetteSprite.height = h;
+      }
       flashG.clear().rect(0, 0, w, h).fill(0xffffff);
       flashG.alpha = 0;
     },

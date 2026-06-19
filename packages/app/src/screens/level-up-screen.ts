@@ -5,6 +5,7 @@ import {
   rarityLabel,
   rarityForUpgrade,
   resolveLevelUpCardLayout,
+  RARITY_PALETTE,
   type UpgradeRarity,
 } from './level-up-screen-layout.js';
 
@@ -32,7 +33,7 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
     fill: 0x9fb5c4,
     letterSpacing: 0,
   });
-  const title = new Text({ text: 'МАСТЕРСКАЯ ЧИКО', style: titleStyle });
+  const title = new Text({ text: 'ВОЗДУШНАЯ МАСТЕРСКАЯ', style: titleStyle });
   const subtitle = new Text({ text: 'Установи один модуль перед следующей волной', style: subtitleStyle });
   c.addChild(title, subtitle);
 
@@ -101,24 +102,24 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
 
   function drawCard(card: CardHandle, highlighted = false) {
     const { bg, shine, badge, width: cardW, height: cardH, rarity, pressed } = card;
-    const accent = rarity === 'ace' ? 0xffd55d : 0x51c7ff;
-    const secondary = rarity === 'ace' ? 0xff7a3d : 0xb97536;
+    const pal = RARITY_PALETTE[rarity];
+    const accent = pal.accent;
+    const secondary = pal.secondary;
     const edge = highlighted || pressed ? 0xfff0bd : accent;
-    const fill = rarity === 'ace' ? 0x2b1608 : 0x11283a;
+    const fill = pal.fill;
 
     bg.clear();
     bg.roundRect(0, 0, cardW, cardH, 8)
       .fill({ color: fill, alpha: highlighted ? 0.98 : 0.94 })
       .stroke({ color: 0x05070a, width: 5, alpha: 0.98 });
     bg.roundRect(4, 4, cardW - 8, cardH - 8, 6)
-      .fill({ color: rarity === 'ace' ? 0x442009 : 0x183449, alpha: 0.52 });
+      .fill({ color: pal.deep, alpha: 0.52 });
     bg.roundRect(5, 5, cardW - 10, cardH - 10)
       .stroke({ color: edge, width: highlighted || pressed ? 3 : 2, alpha: 0.92 });
     bg.rect(12, 43, cardW - 24, 1).fill({ color: accent, alpha: 0.62 });
     bg.rect(12, cardH - 48, cardW - 24, 1).fill({ color: 0x6f8792, alpha: 0.42 });
-    bg.circle(cardW - 24, 22, 5).fill({ color: accent, alpha: 0.9 });
-    bg.circle(cardW - 24, 22, 11).stroke({ color: accent, width: 1.2, alpha: 0.45 });
-    bg.circle(22, cardH - 22, 3.4).fill({ color: secondary, alpha: 0.8 });
+    // Single decorative rivet bottom-right only (the old top-right + bottom-left
+    // rivets collided with the rarity label and the "СТАВИТЬ" button text).
     bg.circle(cardW - 22, cardH - 22, 3.4).fill({ color: secondary, alpha: 0.65 });
 
     shine.clear()
@@ -167,7 +168,7 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
       targetY: 0,
       width: 260,
       height: 190,
-      rarity: 'standard',
+      rarity: 'common',
       pressed: false,
     };
 
@@ -267,7 +268,7 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
           card.rarityText.text = rarityLabel(card.rarity);
           card.titleText.text = upgrade.title;
           card.descText.text = upgrade.description;
-          card.pickText.text = card.rarity === 'ace' ? 'СТАВИТЬ ЭВОЛЮЦИЮ' : 'СТАВИТЬ МОДУЛЬ';
+          card.pickText.text = upgrade.isEvolution ? 'СТАВИТЬ ЭВОЛЮЦИЮ' : 'СТАВИТЬ МОДУЛЬ';
           card.rarityText.x = card.width - card.rarityText.width - 16;
           card.animTimer = -i * 0.12;
           card.container.x = card.targetX;

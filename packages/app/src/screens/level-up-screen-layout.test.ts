@@ -20,18 +20,27 @@ describe('level-up screen layout', () => {
     expect(layout.titleY).toBeLessThan(32);
   });
 
-  it('marks evolutions as rare ace modifications', () => {
-    const upgrade: UpgradeDef = {
+  it('marks evolutions as mythic rarity and plain modules by id', () => {
+    const evolution: UpgradeDef = {
       id: 'gatling_evolution',
       title: 'Gatling',
       description: 'Evolution',
       category: 'weapon',
       isEvolution: true,
     };
+    const basic: UpgradeDef = {
+      id: 'damage_plus_25',
+      title: 'Урон',
+      description: '+25%',
+      category: 'passive',
+      isEvolution: false,
+      maxStacks: 4,
+    };
 
-    expect(rarityForUpgrade(upgrade)).toBe('ace');
-    expect(rarityLabel('ace')).toBe('ЭВОЛЮЦИЯ');
-    expect(rarityLabel('standard')).toBe('МОДУЛЬ');
+    expect(rarityForUpgrade(evolution)).toBe('mythic');
+    expect(rarityForUpgrade(basic)).toBe('common');
+    expect(rarityLabel('mythic')).toBe('МИФИЧЕСКИЙ');
+    expect(rarityLabel('common')).toBe('ОБЫЧНЫЙ');
   });
 
   it('translates upgrade categories into short readable labels', () => {

@@ -1157,7 +1157,8 @@ export async function startGame(container: HTMLElement) {
 
   function layoutAmmoHud(w: number, h: number) {
     ammoHud.x = Math.round(w / 2 - AMMO_PANEL_W / 2);
-    ammoHud.y = Math.round(h - AMMO_PANEL_H - 14);
+    // Lift it clear of the plane sitting on the runway at the bottom-centre.
+    ammoHud.y = Math.round(h - AMMO_PANEL_H - Math.max(72, h * 0.17));
     ammoBg.clear()
       .roundRect(0, 0, AMMO_PANEL_W, AMMO_PANEL_H, 11)
       .fill({ color: 0x0a1422, alpha: 0.62 })
@@ -1255,7 +1256,7 @@ export async function startGame(container: HTMLElement) {
   const weatherHazard = new Text({
     text: '',
     style: new TextStyle({
-      fontFamily: 'monospace', fontSize: 11, fontWeight: 'bold',
+      fontFamily: 'monospace', fontSize: 10, fontWeight: 'bold',
       fill: 0xffd27a, stroke: { color: 0x05080e, width: 3 },
     }),
   });
@@ -1308,9 +1309,10 @@ export async function startGame(container: HTMLElement) {
   }
 
   function layoutWeatherIndicator(w: number, _h: number) {
-    const pw = 142, ph = 54;
-    // Sit left of the throttle lever (far-right edge) and below the status row.
-    weatherPanel.x = Math.max(12, w - pw - Math.max(108, w * 0.12));
+    const pw = 204, ph = 54;
+    // Sit well left of the throttle lever ("ГАЗ") so the hazard line never spills
+    // onto it, and below the status row.
+    weatherPanel.x = Math.max(12, w - pw - Math.max(118, w * 0.12));
     weatherPanel.y = 40;
     weatherBg.clear()
       .roundRect(0, 0, pw, ph, 8)
@@ -1548,8 +1550,6 @@ export async function startGame(container: HTMLElement) {
       arenaStatus.visible = false;
       return;
     }
-    const stage = currentArenaStage();
-    const location = ARENA_LOCATION_THEMES[Math.max(0, stage - 1)] ?? ARENA_LOCATION_THEMES[0]!;
     const phaseText =
       arenaRoundPhase === 'takeoff' ? 'ВЗЛЕТ' :
       arenaRoundPhase === 'upgradeDelay' ? `ТРОФЕИ ${Math.max(0, 3 - arenaUpgradeDelaySec).toFixed(1)}С` :
@@ -1557,7 +1557,12 @@ export async function startGame(container: HTMLElement) {
       arenaRoundPhase === 'upgrade' ? 'ДОРАБОТКА' :
       state.enemies.some(e => e.isBoss && e.alive) ? 'ШРАМ' :
       'БОЙ';
-    arenaStatus.text = `РАУНД ${arenaRound}  ${phaseText}  ЧИКО ${state.playerScore} : ${state.enemyScore} ВРАГ  ${location.name}`;
+    // Weather/location name lives in the dedicated weather panel — keep the status
+    // bar short so it doesn't collide with the cockpit panel (left) or that panel (right).
+    void location;
+    // Weather/location name lives in the dedicated weather panel — keep the status
+    // bar short so it doesn't collide with the cockpit panel (left) or that panel (right).
+    arenaStatus.text = `РАУНД ${arenaRound}  ${phaseText}  ЧИКО ${state.playerScore} : ${state.enemyScore} ВРАГ`;
     arenaStatus.x = Math.max(12, (app.screen.width - arenaStatus.width) / 2);
     arenaStatus.y = 12;
     arenaStatus.visible = true;
@@ -2989,6 +2994,7 @@ export async function startGame(container: HTMLElement) {
     muzzleFlashes.update(dt);
     screenFx.update(dt, renderTimeSec, worldLayer);
     arenaWeather.update(dt, renderTimeSec);
+    hud.setArenaRound(runMode === 'arena' ? arenaRound : null);
     hud.update(state);
     updateAmmoHud(state);
     ammoHud.visible = (runMode === 'arena' || runMode === 'story')

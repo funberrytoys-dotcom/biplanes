@@ -394,8 +394,14 @@ export function createHud(width: number, height: number) {
 
   layoutHud(width, height);
 
+  // In the arena the player installs one module per round, so the cockpit counter
+  // tracks the ROUND (set by the host) instead of the XP level — that's what the
+  // player intuitively expects ("why is it LVL 5 on round 7?").
+  let arenaRoundDisplay: number | null = null;
+
   return {
     container: c,
+    setArenaRound(round: number | null) { arenaRoundDisplay = round; },
     update(s: WorldState) {
       pulseT += 0.15;
       const timeSec = s.timeSec;
@@ -502,8 +508,10 @@ export function createHud(width: number, height: number) {
               .rect(BST_X - 1, boostY - 1, BST_W + 2, 2)
               .fill(0xffffff);
 
-      // 5. Update Nixie tube display
-      const displayLvl = s.level < 10 ? `0${s.level}` : `${s.level}`;
+      // 5. Update Nixie tube display — show the arena round when the host set it,
+      // otherwise the XP level (story / labs).
+      const shownLvl = arenaRoundDisplay ?? s.level;
+      const displayLvl = shownLvl < 10 ? `0${shownLvl}` : `${shownLvl}`;
       nixieText.text = `LVL ${displayLvl}`;
       
       const prevThreshold = s.level >= 2 ? LEVEL_UP_THRESHOLDS[s.level - 2] ?? 0 : 0;

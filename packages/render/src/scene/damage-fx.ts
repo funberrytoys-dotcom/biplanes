@@ -11,6 +11,11 @@ interface Particle {
   type: 'smoke' | 'fire' | 'spark' | 'shockwave' | 'chunk' | 'casing' | 'windstreak' | 'debris';
 }
 
+// Hard cap on simultaneously-active particles. At low HP the fire+smoke
+// trails can balloon the active list and tank mobile framerate, so we trim
+// the oldest particles back to the pool once we exceed this.
+const MAX_ACTIVE_PARTICLES = 48;
+
 export class DamageFx {
   private opaqueContainer: Container;
   private glowContainer: Container;
@@ -536,6 +541,17 @@ export class DamageFx {
         // Standard fire/smoke grows slightly as it fades
         p.g.scale.set(0.6 + (1 - t) * 0.8);
       }
+    }
+
+    // Cap the active particle count: release the OLDEST particles (front of the
+    // array) back to the pool until we're within budget. Mirrors the normal
+    // expiry path so pooling stays intact.
+    if (this.active.length > MAX_ACTIVE_PARTICLES) {
+      const excess = this.active.length - MAX_ACTIVE_PARTICLES;
+      for (let i = 0; i < excess; i++) {
+        this.release(this.active[i]!.g);
+      }
+      this.active.splice(0, excess);
     }
   }
 }
