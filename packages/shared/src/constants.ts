@@ -128,6 +128,27 @@ export const DYING_DURATION_SEC = 1.8;
 export const DYING_SPIN_RATE = 5.0;            // rad/sec heading rotation
 export const DYING_GRAVITY_MULTIPLIER = 1.8;
 
+// === Supply balloons & pickups (collectible bonuses) ===
+// A balloon carries a chest; shoot it to pop → it drops floating pickups the
+// player grabs by flying near them. All in-tick randomness uses the seeded RNG.
+export const SUPPLY_BALLOON_HP = 2;                // bullet hits to pop a balloon
+export const SUPPLY_BALLOON_RADIUS = 36;           // px hit radius (balloon + chest)
+export const SUPPLY_BALLOON_DRIFT = 24;            // px/sec base horizontal drift
+export const SUPPLY_BALLOON_BOB_AMPLITUDE = 16;    // px vertical bob
+export const SUPPLY_BALLOON_BOB_SPEED = 1.0;       // rad/sec bob
+export const SUPPLY_DROP_MIN = 1;                  // pickups dropped per pop (min)
+export const SUPPLY_DROP_MAX = 3;                  // pickups dropped per pop (max)
+export const PICKUP_RADIUS = 42;                   // px collect radius (fly near to grab)
+export const PICKUP_FALL_SPEED = 64;               // px/sec terminal descent of a dropped item
+export const PICKUP_GRAVITY = 150;                 // px/sec² until terminal speed
+export const PICKUP_LIFETIME = 11;                 // sec before an uncollected item fades
+export const PICKUP_BOB_AMPLITUDE = 6;             // px sway while drifting down
+export const PICKUP_BOB_SPEED = 3.2;               // rad/sec sway
+export const PICKUP_AMMO_REFILL = MAG_SIZE;        // ammo pickup = a full magazine
+export const PICKUP_REPAIR_FRACTION = 0.35;        // repair pickup = +35% of max HP
+export const RAPIDFIRE_DURATION_SEC = 6;           // 'boost' pickup: rapid-fire window (sec)
+export const RAPIDFIRE_MULTIPLIER = 2.2;           // fire-rate multiplier during rapid fire
+
 // Plane-vs-plane collision (Phase 5).
 export const PLANE_COLLISION_RADIUS = 24;
 export const COLLISION_DAMAGE_K = 0.055;       // tuned so head-on at ~1800 px/s ≈ maxHp damage

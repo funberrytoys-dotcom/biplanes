@@ -18,6 +18,11 @@ import {
   HIT_PAUSE_FRAMES_RAM,
   HIT_PAUSE_FRAMES_RAM_KILL,
   SALVO_COOLDOWN,
+  MAG_SIZE,
+  RELOAD_SEC,
+  GROUND_Y,
+  SUPPLY_BALLOON_HP,
+  SUPPLY_BALLOON_DRIFT,
   type PlayerCommand,
 } from '@biplanes/shared';
 import {
@@ -30,6 +35,7 @@ import {
   type Plane,
   type Difficulty,
   type UpgradeId,
+  type SupplyBalloon,
   isStalling,
   findPilot,
 } from '@biplanes/core';
@@ -42,6 +48,9 @@ import {
   createPilotSprite,
   BulletPool,
   BombPool,
+  SupplyPool,
+  PickupPool,
+  SupplyFx,
   createCamera,
   createHud,
   createRenderClock,
@@ -177,6 +186,7 @@ const VISUAL_ASSET_URLS = [
   assetUrl('assets/biplanes/sky_twilight.jpg'),
   assetUrl('assets/biplanes/sky_night.jpg'),
   assetUrl('assets/biplanes/plane_chico_blue.png'),
+  assetUrl('assets/biplanes/supply_balloon_chest.png'),
   assetUrl('assets/biplanes/plane_player_sov_sheet.png'),
   assetUrl('assets/biplanes/plane_enemy_red.png'),
   assetUrl('assets/biplanes/plane_enemy_crimson_sheet.png'),
@@ -613,6 +623,33 @@ function makeSkyTestBoss(id: number): Plane {
   };
 }
 
+// 1-3 supply balloons per round, scattered around the player at shootable
+// altitudes with a gentle drift. (App-side Math.random, like the rest of arena
+// spawning; the deterministic tick handles pops/drops via the seeded RNG.)
+function makeArenaSupplyBalloons(startId: number, player: Plane, count: number): SupplyBalloon[] {
+  const out: SupplyBalloon[] = [];
+  for (let i = 0; i < count; i++) {
+    const side = Math.random() < 0.5 ? -1 : 1;
+    const x = player.kinematic.position.x + side * (440 + Math.random() * 1200);
+    // Spread across the combat band (a bit above the player's typical altitude),
+    // clamped so pickups have room to fall and balloons aren't on the deck.
+    const y = Math.min(
+      ARENA_WORLD_HEIGHT * 0.6,
+      Math.max(280, player.kinematic.position.y - 700 + Math.random() * 1100),
+    );
+    const drift = (Math.random() < 0.5 ? -1 : 1) * SUPPLY_BALLOON_DRIFT * (0.6 + Math.random() * 0.9);
+    out.push({
+      id: startId + i,
+      position: { x, y },
+      velocity: { x: drift, y: 0 },
+      bobPhase: Math.random() * Math.PI * 2,
+      hp: SUPPLY_BALLOON_HP,
+      alive: true,
+    });
+  }
+  return out;
+}
+
 function makeArenaRoundEnemy(id: number, player: Plane, round: number, lane: number = 0): Plane {
   const role = arenaEnemyRoleForRound(round, lane);
   const roleTuning = arenaEnemyRoleTuning(role);
@@ -956,7 +993,8 @@ export async function startGame(container: HTMLElement) {
   const fxLayer = new Container();
   const glowLayer = createGlowLayer();
   const groundFxLayer = new Container();
-  worldLayer.addChild(bulletLayer, fxLayer, glowLayer.container, groundFxLayer, planeLayer);
+  const supplyLayer = new Container(); // balloons + dropped pickups (behind planes)
+  worldLayer.addChild(bulletLayer, fxLayer, glowLayer.container, groundFxLayer, supplyLayer, planeLayer);
   const groundFx = new GroundFx(groundFxLayer);
 
   // Foreground clouds — ABOVE the planes, so the hero/enemy can fly into cover
@@ -1001,6 +1039,9 @@ export async function startGame(container: HTMLElement) {
 
   const bullets = new BulletPool(bulletLayer);
   const bombSprites = new BombPool(fxLayer);
+  const supplyBalloons = new SupplyPool(supplyLayer, assetUrl('assets/biplanes/supply_balloon_chest.png'));
+  const supplyPickups = new PickupPool(supplyLayer);
+  const supplyFx = new SupplyFx(fxLayer);
   const damageFx = new DamageFx(fxLayer, glowLayer.container);
   const muzzleFlashes = new MuzzleFlashes(glowLayer.container);
   const tracers = new BulletTracers(glowLayer.container);
@@ -1100,6 +1141,59 @@ export async function startGame(container: HTMLElement) {
   const hud = createHud(app.screen.width, app.screen.height);
   hud.container.visible = false;
   uiLayer.addChild(hud.container);
+
+  // === Ammo counter — clear, always-visible during a fight ============
+  const AMMO_PANEL_W = 180;
+  const AMMO_PANEL_H = 56;
+  const ammoHud = new Container();
+  const ammoBg = new Graphics();
+  const ammoIcon = new Graphics();
+  const ammoBar = new Graphics();
+  const ammoText = new Text({ text: '', style: new TextStyle({ fontFamily: 'monospace', fontSize: 28, fontWeight: 'bold', fill: 0xffffff, stroke: { color: 0x05080e, width: 4 } }) });
+  const ammoLabel = new Text({ text: 'ПАТРОНЫ', style: new TextStyle({ fontFamily: 'monospace', fontSize: 11, fontWeight: 'bold', fill: 0xcfe0ff, stroke: { color: 0x05080e, width: 3 } }) });
+  ammoHud.addChild(ammoBg, ammoBar, ammoIcon, ammoText, ammoLabel);
+  ammoHud.visible = false;
+  uiLayer.addChild(ammoHud);
+
+  function layoutAmmoHud(w: number, h: number) {
+    ammoHud.x = Math.round(w / 2 - AMMO_PANEL_W / 2);
+    ammoHud.y = Math.round(h - AMMO_PANEL_H - 14);
+    ammoBg.clear()
+      .roundRect(0, 0, AMMO_PANEL_W, AMMO_PANEL_H, 11)
+      .fill({ color: 0x0a1422, alpha: 0.62 })
+      .stroke({ color: 0x3f5e8c, width: 1.5, alpha: 0.7 });
+    // brass cartridge glyph on the left
+    ammoIcon.clear()
+      .roundRect(16, AMMO_PANEL_H / 2 - 11, 11, 22, 2).fill({ color: 0xd8a93f })
+      .moveTo(27, AMMO_PANEL_H / 2 - 11).lineTo(34, AMMO_PANEL_H / 2).lineTo(27, AMMO_PANEL_H / 2 + 11).closePath().fill({ color: 0xb9892b })
+      .rect(16, AMMO_PANEL_H / 2 - 11, 11, 4).fill({ color: 0xf1d27a });
+    ammoLabel.x = 46;
+    ammoLabel.y = 9;
+    ammoText.x = 46;
+    ammoText.y = 21;
+  }
+
+  function updateAmmoHud(state: WorldState) {
+    const ammo = state.player.ammo ?? MAG_SIZE;
+    const reloadLeft = state.player.reloadTimer ?? 0;
+    const barX = 46, barY = AMMO_PANEL_H - 12, barW = AMMO_PANEL_W - 60, barH = 5;
+    ammoBar.clear().roundRect(barX, barY, barW, barH, 2.5).fill({ color: 0x05080e, alpha: 0.6 });
+    if (reloadLeft > 0) {
+      ammoLabel.text = 'ПЕРЕЗАРЯДКА';
+      ammoText.text = `${Math.ceil(reloadLeft)}с`;
+      ammoText.tint = 0xffb15a;
+      const frac = Math.max(0, Math.min(1, 1 - reloadLeft / RELOAD_SEC));
+      if (frac > 0) ammoBar.roundRect(barX, barY, barW * frac, barH, 2.5).fill({ color: 0xff9a4a });
+    } else {
+      const low = ammo <= 15;
+      ammoLabel.text = 'ПАТРОНЫ';
+      ammoText.text = `${ammo}`;
+      ammoText.tint = low ? 0xff5a4a : 0xffe08a;
+      const frac = Math.max(0, Math.min(1, ammo / MAG_SIZE));
+      if (frac > 0) ammoBar.roundRect(barX, barY, barW * frac, barH, 2.5).fill({ color: low ? 0xff5a4a : 0x7cff8f });
+    }
+  }
+  layoutAmmoHud(app.screen.width, app.screen.height);
 
   // === Caravan HP gauge (story mode UI) ============================
   const caravanGauge = new Container();
@@ -1520,6 +1614,12 @@ export async function startGame(container: HTMLElement) {
     state.pilots = state.pilots.filter(p => p.faction !== 'enemy');
     state.enemyAiStates.clear();
     state.prevEnemyHp.clear();
+    // Drop 1-3 supply balloons for the player to shoot down this round.
+    const balloonCount = 1 + Math.floor(Math.random() * 3);
+    const balloons = makeArenaSupplyBalloons(state.nextEntityId, state.player, balloonCount);
+    state.nextEntityId += balloons.length;
+    state.balloons = balloons;
+    state.pickups = [];
     screenFx.flash(0xffd27a, 0.24, 0.18);
   }
 
@@ -1540,12 +1640,18 @@ export async function startGame(container: HTMLElement) {
       bullets: [],
       bombs: [],
       rockets: [],
+      balloons: [],
+      pickups: [],
+      rapidFireSec: 0,
       pilots: state.pilots.filter(p => p.faction !== 'enemy'),
       enemyAiStates: new Map(),
       prevEnemyHp: new Map(),
     };
     bullets.sync([]);
     bombSprites.sync([]);
+    supplyBalloons.sync([]);
+    supplyPickups.sync([]);
+    supplyFx.clear();
     tracers.update(10);
     groundFx.clear();
     screenFx.disableDeathTint();
@@ -1732,6 +1838,9 @@ export async function startGame(container: HTMLElement) {
     prevExplosionEventCount = state.explosionEvents.length;
     bullets.sync([]);
     bombSprites.sync([]);
+    supplyBalloons.sync([]);
+    supplyPickups.sync([]);
+    supplyFx.clear();
     groundFx.clear();
     screenFx.setVignette(0);
     screenFx.disableDeathTint();
@@ -2849,6 +2958,19 @@ export async function startGame(container: HTMLElement) {
 
     bullets.sync(state.bullets);
     bombSprites.sync(state.bombs);
+    supplyBalloons.sync(state.balloons);
+    supplyPickups.sync(state.pickups);
+    for (const pos of state.balloonPopEvents) {
+      supplyFx.pop(pos);
+      audio.playImpact(false);
+    }
+    for (const ev of state.pickupCollectEvents) {
+      supplyFx.collect(ev.position, ev.kind);
+      if (ev.kind === 'ammo') audio.playUpgradePick();
+      else if (ev.kind === 'repair') audio.playLevelUp();
+      else audio.playBoostKick();
+    }
+    supplyFx.update(dt);
     for (const b of state.bullets) {
       const heading = Math.atan2(b.velocity.y, b.velocity.x);
       const shotFeel = resolveGunfeelShot({
@@ -2868,6 +2990,9 @@ export async function startGame(container: HTMLElement) {
     screenFx.update(dt, renderTimeSec, worldLayer);
     arenaWeather.update(dt, renderTimeSec);
     hud.update(state);
+    updateAmmoHud(state);
+    ammoHud.visible = (runMode === 'arena' || runMode === 'story')
+      && gameRunning && !choicesShowing && !state.gameOver && state.player.alive;
     audio.updateFlight(dt, state, gameRunning, choicesShowing);
     camera.tickShake(dt);
 
@@ -2917,6 +3042,9 @@ export async function startGame(container: HTMLElement) {
     pilotSprites.clear();
     bullets.sync([]);
     bombSprites.sync([]);
+    supplyBalloons.sync([]);
+    supplyPickups.sync([]);
+    supplyFx.clear();
     prevBulletIds = new Set();
     groundFx.clear();
     storyScene.reset();
@@ -2983,6 +3111,7 @@ export async function startGame(container: HTMLElement) {
     fitBackdrop();
     buildSkyStrata();
     layoutWeatherIndicator(w, h);
+    layoutAmmoHud(w, h);
     screenFx.resize(w, h);
     touch.updateZones(w, h);
     touchGuide.layout(w, h);

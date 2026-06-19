@@ -3,6 +3,7 @@ export * from './scene/sky-background.js';
 export * from './scene/plane-sprite/index.js';
 export * from './scene/bullet-sprite.js';
 export * from './scene/bomb-sprite.js';
+export * from './scene/supply-sprite.js';
 export * from './scene/hud.js';
 export * from './scene/damage-fx.js';
 export * from './scene/muzzle-flash.js';

@@ -5,6 +5,7 @@ export * from './entities/bullet.js';
 export * from './entities/pilot.js';
 export * from './entities/bomb.js';
 export * from './entities/rocket.js';
+export * from './entities/pickup.js';
 
 export * from './physics/plane-physics.js';
 export * from './physics/pilot-physics.js';
@@ -17,3 +18,9 @@ export type { AiState } from './ai/chase-policy.js';
 export { resolvePlanePlaneCollisions } from './systems/plane-collision.js';
 export type { PlaneCollisionEvent } from './systems/plane-collision.js';
 export * from './systems/arena-waves.js';
+export {
+  stepSupplyBalloons,
+  resolveBulletBalloonHits,
+  stepPickups,
+  resolvePlayerPickups,
+} from './systems/supply-system.js';

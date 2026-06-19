@@ -34,6 +34,7 @@ import {
   HP_REGEN_PER_SEC,
   MAG_SIZE,
   RELOAD_SEC,
+  RAPIDFIRE_MULTIPLIER,
   DRONE_COOLDOWN,
   DRONE_DAMAGE,
   DRONE_RANGE,
@@ -51,6 +52,12 @@ import { stepPilotParachute, stepPilotWalking, stepPilotDead } from '../physics/
 import { firePlayerWeapon, stepBullets } from '../systems/weapon-system.js';
 import { resolveBulletPlaneHits, applyExplosionDamage } from '../systems/collision-system.js';
 import { resolvePlanePlaneCollisions } from '../systems/plane-collision.js';
+import {
+  stepSupplyBalloons,
+  resolveBulletBalloonHits,
+  stepPickups,
+  resolvePlayerPickups,
+} from '../systems/supply-system.js';
 import { arenaTargetEnemyCount } from '../systems/arena-waves.js';
 import { aiCommand, aiCommandPilotTarget, createAiState } from '../ai/chase-policy.js';
 import { DIFFICULTIES, aiParamsForRole } from '../ai/difficulty.js';
@@ -361,6 +368,9 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
 
   let nextEntityId = state.nextEntityId;
   let rngState = state.rngState;
+  // 'boost' pickup rapid-fire window — counts down each tick; while >0 it speeds
+  // up the player's gun (applied to the fire-rate multiplier below).
+  let rapidFireSec = Math.max(0, (state.rapidFireSec ?? 0) - TICK_DT);
   let pilots: Pilot[] = state.pilots.map(p => ({ ...p }));
   let pilotEjectTimeSec = state.pilotEjectTimeSec;
   let playerScore = state.playerScore;
@@ -502,7 +512,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
         playerCommand.fire && ammo > 0,
         nextEntityId,
         state.damageMultiplier,
-        state.fireRateMultiplier,
+        state.fireRateMultiplier * (rapidFireSec > 0 ? RAPIDFIRE_MULTIPLIER : 1),
         state.hasHeavyCannon,
         state.appliedUpgradeIds.includes('piercing_bullets'),
         state.multishotExtra,
@@ -1245,6 +1255,20 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
 
   const caravanDead = caravan !== undefined && caravan.active && caravan.hp <= 0;
 
+  // === Supply balloons & pickups ===
+  // Drift balloons, let leftover player bullets pop them (dropping floating
+  // pickups), fall existing pickups, and let the player grab any in range. A no-op
+  // when there are no balloons/pickups (every mode except the arena).
+  const driftedBalloons = stepSupplyBalloons(state.balloons, TICK_DT, worldWidth);
+  const balloonHit = resolveBulletBalloonHits(collision.bullets, driftedBalloons, rngState, nextEntityId);
+  rngState = balloonHit.rngState;
+  nextEntityId = balloonHit.nextEntityId;
+  collision.bullets = balloonHit.bullets;
+  const steppedPickups = stepPickups(state.pickups, TICK_DT, worldHeight);
+  const collected = resolvePlayerPickups(player, [...steppedPickups, ...balloonHit.newPickups], rapidFireSec);
+  player = collected.player;
+  rapidFireSec = collected.rapidFireSec;
+
   return {
     ...state,
     timeSec: newTime,
@@ -1256,6 +1280,11 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     bullets: collision.bullets,
     bombs: activeBombs,
     rockets: activeRockets,
+    balloons: balloonHit.balloons,
+    pickups: collected.pickups,
+    rapidFireSec,
+    balloonPopEvents: balloonHit.popEvents,
+    pickupCollectEvents: collected.collectEvents,
     homingRocketTimer,
     droneTimer,
     explosionEvents: nextExplosionEvents,

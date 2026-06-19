@@ -8,6 +8,7 @@ import type { Rocket } from '../entities/rocket.js';
 import type { Difficulty } from '../ai/difficulty.js';
 import type { AiState } from '../ai/chase-policy.js';
 import type { PlaneCollisionEvent } from '../systems/plane-collision.js';
+import type { Pickup, PickupKind, SupplyBalloon } from '../entities/pickup.js';
 
 /** Decorative score-blimp that drifts slowly across the sky. */
 export interface Blimp {
@@ -46,6 +47,14 @@ export interface WorldState {
   bullets: Bullet[];
   bombs: Bomb[];
   rockets: Rocket[];
+
+  // === Supply balloons & collectible pickups ===
+  balloons: SupplyBalloon[];
+  pickups: Pickup[];
+  rapidFireSec: number;     // >0 while a 'boost' pickup's rapid-fire is active
+  // Transient per-tick events (replaced each tick) for render VFX + audio.
+  balloonPopEvents: Vec2[];
+  pickupCollectEvents: { position: Vec2; kind: PickupKind }[];
 
   // Ejected pilots — one per faction at most. Empty when no one ejected.
   pilots: Pilot[];
@@ -125,6 +134,11 @@ export function createWorldState(seed: number, player: Plane): WorldState {
     bullets: [],
     bombs: [],
     rockets: [],
+    balloons: [],
+    pickups: [],
+    rapidFireSec: 0,
+    balloonPopEvents: [],
+    pickupCollectEvents: [],
     pilots: [],
     pilotEjectTimeSec: 0,
     playerScore: 0,
