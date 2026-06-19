@@ -817,18 +817,26 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
   // === Weather wind: gust drift on flying planes ===
   if (state.wind && (state.wind.x !== 0 || state.wind.y !== 0)) {
     const wdx = state.wind.x * TICK_DT;
-    const wdy = state.wind.y * TICK_DT;
+    const baseWdy = state.wind.y * TICK_DT;
+    const windGroundY = worldHeight - 90;
+    // A storm's DOWNWARD gust fades out near the deck so it can never sink a plane
+    // (player or AI) into the ground — the AI controls heading, not wind drift, so
+    // a constant downward push was the one thing its ground-avoid couldn't beat.
+    const windYAt = (y: number) => {
+      if (baseWdy <= 0) return baseWdy;
+      return baseWdy * Math.max(0, Math.min(1, (windGroundY - y) / 360));
+    };
     if (player.state === 'flying') {
       player = {
         ...player,
         kinematic: {
           ...player.kinematic,
-          position: { x: player.kinematic.position.x + wdx, y: player.kinematic.position.y + wdy },
+          position: { x: player.kinematic.position.x + wdx, y: player.kinematic.position.y + windYAt(player.kinematic.position.y) },
         },
       };
     }
     enemies = enemies.map(e => e.state === 'flying'
-      ? { ...e, kinematic: { ...e.kinematic, position: { x: e.kinematic.position.x + wdx, y: e.kinematic.position.y + wdy } } }
+      ? { ...e, kinematic: { ...e.kinematic, position: { x: e.kinematic.position.x + wdx, y: e.kinematic.position.y + windYAt(e.kinematic.position.y) } } }
       : e);
   }
 

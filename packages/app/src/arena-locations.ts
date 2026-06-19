@@ -40,15 +40,15 @@ export interface WeatherGameplay {
 export function weatherGameplay(preset: ArenaWeatherPreset): WeatherGameplay {
   switch (preset) {
     case 'rain':
-      return { wind: { x: -72, y: 8 }, lightning: false, label: 'ДОЖДЬ', hazard: 'Ветер сносит — правь курс', icon: 'rain' };
+      return { wind: { x: -72, y: 5 }, lightning: false, label: 'ДОЖДЬ', hazard: 'Ветер сносит — правь курс', icon: 'rain' };
     case 'storm':
-      return { wind: { x: -120, y: 12 }, lightning: false, label: 'ШТОРМ', hazard: 'Сильный ветер! Держи газ', icon: 'storm' };
+      return { wind: { x: -120, y: 7 }, lightning: false, label: 'ШТОРМ', hazard: 'Сильный ветер! Держи газ', icon: 'storm' };
     case 'thunder':
-      return { wind: { x: -140, y: 14 }, lightning: true, label: 'ГРОЗА', hazard: '⚡ Молнии — не зависай высоко', icon: 'storm' };
+      return { wind: { x: -140, y: 8 }, lightning: true, label: 'ГРОЗА', hazard: '⚡ Молнии — не зависай высоко', icon: 'storm' };
     case 'snow':
-      return { wind: { x: -56, y: 10 }, lightning: false, label: 'СНЕГ', hazard: 'Снежный снос', icon: 'snow' };
+      return { wind: { x: -56, y: 6 }, lightning: false, label: 'СНЕГ', hazard: 'Снежный снос', icon: 'snow' };
     case 'blizzard':
-      return { wind: { x: -128, y: 12 }, lightning: false, label: 'БУРАН', hazard: 'Буран — сильный снос!', icon: 'snow' };
+      return { wind: { x: -128, y: 7 }, lightning: false, label: 'БУРАН', hazard: 'Буран — сильный снос!', icon: 'snow' };
     case 'fog':
       return { wind: { x: -18, y: 0 }, lightning: false, label: 'ТУМАН', hazard: 'Плохая видимость', icon: 'fog' };
     case 'night':
