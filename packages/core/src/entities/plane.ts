@@ -26,6 +26,7 @@ export interface Plane {
   specialCooldown?: number; // seconds until next rocket salvo allowed
   ammo?: number;          // rounds left in the magazine (player only)
   reloadTimer?: number;   // seconds left while reloading (player only); >0 = reloading
+  wingRockets?: number;   // straight wing rockets left under the wings (player only)
   alive: boolean;
 
   state: PlaneState;

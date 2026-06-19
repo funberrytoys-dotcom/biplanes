@@ -88,6 +88,18 @@ export const ROCKET_DAMAGE = 50;              // max damage at center
 export const ROCKET_COOLDOWN = 3.0;           // auto-fire interval in seconds
 export const ROCKET_LIFETIME = 4.0;           // rocket lifetime
 
+// === Wing rockets — the manual special weapon (visible, straight, hard-hitting) ===
+// Two rockets ride under each wing. The special button fires one at a time; they
+// fly STRAIGHT (no homing, no gravity) and hit much harder than bullets. They
+// refill each arena round. "Ракетный блок" adds +2 to the rack.
+export const WING_ROCKET_CAPACITY = 4;            // rockets mounted under the wings
+export const WING_ROCKET_CAPACITY_BONUS = 2;      // extra from the rocket-pod upgrade
+export const WING_ROCKET_DAMAGE = 70;             // direct-hit damage (vs ~10 per bullet)
+export const WING_ROCKET_SPEED = 860;             // px/sec, flat trajectory
+export const WING_ROCKET_LIFETIME = 1.6;          // sec before self-detonate
+export const WING_ROCKET_COOLDOWN = 0.32;         // sec between launches
+export const WING_ROCKET_BLAST_RADIUS = 78;       // splash radius on impact
+
 // === Special weapon: manual rocket salvo ("Залп") — baseline, air-to-air ===
 // Replaces the old gravity bomb. Fired on command.special with a cooldown.
 export const SALVO_COOLDOWN = 2.6;            // sec between salvos

@@ -26,11 +26,13 @@ import {
   ROCKET_LIFETIME,
   ROCKET_EXPLOSION_RADIUS,
   ROCKET_DAMAGE,
-  SALVO_COOLDOWN,
-  SALVO_BASE_COUNT,
-  SALVO_SPREAD,
-  SALVO_ROCKET_SPEED,
-  SALVO_ROCKET_LIFETIME,
+  WING_ROCKET_CAPACITY,
+  WING_ROCKET_CAPACITY_BONUS,
+  WING_ROCKET_DAMAGE,
+  WING_ROCKET_SPEED,
+  WING_ROCKET_LIFETIME,
+  WING_ROCKET_COOLDOWN,
+  WING_ROCKET_BLAST_RADIUS,
   HP_REGEN_PER_SEC,
   MAG_SIZE,
   RELOAD_SEC,
@@ -93,18 +95,12 @@ function bombExplosionRadius(appliedUpgradeIds: readonly string[]): number {
     : BOMB_EXPLOSION_RADIUS;
 }
 
-/** Number of rockets in a manual salvo — buffed by the (repurposed) rocket-pod upgrades. */
-function salvoRocketCount(appliedUpgradeIds: readonly string[]): number {
-  let n = SALVO_BASE_COUNT;
-  if (appliedUpgradeIds.includes('heavy_bomb')) n += 2;   // "Ракетный блок"
-  if (appliedUpgradeIds.includes('fire_screen')) n += 2;  // evolution
+/** Wing-rocket capacity — the rocket-pod upgrade adds two more tubes. */
+export function wingRocketCapacity(appliedUpgradeIds: readonly string[]): number {
+  let n = WING_ROCKET_CAPACITY;
+  if (appliedUpgradeIds.includes('heavy_bomb')) n += WING_ROCKET_CAPACITY_BONUS; // "Ракетный блок"
+  if (appliedUpgradeIds.includes('fire_screen')) n += WING_ROCKET_CAPACITY_BONUS; // evolution
   return n;
-}
-
-/** Per-rocket explosion damage for a salvo — buffed by the (repurposed) warhead upgrades. */
-function salvoRocketDamage(appliedUpgradeIds: readonly string[], damageMultiplier: number): number {
-  const heavy = appliedUpgradeIds.includes('cluster_bomb') || appliedUpgradeIds.includes('fire_screen');
-  return (heavy ? ROCKET_DAMAGE * 1.5 : ROCKET_DAMAGE) * damageMultiplier;
 }
 
 /** Reset a plane's kinematic state back to its faction's runway, taxiing. */
@@ -681,45 +677,47 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
   // Add any newly-ejected enemy pilots to the list.
   pilots = [...pilots, ...ejectedThisTick];
 
-  // === Player Special Weapon: manual rocket salvo ("Залп") ===
-  // Replaces the old gravity bomb. Always available; the (repurposed) rocket-pod
-  // and warhead upgrades buff salvo count and per-rocket blast. Fired on
-  // command.special with a cooldown. Rockets are homing (handled in stepping).
+  // === Player Special Weapon: straight wing rockets ===
+  // The special button fires ONE rocket off an under-wing hardpoint. They fly flat
+  // (no homing, no gravity) and hit hard; the rack holds WING_ROCKET_CAPACITY and
+  // refills each round. "Тяжёлые БЧ" buffs damage/blast; "Скорый залп" the reload.
   let specialCooldown = player.specialCooldown ?? 0;
+  let wingRockets = player.wingRockets ?? WING_ROCKET_CAPACITY;
   const currentBombs = [...state.bombs];
   const salvoRockets: Rocket[] = [];
   const wantSalvo = playerCommand.special === true || playerCommand.bomb === true;
   if (!playerPilotActive && player.state === 'flying' && player.alive) {
     specialCooldown = Math.max(0, specialCooldown - TICK_DT);
-    if (wantSalvo && specialCooldown <= 0) {
-      const count = salvoRocketCount(state.appliedUpgradeIds);
-      const dmg = salvoRocketDamage(state.appliedUpgradeIds, state.damageMultiplier);
-      const baseHeading = player.kinematic.heading;
-      for (let i = 0; i < count; i++) {
-        const t = count > 1 ? (i / (count - 1) - 0.5) : 0; // -0.5..0.5
-        const heading = baseHeading + t * SALVO_SPREAD;
-        salvoRockets.push({
-          id: nextEntityId,
-          ownerId: player.id,
-          ownerFaction: 'player',
-          position: { ...player.kinematic.position },
-          velocity: {
-            x: Math.cos(heading) * SALVO_ROCKET_SPEED,
-            y: Math.sin(heading) * SALVO_ROCKET_SPEED,
-          },
-          heading,
-          lifetime: SALVO_ROCKET_LIFETIME,
-          alive: true,
-          damage: dmg,
-        });
-        nextEntityId++;
-      }
-      specialCooldown = SALVO_COOLDOWN * state.salvoCooldownMultiplier;
+    if (wantSalvo && specialCooldown <= 0 && wingRockets > 0) {
+      const heading = player.kinematic.heading;
+      const cos = Math.cos(heading), sin = Math.sin(heading);
+      // launch from alternating wings (perpendicular offset)
+      const side = wingRockets % 2 === 0 ? 1 : -1;
+      const cluster = state.appliedUpgradeIds.includes('cluster_bomb');
+      salvoRockets.push({
+        id: nextEntityId,
+        ownerId: player.id,
+        ownerFaction: 'player',
+        position: {
+          x: player.kinematic.position.x + cos * 26 + -sin * 16 * side,
+          y: player.kinematic.position.y + sin * 26 + cos * 16 * side,
+        },
+        velocity: { x: cos * WING_ROCKET_SPEED, y: sin * WING_ROCKET_SPEED },
+        heading,
+        lifetime: WING_ROCKET_LIFETIME,
+        alive: true,
+        damage: WING_ROCKET_DAMAGE * state.damageMultiplier * (cluster ? 1.4 : 1),
+        straight: true,
+        blastRadius: WING_ROCKET_BLAST_RADIUS * (cluster ? 1.3 : 1),
+      });
+      nextEntityId++;
+      wingRockets -= 1;
+      specialCooldown = WING_ROCKET_COOLDOWN * state.salvoCooldownMultiplier;
     }
   } else {
     specialCooldown = Math.max(0, specialCooldown - TICK_DT);
   }
-  player = { ...player, specialCooldown };
+  player = { ...player, specialCooldown, wingRockets };
 
   // === Field repair: passive HP regen (repurposed magnet upgrade) ===
   if (state.hpRegenPerSec > 0 && !playerPilotActive && player.alive && player.state === 'flying' && player.hp < player.maxHp) {
@@ -917,40 +915,38 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     };
 
     let heading = r.heading;
-    let targetPlane: Plane | null = null;
-    if (r.ownerFaction === 'player') {
-      let closestDist = Infinity;
-      for (const e of enemies) {
-        if (e.alive && e.state === 'flying') {
-          const dist = distance(nextPos, e.kinematic.position);
-          if (dist < closestDist) {
-            closestDist = dist;
-            targetPlane = e;
+    // Wing rockets fly straight; homing rockets steer toward the nearest target.
+    if (!r.straight) {
+      let targetPlane: Plane | null = null;
+      if (r.ownerFaction === 'player') {
+        let closestDist = Infinity;
+        for (const e of enemies) {
+          if (e.alive && e.state === 'flying') {
+            const dist = distance(nextPos, e.kinematic.position);
+            if (dist < closestDist) {
+              closestDist = dist;
+              targetPlane = e;
+            }
           }
         }
-      }
-    } else {
-      if (player.alive && player.state === 'flying') {
+      } else if (player.alive && player.state === 'flying') {
         targetPlane = player;
       }
+
+      if (targetPlane) {
+        const toTarget = sub(targetPlane.kinematic.position, nextPos);
+        const desiredAngle = angleOf(toTarget);
+        let angleDiff = desiredAngle - heading;
+        while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+        while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+        const maxTurn = ROCKET_TURN_RATE * TICK_DT;
+        heading += Math.max(-maxTurn, Math.min(maxTurn, angleDiff));
+      }
     }
 
-    if (targetPlane) {
-      const toTarget = sub(targetPlane.kinematic.position, nextPos);
-      const desiredAngle = angleOf(toTarget);
-      let angleDiff = desiredAngle - heading;
-      while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
-      while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
-
-      const maxTurn = ROCKET_TURN_RATE * TICK_DT;
-      const actualTurn = Math.max(-maxTurn, Math.min(maxTurn, angleDiff));
-      heading += actualTurn;
-    }
-
-    let nextVel = {
-      x: Math.cos(heading) * ROCKET_SPEED,
-      y: Math.sin(heading) * ROCKET_SPEED,
-    };
+    const nextVel = r.straight
+      ? { x: r.velocity.x, y: r.velocity.y }
+      : { x: Math.cos(heading) * ROCKET_SPEED, y: Math.sin(heading) * ROCKET_SPEED };
 
     let exploded = false;
     if (nextPos.y >= groundY) {
@@ -979,7 +975,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     if (exploded) {
       const explodeRes = applyExplosionDamage(
         nextPos,
-        ROCKET_EXPLOSION_RADIUS,
+        r.blastRadius ?? ROCKET_EXPLOSION_RADIUS,
         r.damage || ROCKET_DAMAGE,
         r.ownerFaction,
         player,

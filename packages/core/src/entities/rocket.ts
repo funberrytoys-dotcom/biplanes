@@ -11,4 +11,9 @@ export interface Rocket {
   lifetime: number; // seconds remaining
   alive: boolean;
   damage: number;
+  /** When true the rocket flies straight at constant velocity (wing rockets);
+   *  otherwise it homes onto the nearest target. */
+  straight?: boolean;
+  /** Splash radius override on detonation (defaults to ROCKET_EXPLOSION_RADIUS). */
+  blastRadius?: number;
 }

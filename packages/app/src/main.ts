@@ -31,6 +31,7 @@ import {
   createRng,
   rollUpgradeChoices,
   ARENA_FINAL_BOSS_SCORE,
+  wingRocketCapacity,
   type WorldState,
   type Plane,
   type Difficulty,
@@ -48,6 +49,7 @@ import {
   createPilotSprite,
   BulletPool,
   BombPool,
+  RocketPool,
   SupplyPool,
   PickupPool,
   SupplyFx,
@@ -1039,6 +1041,10 @@ export async function startGame(container: HTMLElement) {
 
   const bullets = new BulletPool(bulletLayer);
   const bombSprites = new BombPool(fxLayer);
+  const rocketSprites = new RocketPool(fxLayer);
+  // Wing-rocket rack drawn under the player plane (live = red, spent = dim).
+  const wingRocketMount = new Graphics();
+  planeLayer.addChild(wingRocketMount);
   const supplyBalloons = new SupplyPool(supplyLayer, assetUrl('assets/biplanes/supply_balloon_chest.png'));
   const supplyPickups = new PickupPool(supplyLayer);
   const supplyFx = new SupplyFx(fxLayer);
@@ -1640,7 +1646,7 @@ export async function startGame(container: HTMLElement) {
       disableAutoEnemySpawn: true,
       pendingLevelUp: false,
       gameOver: false,
-      player: makeArenaRunwayPlayer(state.player),
+      player: { ...makeArenaRunwayPlayer(state.player), wingRockets: wingRocketCapacity(state.appliedUpgradeIds) },
       enemies: [],
       bullets: [],
       bombs: [],
@@ -1654,6 +1660,7 @@ export async function startGame(container: HTMLElement) {
     };
     bullets.sync([]);
     bombSprites.sync([]);
+    rocketSprites.sync([]);
     supplyBalloons.sync([]);
     supplyPickups.sync([]);
     supplyFx.clear();
@@ -1843,6 +1850,7 @@ export async function startGame(container: HTMLElement) {
     prevExplosionEventCount = state.explosionEvents.length;
     bullets.sync([]);
     bombSprites.sync([]);
+    rocketSprites.sync([]);
     supplyBalloons.sync([]);
     supplyPickups.sync([]);
     supplyFx.clear();
@@ -2186,6 +2194,7 @@ export async function startGame(container: HTMLElement) {
 
   let acc = 0;
   let renderTimeSec = 0;
+  let flameTrailAcc = 0;
   let prevPlayerScore = state.playerScore;
   let prevLevel = state.level;
   let prevPlayerAlive = state.player.alive;
@@ -2910,6 +2919,24 @@ export async function startGame(container: HTMLElement) {
 
     playerSprite.update(state.player, dt, damageFx, clock, camera, undefined, groundFx, { screenFx });
 
+    // Flame-trail upgrade — now actually shows the burning tail (it also scorches
+    // enemies flying right behind you).
+    if (state.hasFlameTrail && state.player.alive && state.player.state === 'flying') {
+      flameTrailAcc += dt;
+      const fcos = Math.cos(state.player.kinematic.heading);
+      const fsin = Math.sin(state.player.kinematic.heading);
+      while (flameTrailAcc >= 1 / 26) {
+        const back = 16 + Math.random() * 64;
+        damageFx.addFireTrail({
+          x: state.player.kinematic.position.x - fcos * back,
+          y: state.player.kinematic.position.y - fsin * back,
+        }, 1.15);
+        flameTrailAcc -= 1 / 26;
+      }
+    } else {
+      flameTrailAcc = 0;
+    }
+
     const seenEnemy = new Set<number>();
     for (const e of state.enemies) {
       seenEnemy.add(e.id);
@@ -2963,6 +2990,25 @@ export async function startGame(container: HTMLElement) {
 
     bullets.sync(state.bullets);
     bombSprites.sync(state.bombs);
+    rocketSprites.sync(state.rockets);
+    // Wing rockets mounted under the player — deplete as you fire the special.
+    const wrCount = state.player.wingRockets ?? 0;
+    const wrCap = runMode === 'arena' ? wingRocketCapacity(state.appliedUpgradeIds) : 4;
+    wingRocketMount.visible = runMode === 'arena' && state.player.alive && state.player.state === 'flying';
+    if (wingRocketMount.visible) {
+      const px = state.player.kinematic.position.x;
+      const py = state.player.kinematic.position.y;
+      const face = state.player.kinematic.facing >= 0 ? 1 : -1;
+      wingRocketMount.clear();
+      for (let i = 0; i < wrCap; i++) {
+        const ox = px + (i - (wrCap - 1) / 2) * 13 * face;
+        const oy = py + 22;
+        const live = i < wrCount;
+        wingRocketMount.roundRect(ox - 6, oy - 2.2, 12, 4.4, 1.6)
+          .fill({ color: live ? 0xcf3b2a : 0x2f343d, alpha: live ? 0.95 : 0.4 });
+        if (live) wingRocketMount.poly([ox + 6 * face, oy, ox + 2 * face, oy - 2.2, ox + 2 * face, oy + 2.2]).fill({ color: 0xffd24a });
+      }
+    }
     supplyBalloons.sync(state.balloons);
     supplyPickups.sync(state.pickups);
     for (const pos of state.balloonPopEvents) {
@@ -3048,6 +3094,7 @@ export async function startGame(container: HTMLElement) {
     pilotSprites.clear();
     bullets.sync([]);
     bombSprites.sync([]);
+    rocketSprites.sync([]);
     supplyBalloons.sync([]);
     supplyPickups.sync([]);
     supplyFx.clear();

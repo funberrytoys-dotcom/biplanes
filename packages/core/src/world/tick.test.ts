@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { tick } from './tick.js';
+import { tick, wingRocketCapacity } from './tick.js';
 import { createWorldState, type WorldState } from './world-state.js';
 import { TICK_DT, PLANE_INITIAL_HP, XP_PER_KILL_LIGHT, DYING_DURATION_SEC, BOOST_OVERHEAT_SEC, NO_THROTTLE_STALL_SEC } from '@biplanes/shared';
 
@@ -226,15 +226,16 @@ describe('world tick', () => {
     expect(after.explosionEvents).toHaveLength(1);
   });
 
-  it('special weapon fires a baseline salvo of rockets', () => {
-    const player = makePlayer();
+  it('special weapon launches one straight wing rocket and spends a tube', () => {
+    const player = { ...makePlayer(), wingRockets: 4 };
     const s = createWorldState(42, player);
 
     const after = tick(s, { rotate: 0, fire: false, bomb: false, special: true, throttleDelta: 0, eject: false, jump: false });
 
-    // Baseline salvo (no upgrades) = SALVO_BASE_COUNT rockets, all player-owned.
-    expect(after.rockets.length).toBe(3);
-    expect(after.rockets.every(r => r.ownerFaction === 'player')).toBe(true);
+    expect(after.rockets.length).toBe(1);
+    expect(after.rockets[0]!.straight).toBe(true);
+    expect(after.rockets[0]!.ownerFaction).toBe('player');
+    expect(after.player.wingRockets).toBe(3);
     expect(after.bombs).toHaveLength(0);
   });
 
@@ -253,17 +254,16 @@ describe('world tick', () => {
     expect(after2.player.ammo).toBe(0);
   });
 
-  it('rocket-pod upgrade adds rockets to the salvo', () => {
-    const player = makePlayer();
-    const s = {
-      ...createWorldState(42, player),
-      appliedUpgradeIds: ['heavy_bomb'],
-    };
+  it('rocket-pod upgrade adds wing-rocket tubes, and an empty rack fires nothing', () => {
+    // Capacity reflects the "heavy_bomb" rocket-pod (+2).
+    expect(wingRocketCapacity([])).toBe(4);
+    expect(wingRocketCapacity(['heavy_bomb'])).toBe(6);
 
-    const after = tick(s, { rotate: 0, fire: false, bomb: false, special: true, throttleDelta: 0, eject: false, jump: false });
-
-    // Baseline 3 + 2 from the rocket-pod ("heavy_bomb") upgrade.
-    expect(after.rockets.length).toBe(5);
+    // An empty rack launches nothing.
+    const player = { ...makePlayer(), wingRockets: 0 };
+    const after = tick(createWorldState(42, player), { rotate: 0, fire: false, bomb: false, special: true, throttleDelta: 0, eject: false, jump: false });
+    expect(after.rockets.length).toBe(0);
+    expect(after.player.wingRockets).toBe(0);
   });
 
   it('rockets steer toward closest enemy and explode', () => {
