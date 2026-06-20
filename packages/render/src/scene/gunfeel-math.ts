@@ -12,7 +12,8 @@ export interface GunfeelShot {
   cameraShake: number;
   cameraPunch: number;
   zoomPunch: number;
-  recoil: { x: number; y: number };
+  recoil: { x: number; y: number };      // camera punch back along the nose
+  bodyKick: { x: number; y: number };    // airframe nudge back (the plane sprite itself bucks)
   casingCount: number;
   sparkCount: number;
 }
@@ -43,7 +44,9 @@ export function resolveGunfeelShot(input: GunfeelShotInput): GunfeelShot {
   const heavy = input.isHeavy === true;
   const power = heavy ? 1.85 : 1;
   const playerBias = isPlayer ? 1 : 0.42;
-  const recoilAmount = (heavy ? 8.6 : 4.8) * playerBias;
+  // Punchier than before — tuned toward the Godot reference's harder kick.
+  const recoilAmount = (heavy ? 11 : 7) * playerBias;
+  const bodyKickAmount = (heavy ? 5 : 3.2) * playerBias; // airframe buck (player only, applied render-side)
   const cos = Math.cos(input.headingRad);
   const sin = Math.sin(input.headingRad);
 
@@ -52,12 +55,16 @@ export function resolveGunfeelShot(input: GunfeelShotInput): GunfeelShot {
     flashDuration: heavy ? 0.16 : 0.12,
     tracerScale: (isPlayer ? 1.45 : 1.08) * (heavy ? 1.45 : 1),
     tracerDuration: heavy ? 0.2 : 0.15,
-    cameraShake: (heavy ? 5.4 : 2.8) * playerBias,
-    cameraPunch: (heavy ? 10 : 5.5) * playerBias,
-    zoomPunch: heavy ? 1.032 : 1.017,
+    cameraShake: (heavy ? 7 : 4.2) * playerBias,
+    cameraPunch: (heavy ? 13 : 8) * playerBias,
+    zoomPunch: heavy ? 1.04 : 1.022,
     recoil: {
       x: -cos * recoilAmount,
       y: -sin * recoilAmount,
+    },
+    bodyKick: {
+      x: -cos * bodyKickAmount,
+      y: -sin * bodyKickAmount,
     },
     casingCount: heavy ? 2 : 1,
     sparkCount: heavy ? 6 : 2,

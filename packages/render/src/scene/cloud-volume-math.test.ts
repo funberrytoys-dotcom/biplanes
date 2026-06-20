@@ -72,10 +72,17 @@ describe('resolveCloudContact', () => {
     });
 
     expect(open).toBeLessThan(normal);
-    expect(open).toBeGreaterThanOrEqual(0.24);
+    expect(open).toBeGreaterThanOrEqual(0.16); // front floor — punches a clearer hole now
   });
 
-  it('does not thin background clouds as aggressively', () => {
+  it('thins background clouds less than foreground clouds', () => {
+    const front = resolveCloudReadabilityAlpha({
+      baseAlpha: 0.5,
+      contactStrength: 0.9,
+      front: true,
+      propPulse: 0.2,
+      ambientPulse: 0,
+    });
     const back = resolveCloudReadabilityAlpha({
       baseAlpha: 0.5,
       contactStrength: 0.9,
@@ -84,6 +91,6 @@ describe('resolveCloudContact', () => {
       ambientPulse: 0,
     });
 
-    expect(back).toBeGreaterThan(0.48);
+    expect(back).toBeGreaterThan(front);
   });
 });

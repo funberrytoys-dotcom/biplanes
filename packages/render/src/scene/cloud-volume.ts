@@ -235,9 +235,9 @@ export function createCloudVolume(worldWidth: number, worldHeight: number): Clou
     const nx = -vx / speed;
     const ny = -vy / speed;
     const side = (Math.random() - 0.5) * 56 * spread;
-    const life = 1.15 + Math.random() * 0.75;
+    const life = 1.4 + Math.random() * 1.0;            // lingers longer
     const startScale = 0.66 + Math.random() * 0.56;
-    const endScale = startScale + 1.15 + strength * 0.95;
+    const endScale = startScale + 1.5 + strength * 1.1; // swells more as it drifts
 
     placeParticle(
       x + nx * (24 + Math.random() * 34) - ny * side,
@@ -288,33 +288,39 @@ export function createCloudVolume(worldWidth: number, worldHeight: number): Clou
           bank.disturbance = Math.max(bank.disturbance, strength);
           readabilityContact = Math.max(readabilityContact, strength);
           bank.propPulse = Math.max(bank.propPulse, contact.propWash);
-          bank.pushX -= plane.vx * strength * dt * (bank.front ? 0.14 : 0.052);
-          bank.pushY -= plane.vy * strength * dt * (bank.front ? 0.105 : 0.034);
-          bank.shearX += contact.sideX * contact.propWash * dt * (bank.front ? 220 : 90);
-          bank.shearY += contact.sideY * contact.propWash * dt * (bank.front ? 145 : 60);
-          bank.pushX = Math.max(-105, Math.min(105, bank.pushX));
-          bank.pushY = Math.max(-66, Math.min(66, bank.pushY));
-          bank.shearX = Math.max(-85, Math.min(85, bank.shearX));
-          bank.shearY = Math.max(-58, Math.min(58, bank.shearY));
+          // Part the cloud WIDER as the plane shoulders through it.
+          bank.pushX -= plane.vx * strength * dt * (bank.front ? 0.22 : 0.10);
+          bank.pushY -= plane.vy * strength * dt * (bank.front ? 0.16 : 0.06);
+          bank.shearX += contact.sideX * contact.propWash * dt * (bank.front ? 290 : 130);
+          bank.shearY += contact.sideY * contact.propWash * dt * (bank.front ? 190 : 80);
+          bank.pushX = Math.max(-150, Math.min(150, bank.pushX));
+          bank.pushY = Math.max(-96, Math.min(96, bank.pushY));
+          bank.shearX = Math.max(-120, Math.min(120, bank.shearX));
+          bank.shearY = Math.max(-82, Math.min(82, bank.shearY));
 
-          const puffChance = Math.min(1, dt * (13 + contact.speed / 38) * strength);
+          // Shed more, slower-swirling vapor — "disturbed air" trailing the plane.
+          const puffChance = Math.min(1, dt * (20 + contact.speed / 30) * strength);
           if (Math.random() < puffChance) {
             spawnPuff(plane.x, plane.y, plane.vx, plane.vy, strength, bank.front ? 1.45 : 1);
-            if (bank.front && strength > 0.4) {
+            if (bank.front && strength > 0.3) {
               spawnPuff(plane.x, plane.y, plane.vx, plane.vy, strength * 0.82, 1.6);
+            }
+            if (bank.front && strength > 0.62) {
+              spawnPuff(plane.x, plane.y, plane.vx, plane.vy, strength * 0.7, 1.9);
             }
           }
         }
 
-        bank.disturbance *= Math.max(0, 1 - dt * 1.35);
-        bank.wobbleX += (Math.sin(timeSec * 7.2 + bank.phase * 1.7) * bank.disturbance * (bank.front ? 27 : 12) - bank.wobbleX) * Math.min(1, dt * 5.4);
-        bank.wobbleY += (Math.cos(timeSec * 6.4 + bank.phase * 1.3) * bank.disturbance * (bank.front ? 19 : 8) - bank.wobbleY) * Math.min(1, dt * 5.4);
+        // Slower decay → the parted hole lingers a beat instead of snapping shut.
+        bank.disturbance *= Math.max(0, 1 - dt * 0.95);
+        bank.wobbleX += (Math.sin(timeSec * 7.2 + bank.phase * 1.7) * bank.disturbance * (bank.front ? 34 : 16) - bank.wobbleX) * Math.min(1, dt * 5.4);
+        bank.wobbleY += (Math.cos(timeSec * 6.4 + bank.phase * 1.3) * bank.disturbance * (bank.front ? 24 : 11) - bank.wobbleY) * Math.min(1, dt * 5.4);
         const bob = Math.sin(timeSec * bank.bobSpeed + bank.phase) * bank.bobAmp;
         const slowDrift = Math.sin(timeSec * 0.08 + bank.phase) * (bank.front ? 18 : 8);
         const slowRise = Math.cos(timeSec * 0.06 + bank.phase * 0.7) * (bank.front ? 8 : 4);
         bank.sprite.x = bank.baseX + slowDrift + bank.pushX + bank.wobbleX + bank.shearX;
         bank.sprite.y = bank.baseY + slowRise + bob + bank.pushY + bank.wobbleY + bank.shearY;
-        bank.sprite.rotation = Math.sin(timeSec * 3.2 + bank.phase) * bank.disturbance * (bank.front ? 0.028 : 0.012);
+        bank.sprite.rotation = Math.sin(timeSec * 3.2 + bank.phase) * bank.disturbance * (bank.front ? 0.04 : 0.018);
         bank.sprite.alpha = resolveCloudReadabilityAlpha({
           baseAlpha: bank.alpha,
           contactStrength: readabilityContact,

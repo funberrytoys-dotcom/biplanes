@@ -1181,6 +1181,10 @@ export async function startGame(container: HTMLElement) {
   const camera = createCamera(worldLayer, app.screen.width, app.screen.height);
   const audio = createGameAudio();
 
+  // Airframe recoil buck (render-only): each player shot nudges the plane sprite
+  // back along the nose; it decays fast so it reads as a per-shot jolt, not drift.
+  const playerBodyKick = { x: 0, y: 0 };
+
   function emitGunfeelShotVfx(
     x: number,
     y: number,
@@ -1227,7 +1231,11 @@ export async function startGame(container: HTMLElement) {
       });
     }
     if (ownerFaction === 'player') {
-      const cameraFeel = runMode === 'arena' ? 0.35 : 1;
+      // Arena/run dampens camera motion (busy screen) — but less than before, and the
+      // airframe buck below is NOT dampened, so each shot still reads as a hard "бах".
+      const cameraFeel = runMode === 'arena' ? 0.6 : 1;
+      playerBodyKick.x = Math.max(-8, Math.min(8, playerBodyKick.x + shotFeel.bodyKick.x));
+      playerBodyKick.y = Math.max(-8, Math.min(8, playerBodyKick.y + shotFeel.bodyKick.y));
       camera.shake(shotFeel.cameraShake * cameraFeel);
       camera.punch(shotFeel.recoil.x, shotFeel.recoil.y, shotFeel.cameraPunch * cameraFeel);
       camera.zoomPunch(1 + (shotFeel.zoomPunch - 1) * cameraFeel, shotFeel.flashDuration);
@@ -3181,6 +3189,14 @@ export async function startGame(container: HTMLElement) {
     }
 
     playerSprite.update(state.player, dt, damageFx, clock, camera, undefined, groundFx, { screenFx });
+    // Airframe recoil buck: decay fast, then nudge the plane sprite by the leftover.
+    const bodyKickDecay = Math.min(1, dt * 22);
+    playerBodyKick.x -= playerBodyKick.x * bodyKickDecay;
+    playerBodyKick.y -= playerBodyKick.y * bodyKickDecay;
+    if (state.player.alive) {
+      playerSprite.container.x += playerBodyKick.x;
+      playerSprite.container.y += playerBodyKick.y;
+    }
 
     // Flame-trail upgrade — now actually shows the burning tail (it also scorches
     // enemies flying right behind you).

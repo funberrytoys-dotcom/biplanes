@@ -30,6 +30,10 @@ export const MAG_SIZE = 100;                 // shots per magazine
 export const RELOAD_SEC = 10;                // seconds to reload an empty magazine
 export const MACHINE_GUN_COOLDOWN = 0.12;
 export const MACHINE_GUN_DAMAGE = 10;
+// Airspeed (px/sec) bled from the player on every shot — you physically feel the
+// gun braking the plane. Easily countered by throttle, so it reads as "weight",
+// not a stall trap. (Mirrors the Godot reference's per-shot speed cost.)
+export const FIRE_RECOIL_SPEED_LOSS = 3.5;
 export const XP_PER_KILL_LIGHT = 5;
 export const XP_PER_KILL_HEAVY = 12;
 export const PLAYER_SCORE_TO_WIN = 15;

@@ -67,8 +67,9 @@ export function resolveCloudContact(input: CloudContactInput): CloudContact {
 export function resolveCloudReadabilityAlpha(input: CloudReadabilityAlphaInput) {
   const contact = clamp01(input.contactStrength);
   const propLift = input.front ? input.propPulse * 0.08 : input.propPulse * 0.04;
-  const readabilityPocket = input.front ? contact * 0.4 : contact * 0.03;
-  const floor = input.front ? 0.24 : 0.18;
+  // Thin out harder when the plane is inside — you punch a clearer hole through it.
+  const readabilityPocket = input.front ? contact * 0.55 : contact * 0.12;
+  const floor = input.front ? 0.16 : 0.14;
 
   return Math.max(
     floor,

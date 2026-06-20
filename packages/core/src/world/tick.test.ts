@@ -37,6 +37,17 @@ describe('world tick', () => {
     expect(after.player.kinematic.position.x).toBeGreaterThan(500);
   });
 
+  it('firing bleeds a little airspeed (recoil brakes the plane)', () => {
+    const base = createWorldState(42, {
+      ...makePlayer(),
+      kinematic: { ...makePlayer().kinematic, g: 700, velocity: { x: 700, y: 0 } },
+    });
+    const notFired = tick(base, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+    const fired = tick(base, { rotate: 0, fire: true, bomb: false, throttleDelta: 0, eject: false, jump: false });
+    expect(fired.bullets.length).toBeGreaterThan(0); // a shot actually happened
+    expect(fired.player.kinematic.g).toBeLessThan(notFired.player.kinematic.g);
+  });
+
   it('boost increases the player plane speed target during world ticks', () => {
     const base = createWorldState(42, {
       ...makePlayer(),

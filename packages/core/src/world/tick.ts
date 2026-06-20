@@ -36,6 +36,7 @@ import {
   HP_REGEN_PER_SEC,
   MAG_SIZE,
   RELOAD_SEC,
+  FIRE_RECOIL_SPEED_LOSS,
   RAPIDFIRE_MULTIPLIER,
   DRONE_COOLDOWN,
   DRONE_DAMAGE,
@@ -517,11 +518,17 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
         newBulletList.push(b);
         nextEntityId++;
       }
-      if (fireResult.bullets.length > 0) {
+      const firedThisTick = fireResult.bullets.length > 0;
+      if (firedThisTick) {
         ammo = Math.max(0, ammo - 1);           // one trigger pull = one round
         if (ammo === 0) reloadTimer = RELOAD_SEC;
       }
-      player = { ...player, weaponCooldown: fireResult.newCooldown, ammo, reloadTimer };
+      // Recoil: every shot bleeds a little airspeed — the gun physically brakes the
+      // plane (recovered with throttle). Reducing g; physics rebuilds velocity next tick.
+      const recoiledKinematic = firedThisTick
+        ? { ...player.kinematic, g: Math.max(0, player.kinematic.g - FIRE_RECOIL_SPEED_LOSS) }
+        : player.kinematic;
+      player = { ...player, kinematic: recoiledKinematic, weaponCooldown: fireResult.newCooldown, ammo, reloadTimer };
     }
   } else {
     player = { ...player, weaponCooldown: Math.max(0, player.weaponCooldown - TICK_DT) };

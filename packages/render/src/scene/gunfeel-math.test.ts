@@ -30,6 +30,15 @@ describe('resolveGunfeelShot', () => {
     expect(Math.abs(heavy.recoil.x)).toBeGreaterThan(Math.abs(machineGun.recoil.x));
   });
 
+  it('bucks the airframe back along the nose, stronger for the player', () => {
+    const player = resolveGunfeelShot({ ownerFaction: 'player', headingRad: 0, isHeavy: false });
+    const enemy = resolveGunfeelShot({ ownerFaction: 'enemy', headingRad: 0, isHeavy: false });
+    // heading 0 = nose +x → body kick points -x (backward).
+    expect(player.bodyKick.x).toBeLessThan(0);
+    expect(Math.abs(player.bodyKick.y)).toBeLessThan(0.001);
+    expect(Math.abs(player.bodyKick.x)).toBeGreaterThan(Math.abs(enemy.bodyKick.x));
+  });
+
   it('keeps enemy shots visible but less camera-invasive than player shots', () => {
     const playerShot = resolveGunfeelShot({
       ownerFaction: 'player',
