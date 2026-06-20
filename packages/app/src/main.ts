@@ -325,10 +325,10 @@ function createMenuBackdrop(container: HTMLElement) {
   video.style.background = '#06101f';
   container.appendChild(video);
 
-  // Theme music (the video's audio). Browsers block audio autoplay until a user
-  // gesture, so it starts on the FIRST tap/click/key — and then keeps looping
-  // (it doesn't cut out the instant you tap into the arena), so it's reliably
-  // audible as a soundtrack. The game has no music bed of its own yet.
+  // Theme music. Browsers block audio autoplay until a user gesture, so it starts
+  // on the FIRST tap/click/key. It plays ONLY while the menu is up: it stops the
+  // moment a game session begins (menuBackdrop.hide()), and resumes on return to
+  // the menu. The player can mute it from the menu; the choice is persisted.
   const music = document.createElement('audio');
   music.src = MENU_MUSIC_URL;
   music.loop = true;
@@ -336,22 +336,49 @@ function createMenuBackdrop(container: HTMLElement) {
   music.preload = 'auto';
   music.style.display = 'none';
   container.appendChild(music);
-  const startMusic = () => { void music.play().catch(() => undefined); };
+
+  let musicEnabled = (() => {
+    try { return localStorage.getItem('biplanes.music') !== 'off'; } catch { return true; }
+  })();
+  // The app boots into the menu, so the backdrop starts "visible". A game start
+  // (menuBackdrop.hide()) flips this off; returning to the menu (show()) flips it on.
+  let menuVisible = true;
+
+  const persistMusic = () => {
+    try { localStorage.setItem('biplanes.music', musicEnabled ? 'on' : 'off'); } catch { /* ignore */ }
+  };
+  const playMusicIfAllowed = () => {
+    if (musicEnabled && menuVisible) void music.play().catch(() => undefined);
+  };
+  const applyMusicEnabled = (on: boolean) => {
+    musicEnabled = on;
+    persistMusic();
+    if (on) playMusicIfAllowed();
+    else music.pause();
+  };
+
+  const startMusic = () => { playMusicIfAllowed(); };
   for (const ev of ['pointerdown', 'touchstart', 'click', 'keydown']) {
     window.addEventListener(ev, startMusic, { passive: true });
   }
 
   return {
     show() {
+      menuVisible = true;
       video.style.display = 'block';
       void video.play().catch(() => undefined);
-      void music.play().catch(() => undefined);
+      playMusicIfAllowed();
     },
     hide() {
-      // Only the video stops in-game; the theme keeps playing as a soundtrack.
+      // Entering a game session: stop both the menu video and the theme music.
+      menuVisible = false;
       video.style.display = 'none';
       video.pause();
+      music.pause();
     },
+    isMusicEnabled() { return musicEnabled; },
+    setMusicEnabled(on: boolean) { applyMusicEnabled(on); },
+    toggleMusic() { applyMusicEnabled(!musicEnabled); return musicEnabled; },
   };
 }
 
@@ -1561,26 +1588,43 @@ export async function startGame(container: HTMLElement) {
   const radioPopup = createRadioPopup(app.screen.width, app.screen.height);
   uiLayer.addChild(radioPopup.container);
 
-  const startScreen = createStartScreen(app.screen.width, app.screen.height, (action) => {
-    audio.unlock();
-    audio.playUiSelect();
-    if (action === 'flightLab') {
-      startFlightLab();
-      return;
-    }
-    if (action === 'arena') {
-      runSession = null;
-      startArena();
-      return;
-    }
-    if (action === 'run') {
-      startRun();
-      return;
-    }
-    if (action === 'story') {
-      startStoryMissionOne();
-    }
-  });
+  const startScreen = createStartScreen(
+    app.screen.width,
+    app.screen.height,
+    (action) => {
+      audio.unlock();
+      audio.playUiSelect();
+      if (action === 'flightLab') {
+        startFlightLab();
+        return;
+      }
+      if (action === 'arena') {
+        runSession = null;
+        startArena();
+        return;
+      }
+      if (action === 'run') {
+        startRun();
+        return;
+      }
+      if (action === 'story') {
+        startStoryMissionOne();
+        return;
+      }
+      if (action === 'exit') {
+        // In a Telegram Mini App, close the webapp; in a plain browser tab, try to
+        // close the window (works when the page was script-opened).
+        const tg = (window as unknown as { Telegram?: { WebApp?: { close?: () => void } } }).Telegram?.WebApp;
+        if (tg?.close) tg.close();
+        else window.close();
+        return;
+      }
+    },
+    {
+      musicEnabled: menuBackdrop.isMusicEnabled(),
+      onMusicToggle: (on) => { menuBackdrop.setMusicEnabled(on); },
+    },
+  );
   uiLayer.addChild(startScreen.container);
   startScreen.show();
 
@@ -1937,6 +1981,36 @@ export async function startGame(container: HTMLElement) {
     () => { resetToMenu(); },    // В АНГАР
   );
   uiLayer.addChild(runSummaryScreen.container);
+
+  // In-game "exit to menu" button (top-left). Visible during a live game session;
+  // hidden under modal overlays. Escape still works as a shortcut.
+  const exitButton = new Container();
+  exitButton.eventMode = 'static';
+  exitButton.cursor = 'pointer';
+  exitButton.visible = false;
+  exitButton.x = 14;
+  exitButton.y = 10;
+  const EXIT_BTN_W = 132;
+  const EXIT_BTN_H = 38;
+  const exitBg = new Graphics();
+  const exitLabel = new Text({
+    text: '‹ В МЕНЮ',
+    style: new TextStyle({ fontFamily: 'monospace', fontSize: 15, fill: 0xffd07a, fontWeight: 'bold', stroke: { color: 0x05080e, width: 3 } }),
+  });
+  const drawExit = (hover: boolean) => {
+    exitBg.clear()
+      .roundRect(0, 0, EXIT_BTN_W, EXIT_BTN_H, 8)
+      .fill({ color: 0x0a1320, alpha: hover ? 0.92 : 0.74 })
+      .stroke({ color: 0xffb44a, width: hover ? 2.5 : 1.8, alpha: hover ? 1 : 0.8 });
+    exitLabel.x = (EXIT_BTN_W - exitLabel.width) / 2;
+    exitLabel.y = (EXIT_BTN_H - exitLabel.height) / 2 - 1;
+  };
+  drawExit(false);
+  exitButton.addChild(exitBg, exitLabel);
+  exitButton.on('pointerover', () => drawExit(true));
+  exitButton.on('pointerout', () => drawExit(false));
+  exitButton.on('pointerdown', () => { audio.playUiSelect(); resetToMenu(); });
+  uiLayer.addChild(exitButton);
 
   // End the current «Забег» and raise the debrief. One-shot via runOver.
   function endRun(outcome: 'won' | 'lost') {
@@ -3214,6 +3288,9 @@ export async function startGame(container: HTMLElement) {
     updateAmmoHud(state);
     ammoHud.visible = (runMode === 'arena' || runMode === 'story')
       && gameRunning && !choicesShowing && !state.gameOver && state.player.alive;
+    // Exit-to-menu button: visible during a live game session, hidden under overlays.
+    exitButton.visible = runMode !== 'menu' && gameRunning && !choicesShowing
+      && !state.gameOver && !runSummaryScreen.container.visible && !deathScreen.container.visible;
     audio.updateFlight(dt, state, gameRunning, choicesShowing);
     camera.tickShake(dt);
 

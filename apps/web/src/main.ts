@@ -20,17 +20,10 @@ const telegram = initializeTelegramMiniApp();
 const params = new URLSearchParams(window.location.search);
 let shouldReplaceUrl = false;
 if (telegram.isTelegramMiniApp) {
+  // Phone viewport, but DO NOT auto-skip into a mode: the menu is the hub now
+  // (Arena + Забег + music toggle + exit), so Telegram opens on the menu like the
+  // browser does. (Was: auto-started arena and skipped the menu.)
   params.set('phone', '');
-  if (
-    !params.has('story') &&
-    !params.has('arena') &&
-    !params.has('skytest') &&
-    !params.has('gunfeelLab') &&
-    !params.has('flightLab') &&
-    !params.has('oilshot')
-  ) {
-    params.set('arena', '');
-  }
   shouldReplaceUrl = true;
 }
 if (params.has('iphone15') && !params.has('arena') && !params.has('story')) {

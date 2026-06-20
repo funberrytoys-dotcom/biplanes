@@ -48,8 +48,8 @@ export function getStartMenuOptions(): StartMenuOption[] {
     {
       action: 'exit',
       label: 'ВЫХОД',
-      note: 'В браузерной версии выход закрывается вкладкой.',
-      enabled: false,
+      note: 'Закрыть игру. В Telegram — закрывает мини-приложение; в браузере — вкладку.',
+      enabled: true,
     },
   ];
 }

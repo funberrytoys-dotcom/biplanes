@@ -2,7 +2,17 @@ import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { getStartScreenLayout } from './start-screen-layout.js';
 import { getStartMenuOptions, type MenuAction } from './start-menu-options.js';
 
-export function createStartScreen(width: number, height: number, onPick: (action: MenuAction) => void) {
+export interface StartScreenOpts {
+  musicEnabled?: boolean;
+  onMusicToggle?: (enabled: boolean) => void;
+}
+
+export function createStartScreen(
+  width: number,
+  height: number,
+  onPick: (action: MenuAction) => void,
+  opts: StartScreenOpts = {},
+) {
   const c = new Container();
   c.eventMode = 'static';
 
@@ -133,6 +143,46 @@ export function createStartScreen(width: number, height: number, onPick: (action
     panel.addChild(btn);
   }
 
+  // Music on/off toggle — a compact button in the top-right corner of the menu.
+  let musicOn = opts.musicEnabled ?? true;
+  const musicBtn = new Container();
+  musicBtn.eventMode = 'static';
+  musicBtn.cursor = 'pointer';
+  const musicBg = new Graphics();
+  const musicText = new Text({
+    text: '',
+    style: new TextStyle({
+      fontFamily: 'monospace',
+      fontSize: 15,
+      fontWeight: 'bold',
+      fill: 0xffe0a4,
+      stroke: { color: 0x05080e, width: 3 },
+    }),
+  });
+  const musicBtnW = 224;
+  const musicBtnH = 42;
+  function drawMusic(hovered: boolean) {
+    const color = musicOn ? 0x6ee0a0 : 0x8390a8;
+    musicBg.clear()
+      .roundRect(-musicBtnW / 2, -musicBtnH / 2, musicBtnW, musicBtnH, 8)
+      .fill({ color: 0x0a1320, alpha: hovered ? 0.9 : 0.72 })
+      .stroke({ color, width: hovered ? 3 : 2, alpha: hovered ? 1 : 0.82 });
+    musicText.text = musicOn ? '♪  МУЗЫКА: ВКЛ' : '♪  МУЗЫКА: ВЫКЛ';
+    musicText.style.fill = musicOn ? 0xffe0a4 : 0x9ca6ba;
+    musicText.x = -musicText.width / 2;
+    musicText.y = -musicText.height / 2 - 1;
+  }
+  drawMusic(false);
+  musicBtn.addChild(musicBg, musicText);
+  musicBtn.on('pointerover', () => { musicBtn.scale.set(1.04); drawMusic(true); });
+  musicBtn.on('pointerout', () => { musicBtn.scale.set(1); drawMusic(false); });
+  musicBtn.on('pointerdown', () => {
+    musicOn = !musicOn;
+    drawMusic(false);
+    opts.onMusicToggle?.(musicOn);
+  });
+  c.addChild(musicBtn);
+
   function layout(w: number, h: number) {
     dim.clear().rect(0, 0, w, h).fill({ color: 0x03101e, alpha: 0.34 });
     leftShade.clear()
@@ -168,6 +218,10 @@ export function createStartScreen(width: number, height: number, onPick: (action
       .stroke({ color: 0xffb44a, width: 1.5, alpha: 0.5 });
     statusText.style.wordWrapWidth = screenLayout.statusWordWrapWidth;
     centerStatusText();
+
+    // Top-right corner, clear of the title (top-left).
+    musicBtn.x = w - musicBtnW / 2 - 20;
+    musicBtn.y = musicBtnH / 2 + 18;
   }
   layout(width, height);
   statusPanel.visible = false;
