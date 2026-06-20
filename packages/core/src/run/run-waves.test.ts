@@ -4,6 +4,7 @@ import {
   RUN_WAVE_ENEMY_COUNTS,
   isBossWave,
   runEnemyCountForWave,
+  runEnemyHpMultiplierForWave,
 } from './run-waves.js';
 
 describe('run-waves', () => {
@@ -28,5 +29,19 @@ describe('run-waves', () => {
     for (let w = 2; w <= 14; w++) {
       expect(runEnemyCountForWave(w)).toBeGreaterThanOrEqual(runEnemyCountForWave(w - 1));
     }
+  });
+
+  it('grows enemy HP gently and stays killable late (not exponential)', () => {
+    expect(runEnemyHpMultiplierForWave(1)).toBe(1);
+    // Monotonic increase.
+    for (let w = 2; w <= 15; w++) {
+      expect(runEnemyHpMultiplierForWave(w)).toBeGreaterThan(runEnemyHpMultiplierForWave(w - 1));
+    }
+    // Late-game stays in a sane band (a 14-pick build can out-DPS this).
+    expect(runEnemyHpMultiplierForWave(14)).toBeLessThan(10);
+    expect(runEnemyHpMultiplierForWave(15)).toBeLessThan(11);
+    // Clamps outside the run.
+    expect(runEnemyHpMultiplierForWave(0)).toBe(1);
+    expect(runEnemyHpMultiplierForWave(99)).toBe(runEnemyHpMultiplierForWave(15));
   });
 });

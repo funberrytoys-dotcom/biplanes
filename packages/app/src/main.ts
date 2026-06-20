@@ -48,6 +48,7 @@ import {
   buildRunSummary,
   isBossWave,
   runEnemyCountForWave,
+  runEnemyHpMultiplierForWave,
   RUN_WAVE_COUNT,
   type RunState,
 } from '@biplanes/core';
@@ -698,10 +699,12 @@ function makeArenaSupplyBalloons(startId: number, player: Plane, count: number):
   return out;
 }
 
-function makeArenaRoundEnemy(id: number, player: Plane, round: number, lane: number = 0): Plane {
+function makeArenaRoundEnemy(id: number, player: Plane, round: number, lane: number = 0, isRun = false): Plane {
   const role = arenaEnemyRoleForRound(round, lane);
   const roleTuning = arenaEnemyRoleTuning(role);
-  const hp = Math.round(ENEMY_INITIAL_HP_LIGHT * arenaEnemyHpMultiplierForRound(round) * roleTuning.hpScale);
+  // «Забег» uses a gentle linear HP curve over 15 waves; arena keeps its exponential.
+  const hpMul = isRun ? runEnemyHpMultiplierForWave(round) : arenaEnemyHpMultiplierForRound(round);
+  const hp = Math.round(ENEMY_INITIAL_HP_LIGHT * hpMul * roleTuning.hpScale);
   const speed = G_MAX_LEVEL * Math.min(1.2, (0.92 + round * 0.03) * roleTuning.speedScale);
   const fromRight = player.kinematic.position.x < ARENA_WORLD_WIDTH * 0.55;
   const heading = fromRight ? Math.PI : 0;
@@ -737,9 +740,10 @@ function makeArenaRoundEnemy(id: number, player: Plane, round: number, lane: num
   };
 }
 
-function makeArenaScarBoss(id: number, player: Plane, round: number): Plane {
+function makeArenaScarBoss(id: number, player: Plane, round: number, isRun = false): Plane {
   const roleTuning = arenaEnemyRoleTuning('boss');
-  const hp = Math.round(ENEMY_INITIAL_HP_HEAVY * arenaEnemyHpMultiplierForRound(round) * 3.2 * roleTuning.hpScale);
+  const hpMul = isRun ? runEnemyHpMultiplierForWave(round) : arenaEnemyHpMultiplierForRound(round);
+  const hp = Math.round(ENEMY_INITIAL_HP_HEAVY * hpMul * 3.2 * roleTuning.hpScale);
   const fromRight = player.kinematic.position.x < ARENA_WORLD_WIDTH * 0.55;
   const heading = fromRight ? Math.PI : 0;
   const x = fromRight
@@ -1696,10 +1700,11 @@ export async function startGame(container: HTMLElement) {
         choicesShowing,
       });
     if (runSession && finalBossReady) runBossSpawned = true;
+    const isRun = runSession !== null;
     const enemies = finalBossReady
-      ? [makeArenaScarBoss(state.nextEntityId, state.player, arenaRound)]
+      ? [makeArenaScarBoss(state.nextEntityId, state.player, arenaRound, isRun)]
       : Array.from({ length: nextEnemyCount }, (_, lane) =>
-        makeArenaRoundEnemy(state.nextEntityId + lane, state.player, arenaRound, lane)
+        makeArenaRoundEnemy(state.nextEntityId + lane, state.player, arenaRound, lane, isRun)
       );
     arenaDuelEnemyId = enemies[0]?.id ?? null;
     state.nextEntityId += enemies.length;
