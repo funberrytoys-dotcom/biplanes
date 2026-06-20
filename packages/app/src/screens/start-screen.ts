@@ -49,11 +49,12 @@ export function createStartScreen(
   });
 
   const tagline = new Text({
-    text: 'Пока горят маяки, Архипелаг помнит дорогу домой.',
+    text: 'Пока горят огни маяков, архипелаг помнит дорогу домой...',
     style: new TextStyle({
       fontFamily: 'monospace',
-      fontSize: 16,
+      fontSize: 14,
       fill: 0xf7d8a0,
+      align: 'center',
       stroke: { color: 0x000000, width: 3 },
     }),
   });
@@ -204,8 +205,6 @@ export function createStartScreen(
     title.y = 0;
     subtitle.x = 6;
     subtitle.y = 66;
-    tagline.x = 7;
-    tagline.y = 112;
 
     buttons.forEach((btn, i) => {
       btn.x = screenLayout.buttonX;
@@ -225,6 +224,13 @@ export function createStartScreen(
       .roundRect(mbX, mbY, mbW, mbH, 16)
       .fill({ color: 0x06101f, alpha: 0.6 })
       .stroke({ color: 0x3b6ea5, width: 2, alpha: 0.6 });
+
+    // Tagline: centred horizontally on the menu, and centred vertically in the gap
+    // between the subtitle and the menu frame — so it floats above the menu instead
+    // of sitting on its top edge (and adapts to compact phone layout).
+    tagline.x = screenLayout.buttonX - tagline.width / 2;
+    const gapTop = subtitle.y + subtitle.height;
+    tagline.y = gapTop + Math.max(2, (mbY - gapTop - tagline.height) / 2);
 
     statusWidth = screenLayout.statusWidth;
     statusHeight = screenLayout.statusHeight;
