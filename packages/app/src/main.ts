@@ -189,6 +189,10 @@ const VISUAL_ASSET_URLS = [
   assetUrl('assets/biplanes/sky_night.jpg'),
   assetUrl('assets/biplanes/plane_chico_blue.png'),
   assetUrl('assets/biplanes/supply_balloon_chest.png'),
+  // Pixi v8 Sprite.from(url) only renders PRELOADED textures — the throttle-lever
+  // handle and the gauge needle must be loaded here or they show up invisible.
+  assetUrl('assets/biplanes/hud/lever_knob.png'),
+  assetUrl('assets/biplanes/hud/needle.png'),
   assetUrl('assets/biplanes/plane_player_sov_sheet.png'),
   assetUrl('assets/biplanes/plane_enemy_red.png'),
   assetUrl('assets/biplanes/plane_enemy_crimson_sheet.png'),
