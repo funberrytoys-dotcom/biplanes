@@ -202,6 +202,11 @@ const VISUAL_ASSET_URLS = [
   assetUrl('assets/biplanes/sky_night.jpg'),
   assetUrl('assets/biplanes/plane_chico_blue.png'),
   assetUrl('assets/biplanes/supply_balloon_chest.png'),
+  // «Забег» branch emblems (shown on the run-summary screen).
+  assetUrl('assets/run/emblem_assault.png'),
+  assetUrl('assets/run/emblem_bombardier.png'),
+  assetUrl('assets/run/emblem_commander.png'),
+  assetUrl('assets/run/emblem_hull.png'),
   // Pixi v8 Sprite.from(url) only renders PRELOADED textures — the throttle-lever
   // handle and the gauge needle must be loaded here or they show up invisible.
   assetUrl('assets/biplanes/hud/lever_knob.png'),

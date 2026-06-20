@@ -1,6 +1,7 @@
-import { Container, Graphics, Text, TextStyle } from 'pixi.js';
+import { Container, Graphics, Sprite, Text, TextStyle } from 'pixi.js';
 import type { RunSummary } from '@biplanes/core';
 import { BRANCH_PALETTE } from './branch-style.js';
+import { assetUrl } from '../asset-url.js';
 import {
   resolveRunSummaryLayout,
   RUN_SUMMARY_PANEL_W,
@@ -162,23 +163,31 @@ export function createRunSummaryScreen(
         let y = 0;
         for (const b of active) {
           const accent = BRANCH_PALETTE[b.branch].color;
-          const chip = new Graphics().roundRect(0, 2, 13, 13, 3).fill({ color: accent });
-          chip.y = y;
+          // Branch emblem (preloaded). A colour underline + branch-coloured text are
+          // the guaranteed signal, so a missing texture never leaves the row blank.
+          const EM = 26;
+          const emblem = Sprite.from(assetUrl(`assets/run/emblem_${b.branch}.png`));
+          emblem.width = EM;
+          emblem.height = EM;
+          emblem.x = 0;
+          emblem.y = y - 4;
+          const underline = new Graphics().roundRect(0, y + EM - 6, EM, 3, 1.5).fill({ color: accent });
+          const headX = EM + 12;
           const stars = '★'.repeat(b.keystoneTier);
           const head = new Text({
             text: `${b.label}  ×${b.affinity}${stars ? '  ' + stars : ''}`,
             style: new TextStyle({ fontFamily: 'monospace', fontSize: 15, fill: accent, fontWeight: 'bold', letterSpacing: 1 }),
           });
-          head.x = 22;
+          head.x = headX;
           head.y = y;
           const picks = new Text({
             text: b.pickTitles.join(' · ') || '—',
-            style: new TextStyle({ fontFamily: 'Arial, sans-serif', fontSize: 13, fill: 0xd6e2e7, wordWrap: true, wordWrapWidth: W - 80, lineHeight: 17 }),
+            style: new TextStyle({ fontFamily: 'Arial, sans-serif', fontSize: 13, fill: 0xd6e2e7, wordWrap: true, wordWrapWidth: W - headX - 40, lineHeight: 17 }),
           });
-          picks.x = 22;
+          picks.x = headX;
           picks.y = y + 20;
-          buildBox.addChild(chip, head, picks);
-          y += 22 + Math.max(17, picks.height) + 12;
+          buildBox.addChild(emblem, underline, head, picks);
+          y += Math.max(EM, 22 + Math.max(17, picks.height)) + 12;
         }
       }
 
