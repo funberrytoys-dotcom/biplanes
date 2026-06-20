@@ -307,33 +307,32 @@ function createMenuBackdrop(container: HTMLElement) {
   video.style.background = '#06101f';
   container.appendChild(video);
 
-  // Menu theme (the video's music). Browsers block audio autoplay until a user
-  // gesture, so we start it on the first tap/click/key while the menu is showing.
+  // Theme music (the video's audio). Browsers block audio autoplay until a user
+  // gesture, so it starts on the FIRST tap/click/key — and then keeps looping
+  // (it doesn't cut out the instant you tap into the arena), so it's reliably
+  // audible as a soundtrack. The game has no music bed of its own yet.
   const music = document.createElement('audio');
   music.src = MENU_MUSIC_URL;
   music.loop = true;
-  music.volume = 0.55;
+  music.volume = 0.45;
   music.preload = 'auto';
   music.style.display = 'none';
   container.appendChild(music);
-  let menuShown = true; // the game boots into the menu; start paths call hide()
-  const tryPlayMusic = () => { if (menuShown) void music.play().catch(() => undefined); };
+  const startMusic = () => { void music.play().catch(() => undefined); };
   for (const ev of ['pointerdown', 'touchstart', 'click', 'keydown']) {
-    window.addEventListener(ev, tryPlayMusic, { passive: true });
+    window.addEventListener(ev, startMusic, { passive: true });
   }
 
   return {
     show() {
-      menuShown = true;
       video.style.display = 'block';
       void video.play().catch(() => undefined);
       void music.play().catch(() => undefined);
     },
     hide() {
-      menuShown = false;
+      // Only the video stops in-game; the theme keeps playing as a soundtrack.
       video.style.display = 'none';
       video.pause();
-      music.pause();
     },
   };
 }
