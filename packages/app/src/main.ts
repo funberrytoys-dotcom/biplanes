@@ -886,7 +886,10 @@ async function loadVisualAssetsResilient(urls: readonly string[]): Promise<void>
 // «Забег» player power, from the Godot reference build (player: 260 HP, 34 dmg,
 // 0.085s fire cooldown vs our 100 HP / 10 dmg / 0.12s). Run mode only.
 const RUN_PLAYER_MAX_HP = 260;
-const RUN_PLAYER_DAMAGE_MULT = 3.4;        // 34 / 10
+// Damage pulled back from the Godot 3.4× — full power one-shot everything, which got
+// boring. ~1.5× keeps you the predator (enemies take a couple of hits) without melting
+// them instantly. HP + fire-rate buffs stay.
+const RUN_PLAYER_DAMAGE_MULT = 1.5;
 const RUN_PLAYER_FIRE_RATE_MULT = 0.12 / 0.085; // ≈1.41
 
 export async function startGame(container: HTMLElement) {
@@ -1100,7 +1103,8 @@ export async function startGame(container: HTMLElement) {
   const glowLayer = createGlowLayer();
   const groundFxLayer = new Container();
   const supplyLayer = new Container(); // balloons + dropped pickups (behind planes)
-  worldLayer.addChild(bulletLayer, fxLayer, glowLayer.container, groundFxLayer, supplyLayer, planeLayer);
+  const groundShadowLayer = new Container(); // plane ground shadows (below the planes)
+  worldLayer.addChild(bulletLayer, fxLayer, glowLayer.container, groundFxLayer, supplyLayer, groundShadowLayer, planeLayer);
   const groundFx = new GroundFx(groundFxLayer);
 
   // Foreground clouds — ABOVE the planes, so the hero/enemy can fly into cover
@@ -1160,6 +1164,7 @@ export async function startGame(container: HTMLElement) {
   let prevBulletIds = new Set<number>();
   const playerSprite = createPlaneSprite('player');
   planeLayer.addChild(playerSprite.container, playerSprite.hpBar);
+  groundShadowLayer.addChild(playerSprite.shadow);
 
   // Wingman drone sprites — small brass dieselpunk drones that trail the plane.
   const droneSprites: { c: Container; prop: Graphics }[] = [];
@@ -3113,6 +3118,8 @@ export async function startGame(container: HTMLElement) {
     // Hit glitch & oil splatters on player damage (Phase 2)
     if (state.player.hp < prevPlayerHp && state.player.alive) {
       screenFx.triggerHitGlitch();
+      // Blue panels shear off the airframe on every hit (player plane is blue).
+      damageFx.addDebris(state.player.kinematic.position, 0x4f86c6);
       // Drop oil if significantly damaged or by chance
       if (state.player.hp / state.player.maxHp <= 0.55 || Math.random() < 0.45) {
         screenFx.triggerOilSplatter();
@@ -3241,6 +3248,7 @@ export async function startGame(container: HTMLElement) {
       if (!s) {
         s = createPlaneSprite('enemy');
         planeLayer.addChild(s.container, s.hpBar);
+        groundShadowLayer.addChild(s.shadow);
         enemySprites.set(e.id, s);
       }
       s.update(e, dt, damageFx, clock, camera, undefined, groundFx, { screenFx });
@@ -3249,6 +3257,7 @@ export async function startGame(container: HTMLElement) {
       if (!seenEnemy.has(id)) {
         planeLayer.removeChild(s.container);
         planeLayer.removeChild(s.hpBar);
+        groundShadowLayer.removeChild(s.shadow);
         enemySprites.delete(id);
       }
     }
@@ -3392,6 +3401,7 @@ export async function startGame(container: HTMLElement) {
     for (const [, s] of enemySprites) {
       planeLayer.removeChild(s.container);
       planeLayer.removeChild(s.hpBar);
+      groundShadowLayer.removeChild(s.shadow);
     }
     enemySprites.clear();
     for (const [, s] of pilotSprites) {

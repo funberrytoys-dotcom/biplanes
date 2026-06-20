@@ -46,7 +46,7 @@ export class DamageFx {
     } else if (type === 'chunk') {
       g.rect(-2, -1, 4, 2).fill(color);
     } else if (type === 'casing') {
-      g.rect(-2, -0.75, 4, 1.5).fill(color);
+      g.rect(-3, -1.1, 6, 2.2).fill(color).stroke({ color: 0x4a3308, width: 0.6, alpha: 0.6 });
     } else if (type === 'windstreak') {
       g.rect(0, -0.5, 50, 1).fill({ color: 0xffffff, alpha: 0.2 });
     } else if (type === 'debris') {
@@ -327,18 +327,19 @@ export class DamageFx {
   }
 
   addCasing(position: { x: number; y: number }, heading: number) {
-    const g = this.acquire(0xc89c4a, 0, 'casing');
+    const g = this.acquire(0xe6bf5e, 0, 'casing'); // brighter brass
     g.x = position.x;
     g.y = position.y;
+    g.rotation = Math.random() * Math.PI * 2;
     const back = heading + Math.PI;
     const downA = back + Math.PI * 0.3;
-    const sp = 80 + Math.random() * 40;
+    const sp = 110 + Math.random() * 70; // tossed a bit harder, more visible arc
     this.active.push({
       g,
       vx: Math.cos(downA) * sp,
-      vy: Math.sin(downA) * sp,
-      life: 0.6,
-      maxLife: 0.6,
+      vy: Math.sin(downA) * sp - 20,
+      life: 0.95,
+      maxLife: 0.95,
       baseAlpha: 1,
       baseRadius: 2,
       type: 'casing',

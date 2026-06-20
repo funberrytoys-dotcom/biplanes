@@ -33,6 +33,8 @@ export interface PlaneSpriteHandle {
   container: Container;
   /** Screen-aligned HP bar that floats above the plane (does not rotate with the body). */
   hpBar: Container;
+  /** Flat ground shadow on the deck below the plane; scales/fades with altitude. */
+  shadow: Graphics;
   update: (
     p: Plane,
     dt: number,
@@ -117,6 +119,13 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
   const hpBarBg = new Graphics();
   const hpBarFill = new Graphics();
   hpBar.addChild(hpBarBg, hpBarFill);
+
+  // Ground shadow — a flat blob on the deck directly below the plane. Biggest/darkest
+  // at ground level (takeoff), shrinks + fades as the plane climbs, gone up high.
+  const shadow = new Graphics();
+  shadow.ellipse(0, 0, 26, 6).fill({ color: 0x0a0d12 });
+  shadow.visible = false;
+  const SHADOW_MAX_ALT = 560;
   let lastDrawnMaxHp = -1;
   const HP_BAR_HEIGHT = 6;
   const HP_BAR_BASE_W = 42; // px per PLANE_INITIAL_HP
@@ -131,6 +140,7 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
   return {
     container: c,
     hpBar,
+    shadow,
     update(
       p: Plane,
       dt: number,
@@ -149,11 +159,28 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
       // at the lethal moment.
       const transitionedToDying = prevState === 'flying' && p.state === 'dying';
       if (transitionedToDying && fx) {
-        const bodyColor = faction === 'player' ? 0xf4d35e : 0xc0392b;
+        const bodyColor = faction === 'player' ? 0x4f86c6 : 0xc0392b;
         fx.addDebris(p.kinematic.position, bodyColor);
       }
 
       updateArt(dt);
+
+      // Ground shadow: directly under the plane, biggest/darkest near the deck,
+      // shrinking + fading with altitude until it vanishes high up.
+      {
+        const altitude = Math.max(0, GROUND_Y - p.kinematic.position.y);
+        const k = Math.max(0, 1 - altitude / SHADOW_MAX_ALT);
+        if (k > 0.02 && p.alive && p.state !== 'crashed') {
+          const s = (0.5 + k * 0.95) * (p.visualScale ?? 1);
+          shadow.visible = true;
+          shadow.x = p.kinematic.position.x;
+          shadow.y = GROUND_Y + 4;
+          shadow.scale.set(s, s);
+          shadow.alpha = k * 0.4;
+        } else {
+          shadow.visible = false;
+        }
+      }
 
       const taxiLean =
         faction === 'player' && p.state === 'taxi'

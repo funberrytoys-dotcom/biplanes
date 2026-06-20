@@ -37,6 +37,7 @@ import {
   MAG_SIZE,
   RELOAD_SEC,
   FIRE_RECOIL_SPEED_LOSS,
+  BULLET_SPREAD_RAD,
   RAPIDFIRE_MULTIPLIER,
   DRONE_COOLDOWN,
   DRONE_DAMAGE,
@@ -515,7 +516,19 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
         state.multishotExtra,
       );
       for (const b of fireResult.bullets) {
-        newBulletList.push(b);
+        // Per-shot dispersion: rotate the bullet a hair off the nose (deterministic).
+        const roll = nextRandom(rngState);
+        rngState = roll.rngState;
+        const a = (roll.value - 0.5) * 2 * BULLET_SPREAD_RAD;
+        const ca = Math.cos(a);
+        const sa = Math.sin(a);
+        newBulletList.push({
+          ...b,
+          velocity: {
+            x: b.velocity.x * ca - b.velocity.y * sa,
+            y: b.velocity.x * sa + b.velocity.y * ca,
+          },
+        });
         nextEntityId++;
       }
       const firedThisTick = fireResult.bullets.length > 0;

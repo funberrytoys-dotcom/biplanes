@@ -34,6 +34,10 @@ export const MACHINE_GUN_DAMAGE = 10;
 // gun braking the plane. Easily countered by throttle, so it reads as "weight",
 // not a stall trap. (Mirrors the Godot reference's per-shot speed cost.)
 export const FIRE_RECOIL_SPEED_LOSS = 3.5;
+// Per-shot dispersion (rad): each bullet leaves the barrel at a slightly random
+// angle, so the stream scatters (mostly vertically in level flight) instead of a
+// laser-straight line — like the Godot build's spray.
+export const BULLET_SPREAD_RAD = 0.035;
 export const XP_PER_KILL_LIGHT = 5;
 export const XP_PER_KILL_HEAVY = 12;
 export const PLAYER_SCORE_TO_WIN = 15;
