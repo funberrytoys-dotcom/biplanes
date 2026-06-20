@@ -12,6 +12,15 @@ describe('start menu options', () => {
     });
   });
 
+  it('places ЗАБЕГ directly after АРЕНА and enabled', () => {
+    const options = getStartMenuOptions();
+    const arenaIndex = options.findIndex((o) => o.action === 'arena');
+    const runIndex = options.findIndex((o) => o.action === 'run');
+    expect(arenaIndex).toBeGreaterThanOrEqual(0);
+    expect(runIndex).toBe(arenaIndex + 1);
+    expect(options[runIndex]!).toMatchObject({ label: 'ЗАБЕГ', enabled: true });
+  });
+
   it('keeps tuning labs behind the main sortie', () => {
     const options = getStartMenuOptions();
     const storyIndex = options.findIndex((option) => option.action === 'story');

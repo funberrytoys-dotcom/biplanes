@@ -1,4 +1,4 @@
-export type MenuAction = 'flightLab' | 'story' | 'arena' | 'multiplayer' | 'settings' | 'exit';
+export type MenuAction = 'flightLab' | 'story' | 'arena' | 'run' | 'multiplayer' | 'settings' | 'exit';
 
 export interface StartMenuOption {
   action: MenuAction;
@@ -19,6 +19,12 @@ export function getStartMenuOptions(): StartMenuOption[] {
       action: 'arena',
       label: 'АРЕНА',
       note: 'Быстрый боевой режим: победы, улучшения, разные небесные локации и чистая проверка билда.',
+      enabled: true,
+    },
+    {
+      action: 'run',
+      label: 'ЗАБЕГ',
+      note: '15 волн, одна жизнь. После каждой волны — выбор модуля из 4 веток с цветным выделением, реролл и пропуск. На финале — босс «Шрам».',
       enabled: true,
     },
     {

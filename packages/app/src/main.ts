@@ -39,6 +39,17 @@ import {
   type SupplyBalloon,
   isStalling,
   findPilot,
+  // === «Забег» run engine (Plan 1) ===
+  createRunState,
+  recordPick,
+  recordReroll,
+  recordSkip,
+  rollRunPickChoices,
+  buildRunSummary,
+  isBossWave,
+  runEnemyCountForWave,
+  RUN_WAVE_COUNT,
+  type RunState,
 } from '@biplanes/core';
 import {
   createPixiApp,
@@ -80,6 +91,7 @@ import {
 import { createStartScreen } from './screens/start-screen.js';
 import { createLevelUpScreen } from './screens/level-up-screen.js';
 import { createDeathScreen } from './screens/death-screen.js';
+import { createRunSummaryScreen } from './screens/run-summary-screen.js';
 import { createDialogueOverlay, createRadioPopup, type DialogueLine } from './campaign/dialogue-overlay.js';
 import { getMissionUiLayout } from './campaign/mission-ui-layout.js';
 import { createMissionOneScene } from './campaign/mission-one-scene.js';
@@ -803,6 +815,7 @@ const URL_PARAMS = typeof window !== 'undefined'
   : new URLSearchParams();
 const AUTO_STORY = URL_PARAMS.has('story');
 const AUTO_ARENA = URL_PARAMS.has('arena');
+const AUTO_RUN = URL_PARAMS.has('run');
 const AUTO_SKY_TEST = URL_PARAMS.has('skytest');
 const AUTO_GUNFEEL_LAB = URL_PARAMS.has('gunfeelLab');
 const AUTO_FLIGHT_LAB = URL_PARAMS.has('flightLab');
@@ -1519,6 +1532,11 @@ export async function startGame(container: HTMLElement) {
   let state: WorldState = createWorldState(Math.floor(Math.random() * 1e9), makePlayer());
   let gameRunning = false;
   let choicesShowing = false;
+  // «Забег»: non-null while a run is active. The run reuses the arena pipeline;
+  // every run-specific branch is gated on this being set, so arena/story are untouched.
+  let runSession: RunState | null = null;
+  let runOver = false;        // true once the run-summary screen is up (one-shot guard)
+  let runBossSpawned = false; // boss (wave 15) has entered this run
   let storyCompleted = false;
   let shownChicoFirstKillRadio = false;
   let firstSortieFiredOnce = false;
@@ -1542,7 +1560,12 @@ export async function startGame(container: HTMLElement) {
       return;
     }
     if (action === 'arena') {
+      runSession = null;
       startArena();
+      return;
+    }
+    if (action === 'run') {
+      startRun();
       return;
     }
     if (action === 'story') {
@@ -1552,13 +1575,33 @@ export async function startGame(container: HTMLElement) {
   uiLayer.addChild(startScreen.container);
   startScreen.show();
 
-  const levelUpScreen = createLevelUpScreen(app.screen.width, app.screen.height, (id: string) => {
-    audio.playUpgradePick();
-    state = applyUpgrade(state, id as UpgradeId);
-    levelUpScreen.hide();
-    choicesShowing = false;
-    updateArenaDirector();
-  });
+  const levelUpScreen = createLevelUpScreen(
+    app.screen.width,
+    app.screen.height,
+    (id: string) => {
+      audio.playUpgradePick();
+      state = applyUpgrade(state, id as UpgradeId);
+      if (runSession) runSession = recordPick(runSession, id as UpgradeId);
+      levelUpScreen.hide();
+      choicesShowing = false;
+      updateArenaDirector();
+    },
+    {
+      onReroll: () => {
+        if (!runSession || runSession.rerollsRemaining <= 0) return;
+        runSession = recordReroll(runSession);
+        audio.playUpgradeOpen();
+        showRunPickChoices();
+      },
+      onSkip: () => {
+        if (!runSession) return;
+        runSession = recordSkip(runSession);
+        levelUpScreen.hide();
+        choicesShowing = false;
+        updateArenaDirector();
+      },
+    },
+  );
   uiLayer.addChild(levelUpScreen.container);
 
   let arenaShownStage = 0;
@@ -1593,7 +1636,9 @@ export async function startGame(container: HTMLElement) {
     void location;
     // Weather/location name lives in the dedicated weather panel — keep the status
     // bar short so it doesn't collide with the cockpit panel (left) or that panel (right).
-    arenaStatus.text = `РАУНД ${arenaRound}  ${phaseText}  ЧИКО ${state.playerScore} : ${state.enemyScore} ВРАГ`;
+    arenaStatus.text = runSession
+      ? `ЗАБЕГ • ВОЛНА ${Math.min(arenaRound, RUN_WAVE_COUNT)}/${RUN_WAVE_COUNT}  ${phaseText}  СБИТО ${state.playerScore}`
+      : `РАУНД ${arenaRound}  ${phaseText}  ЧИКО ${state.playerScore} : ${state.enemyScore} ВРАГ`;
     arenaStatus.x = Math.max(12, (app.screen.width - arenaStatus.width) / 2);
     arenaStatus.y = 12;
     arenaStatus.visible = true;
@@ -1628,17 +1673,24 @@ export async function startGame(container: HTMLElement) {
     arenaVictoryFlightSec = 0;
     state.disableAutoEnemySpawn = true;
     state.difficulty = arenaDifficultyForRound(arenaRound);
-    const nextEnemyCount = arenaEnemyCountForRound(arenaRound);
-    const finalBossReady = shouldSpawnArenaFinalBossForRound({
-      playerScore: state.playerScore,
-      finalBossScore: ARENA_FINAL_BOSS_SCORE,
-      playerWinScore: PLAYER_SCORE_TO_WIN,
-      roundEnemyCount: nextEnemyCount,
-      bossAlreadySpawned: state.enemies.some(e => e.isBoss),
-      gameOver: state.gameOver,
-      pendingLevelUp: state.pendingLevelUp,
-      choicesShowing,
-    });
+    // «Забег» drives waves by round number (15 waves, boss on 15); arena keeps its
+    // score-based escalation/boss.
+    const nextEnemyCount = runSession
+      ? runEnemyCountForWave(arenaRound)
+      : arenaEnemyCountForRound(arenaRound);
+    const finalBossReady = runSession
+      ? isBossWave(arenaRound)
+      : shouldSpawnArenaFinalBossForRound({
+        playerScore: state.playerScore,
+        finalBossScore: ARENA_FINAL_BOSS_SCORE,
+        playerWinScore: PLAYER_SCORE_TO_WIN,
+        roundEnemyCount: nextEnemyCount,
+        bossAlreadySpawned: state.enemies.some(e => e.isBoss),
+        gameOver: state.gameOver,
+        pendingLevelUp: state.pendingLevelUp,
+        choicesShowing,
+      });
+    if (runSession && finalBossReady) runBossSpawned = true;
     const enemies = finalBossReady
       ? [makeArenaScarBoss(state.nextEntityId, state.player, arenaRound)]
       : Array.from({ length: nextEnemyCount }, (_, lane) =>
@@ -1704,7 +1756,29 @@ export async function startGame(container: HTMLElement) {
     camera.snap();
   }
 
+  function showRunPickChoices() {
+    if (!runSession) return;
+    // Child seed for the pick roll — never consumes the combat RNG stream (§13.6).
+    // Salted by reroll budget so a reroll yields a different, replayable offer.
+    const salt =
+      ((arenaRound * 0x9e3779b9) ^ (runSession.picks.length * 0x85ebca6b) ^ (runSession.rerollsRemaining * 0xc2b2ae35)) >>> 0;
+    const rng = createRng((state.rngState ^ salt ^ state.tickCount) >>> 0);
+    const choices = rollRunPickChoices(state.appliedUpgradeIds, runSession.affinity, rng);
+    arenaRoundPhase = 'upgrade';
+    state = { ...state, pendingLevelUp: false };
+    if (choices.length > 0) {
+      choicesShowing = true;
+      levelUpScreen.show(choices, { rerollsRemaining: runSession.rerollsRemaining });
+    } else {
+      choicesShowing = false;
+    }
+  }
+
   function showArenaRoundUpgrade() {
+    if (runSession) {
+      showRunPickChoices();
+      return;
+    }
     const rng = createRng((state.rngState ^ (arenaRound * 0x9e3779b9) ^ state.tickCount) >>> 0);
     const choices = rollUpgradeChoices(state.appliedUpgradeIds, rng);
     arenaRoundPhase = 'upgrade';
@@ -1734,7 +1808,9 @@ export async function startGame(container: HTMLElement) {
       }
     }
 
-    if (state.gameOver && state.player.alive && state.playerScore < PLAYER_SCORE_TO_WIN) {
+    // Arena is forgiving (auto-clears gameOver to keep flying). «Забег» is one life:
+    // never auto-clear — a destroyed plane ends the run (handled in the ticker).
+    if (!runSession && state.gameOver && state.player.alive && state.playerScore < PLAYER_SCORE_TO_WIN) {
       state = { ...state, gameOver: false };
     }
 
@@ -1742,6 +1818,19 @@ export async function startGame(container: HTMLElement) {
 
     const aliveEnemies = countUnresolvedArenaEnemies(state.enemies);
     const playerPilotActive = findPilot(state.pilots, 'player') !== undefined;
+
+    // «Забег» win: the wave-15 boss has entered and is now down.
+    if (
+      runSession
+      && !runOver
+      && runBossSpawned
+      && isBossWave(arenaRound)
+      && aliveEnemies === 0
+      && state.player.alive
+    ) {
+      endRun('won');
+      return;
+    }
     if (
       arenaRoundPhase === 'upgradeDelay'
       && state.player.alive
@@ -1830,6 +1919,30 @@ export async function startGame(container: HTMLElement) {
     resetToMenu();
   });
   uiLayer.addChild(deathScreen.container);
+
+  const runSummaryScreen = createRunSummaryScreen(
+    app.screen.width,
+    app.screen.height,
+    () => { startRun(); },       // ЗАНОВО — straight into a fresh run
+    () => { resetToMenu(); },    // В АНГАР
+  );
+  uiLayer.addChild(runSummaryScreen.container);
+
+  // End the current «Забег» and raise the debrief. One-shot via runOver.
+  function endRun(outcome: 'won' | 'lost') {
+    if (!runSession || runOver) return;
+    runOver = true;
+    const summary = buildRunSummary(
+      { ...runSession, wave: arenaRound },
+      outcome,
+      { kills: state.playerScore, timeSec: state.timeSec },
+    );
+    gameRunning = false;
+    choicesShowing = true; // pauses the sim while the debrief is up
+    levelUpScreen.hide();
+    if (outcome === 'won') audio.playVictory(); else audio.playDefeat();
+    runSummaryScreen.show(summary);
+  }
 
   const kb = createKeyboardController();
   const touch = createTouchController(app.canvas);
@@ -1943,9 +2056,22 @@ export async function startGame(container: HTMLElement) {
     hud.container.visible = true;
     hud.hideEnemyArrows();
     debugText.visible = false;
+    runSummaryScreen.hide();
     updateArenaDirector();
     gameRunning = true;
-    showArenaToast(`ВОЛНА ${arenaRound}`, 'Разгоняйся и набирай высоту', 2.0);
+    if (runSession) {
+      showArenaToast(`ЗАБЕГ • ВОЛНА ${arenaRound}/${RUN_WAVE_COUNT}`, 'Одна жизнь. Дойди до босса.', 2.4);
+    } else {
+      showArenaToast(`ВОЛНА ${arenaRound}`, 'Разгоняйся и набирай высоту', 2.0);
+    }
+  }
+
+  // «Забег»: a fresh run on the arena pipeline, gated by runSession.
+  function startRun() {
+    runSession = createRunState();
+    runOver = false;
+    runBossSpawned = false;
+    startArena();
   }
 
   function startSkyTest() {
@@ -2327,6 +2453,7 @@ export async function startGame(container: HTMLElement) {
     startScreen.update(dt);
     levelUpScreen.update(dt);
     deathScreen.update(dt);
+    runSummaryScreen.update(dt);
     radioPopup.update(dt);
     if (arenaToast.visible) {
       arenaToastTimer = Math.max(0, arenaToastTimer - dt);
@@ -2812,7 +2939,8 @@ export async function startGame(container: HTMLElement) {
       flightLabStatus.visible = false;
     }
 
-    if (state.gameOver && !deathScreen.container.visible) {
+    // Arena/story use the death telegram. «Забег» uses its own run-summary (below).
+    if (state.gameOver && !deathScreen.container.visible && !runSession) {
       audio.playDefeat();
       deathScreen.show(state);
     }
@@ -2838,6 +2966,10 @@ export async function startGame(container: HTMLElement) {
       screenFx.flash(0xff5544, 0.5, 0.4);
       screenFx.enableDeathTint();
       clock.slowMo(SLOW_MO_SCALE, SLOW_MO_DURATION_SEC, SLOW_MO_RECOVERY_SEC);
+    }
+    // «Забег» is one life: the moment the player's plane is destroyed, the run ends.
+    if (runSession && !runOver && prevPlayerAlive && !state.player.alive) {
+      endRun('lost');
     }
     if (!prevPlayerAlive && state.player.alive) {
       // Respawned — back to color.
@@ -3094,6 +3226,10 @@ export async function startGame(container: HTMLElement) {
 
   function resetToMenu() {
     runMode = 'menu';
+    runSession = null;
+    runOver = false;
+    runBossSpawned = false;
+    runSummaryScreen.hide();
     arenaRound = 1;
     arenaRoundPhase = 'takeoff';
     arenaRoundStartScore = 0;
@@ -3177,6 +3313,8 @@ export async function startGame(container: HTMLElement) {
     requestAnimationFrame(() => startSkyTest());
   } else if (AUTO_STORY) {
     requestAnimationFrame(() => startStoryMissionOne());
+  } else if (AUTO_RUN) {
+    requestAnimationFrame(() => startRun());
   } else if (AUTO_ARENA) {
     requestAnimationFrame(() => startArena());
   }
@@ -3198,6 +3336,7 @@ export async function startGame(container: HTMLElement) {
     startScreen.resize(w, h);
     levelUpScreen.resize(w, h);
     deathScreen.resize(w, h);
+    runSummaryScreen.resize(w, h);
     dialogueOverlay.resize(w, h);
     radioPopup.resize(w, h);
     layoutCaravanGauge(w, h);
