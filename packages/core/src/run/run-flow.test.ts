@@ -7,6 +7,7 @@ function input(over: Partial<RunFlowInput>): RunFlowInput {
     wave: 1,
     enemyAliveCount: 3,
     playerDead: false,
+    bossDefeated: false,
     pickResolved: false,
     pickDelaySec: 0,
     requiredPickDelaySec: 2,
@@ -48,10 +49,18 @@ describe('resolveRunFlow', () => {
     expect(r.shouldAdvanceWave).toBe(true);
   });
 
-  it('clearing the boss wave (15) completes the run as a win', () => {
-    const r = resolveRunFlow(input({ phase: 'duel', wave: 15, enemyAliveCount: 0 }));
+  it('defeating the boss on wave 15 completes the run as a win', () => {
+    const r = resolveRunFlow(input({ phase: 'duel', wave: 15, enemyAliveCount: 0, bossDefeated: true }));
     expect(r.phase).toBe('complete');
     expect(r.outcome).toBe('won');
+    expect(r.shouldOfferPick).toBe(false);
+  });
+
+  it('does NOT win wave 15 just because no enemies are alive yet (boss not spawned)', () => {
+    // Wave 15 starts with zero escorts; without bossDefeated the run must keep going.
+    const r = resolveRunFlow(input({ phase: 'duel', wave: 15, enemyAliveCount: 0, bossDefeated: false }));
+    expect(r.phase).toBe('duel');
+    expect(r.outcome).toBeNull();
     expect(r.shouldOfferPick).toBe(false);
   });
 

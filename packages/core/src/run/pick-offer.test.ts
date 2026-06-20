@@ -47,9 +47,17 @@ describe('rollRunPickChoices', () => {
   });
 
   it('tags stackable choices with their next tier numeral', () => {
-    // Take damage_plus_25 once; the next offer of it should read "Урон II".
-    const choices = rollRunPickChoices(['damage_plus_25'], emptyAffinity(), createRng(5));
-    const dmg = choices.find(c => c.id === 'damage_plus_25');
-    if (dmg) expect(dmg.title).toMatch(/II/);
+    // A stub rng returning 0 deterministically lands on the first available def,
+    // which is damage_plus_25 (UPGRADE_DEFS order). Taken once → next offer reads "II".
+    const choices = rollRunPickChoices(['damage_plus_25'], emptyAffinity(), { next: () => 0 });
+    expect(choices[0]!.id).toBe('damage_plus_25');
+    expect(choices[0]!.title).toMatch(/\bII\b/);
+  });
+
+  it('maps the rng across the whole pool (low → first slot, high → last slot)', () => {
+    // Exercises the weighted-sampler fall-through to the final index.
+    const low = rollRunPickChoices([], emptyAffinity(), { next: () => 0 });
+    const high = rollRunPickChoices([], emptyAffinity(), { next: () => 0.9999999 });
+    expect(low[0]!.id).not.toBe(high[0]!.id);
   });
 });

@@ -14,6 +14,16 @@ export const AFFINITY_WEIGHT = 0.5;
  * Offer 3 upgrade choices for a run pick, biased toward the player's higher-affinity
  * branches. Same availability rules as the arena pool (stack caps, evolution
  * prerequisites). Deterministic given the rng. Stackable picks get their tier numeral.
+ *
+ * DETERMINISM CONTRACT: the caller MUST pass a CHILD-seeded rng (e.g. derived from
+ * `hash(runSeed, wave)`), NOT the live combat `rngState` — otherwise rolling/​re-rolling
+ * a pick would consume the replay-critical RNG stream (§13.6). For a re-roll, salt the
+ * child seed (e.g. `hash(runSeed, wave, rerollIndex)`).
+ *
+ * DEFERRED (§13.3, Plan 3): the richer offer guarantees — a guaranteed slot for a
+ * freshly-unlocked keystone/evolution (step 3), the "≥1 of 3 from an off-branch"
+ * diversification rule (step 4), and pity-weighting (step 6) — are NOT implemented
+ * here. This is plain affinity-weighted sampling only.
  */
 export function rollRunPickChoices(
   applied: readonly string[],
