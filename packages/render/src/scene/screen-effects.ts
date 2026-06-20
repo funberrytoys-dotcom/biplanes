@@ -166,19 +166,21 @@ export function createScreenEffects(width: number, height: number): ScreenEffect
       // Ambient windshield oil — density scales with player damage (clean glass above
       // 60% HP, heavily splattered toward 20%), like rain beads on a fast windscreen.
       // Beads keep respawning as old ones slide off, so low HP stays persistently oily.
-      const oilDmg = Math.max(0, Math.min(1, (0.6 - oilHpRatio) / (0.6 - 0.2)));
-      if (oilDmg > 0 && oilDrops.length < 70) {
-        oilSpawnAcc += oilDmg * 15 * dt;
-        while (oilSpawnAcc >= 1 && oilDrops.length < 70) {
+      // Starts with light damage (below ~85% HP) and ramps to heavy near 15% — so it's
+      // clearly visible after the first couple of hits, not just at near-death.
+      const oilDmg = Math.max(0, Math.min(1, (0.85 - oilHpRatio) / (0.85 - 0.15)));
+      if (oilDmg > 0 && oilDrops.length < 95) {
+        oilSpawnAcc += oilDmg * 22 * dt;
+        while (oilSpawnAcc >= 1 && oilDrops.length < 95) {
           oilSpawnAcc -= 1;
           oilDrops.push({
             x: Math.random() * w,
             y: Math.random() * (h * 0.82),
             vx: (Math.random() - 0.5) * 10,
             vy: 8 + Math.random() * 18,
-            life: 2.4 + Math.random() * 2.2,
-            maxLife: 4.6,
-            size: 1.8 + Math.random() * 2.6,
+            life: 2.6 + Math.random() * 2.4,
+            maxLife: 5.0,
+            size: 2.4 + Math.random() * 3.0,
             trail: [],
           });
         }
