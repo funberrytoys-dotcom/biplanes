@@ -118,13 +118,14 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
   const hpBarFill = new Graphics();
   hpBar.addChild(hpBarBg, hpBarFill);
   let lastDrawnMaxHp = -1;
-  const HP_BAR_HEIGHT = 3;
-  const HP_BAR_BASE_W = 30; // px per PLANE_INITIAL_HP
-  const HP_BAR_Y_OFFSET = -34;
+  const HP_BAR_HEIGHT = 6;
+  const HP_BAR_BASE_W = 42; // px per PLANE_INITIAL_HP
+  const HP_BAR_Y_OFFSET = -44;
 
   function hpBarWidth(p: Plane) {
     const scaled = HP_BAR_BASE_W * (p.maxHp / PLANE_INITIAL_HP);
-    return Math.min(p.isBoss ? 96 : 54, scaled);
+    // Floor so low-HP enemies (e.g. 30 HP) still get a readable bar, not a sliver.
+    return Math.max(28, Math.min(p.isBoss ? 160 : 116, scaled));
   }
 
   return {
@@ -507,12 +508,13 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
         const visible = p.state === 'flying' || p.state === 'dying' || p.state === 'taxi';
         hpBar.visible = visible;
         if (visible) {
+          const barH = p.isBoss ? HP_BAR_HEIGHT + 3 : HP_BAR_HEIGHT;
           if (p.maxHp !== lastDrawnMaxHp) {
             const w = hpBarWidth(p);
             hpBarBg.clear()
-              .rect(-w / 2, 0, w, p.isBoss ? HP_BAR_HEIGHT + 2 : HP_BAR_HEIGHT)
-              .fill({ color: 0x000000, alpha: 0.6 })
-              .stroke({ color: 0x000000, width: 1, alpha: 0.9 });
+              .roundRect(-w / 2 - 1.5, -1.5, w + 3, barH + 3, 3)
+              .fill({ color: 0x05080c, alpha: 0.7 })
+              .stroke({ color: 0x000000, width: 1.5, alpha: 0.9 });
             lastDrawnMaxHp = p.maxHp;
           }
           const w = hpBarWidth(p);
@@ -522,8 +524,9 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
           if (hpFrac <= 0.25) fillColor = 0xef4444;
           else if (hpFrac <= 0.5) fillColor = 0xfacc15;
           hpBarFill.clear()
-            .rect(-w / 2, 0, w * hpFrac, p.isBoss ? HP_BAR_HEIGHT + 2 : HP_BAR_HEIGHT)
-            .fill({ color: fillColor });
+            .roundRect(-w / 2, 0, Math.max(1, w * hpFrac), barH, 2.5)
+            .fill({ color: fillColor })
+            .stroke({ color: 0xffffff, width: 0.8, alpha: 0.35 });
           hpBar.x = p.kinematic.position.x;
           hpBar.y = p.kinematic.position.y + (p.isBoss ? HP_BAR_Y_OFFSET - 16 : HP_BAR_Y_OFFSET);
         }

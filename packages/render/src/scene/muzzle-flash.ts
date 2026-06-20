@@ -32,6 +32,16 @@ export class MuzzleFlashes {
       else g.lineTo(Math.cos(ang) * r, Math.sin(ang) * r);
     }
     g.closePath().fill({ color: 0xffd05a, alpha: 0.82 });
+    // Forward "cone of fire" plume shooting out along the barrel (Godot-style).
+    const L = 38, H = 8;
+    g.moveTo(0, 0)
+      .lineTo(L * 0.5, -H * 0.7)
+      .lineTo(L, -H * 0.25)
+      .lineTo(L * 1.08, 0)
+      .lineTo(L, H * 0.25)
+      .lineTo(L * 0.5, H * 0.7)
+      .closePath()
+      .fill({ color: 0xffe08a, alpha: 0.7 });
     g.circle(0, 0, 9).fill({ color: 0xff7426, alpha: 0.34 });
     g.circle(0, 0, 5.4).fill({ color: 0xfff5a0, alpha: 0.92 });
     g.circle(0, 0, 2.4).fill({ color: 0xffffff, alpha: 0.96 });

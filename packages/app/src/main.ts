@@ -883,6 +883,12 @@ async function loadVisualAssetsResilient(urls: readonly string[]): Promise<void>
   }
 }
 
+// «Забег» player power, from the Godot reference build (player: 260 HP, 34 dmg,
+// 0.085s fire cooldown vs our 100 HP / 10 dmg / 0.12s). Run mode only.
+const RUN_PLAYER_MAX_HP = 260;
+const RUN_PLAYER_DAMAGE_MULT = 3.4;        // 34 / 10
+const RUN_PLAYER_FIRE_RATE_MULT = 0.12 / 0.085; // ≈1.41
+
 export async function startGame(container: HTMLElement) {
   await loadVisualAssetsResilient(VISUAL_ASSET_URLS);
   const menuBackdrop = createMenuBackdrop(container);
@@ -2184,6 +2190,18 @@ export async function startGame(container: HTMLElement) {
     runOver = false;
     runBossSpawned = false;
     startArena();
+    // «Забег» flips the balance toward the player from the start, using the Godot
+    // build's numbers: 260 HP (vs 100), ~3.4× bullet damage (34 vs 10), ~1.4× fire
+    // rate (0.085s vs 0.12s cooldown). Enemies keep our per-wave escalation, so the
+    // run still ramps — but you START as the predator. maxHp carries across waves
+    // (makeArenaRunwayPlayer preserves it); the multipliers persist on world state
+    // and upgrades stack on top.
+    state = {
+      ...state,
+      player: { ...state.player, maxHp: RUN_PLAYER_MAX_HP, hp: RUN_PLAYER_MAX_HP },
+      damageMultiplier: state.damageMultiplier * RUN_PLAYER_DAMAGE_MULT,
+      fireRateMultiplier: state.fireRateMultiplier * RUN_PLAYER_FIRE_RATE_MULT,
+    };
   }
 
   function startSkyTest() {
