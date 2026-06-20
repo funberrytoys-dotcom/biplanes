@@ -120,6 +120,7 @@ import { shouldShowTouchGuide } from './mobile-touch-guide.js';
 import { fitMobileZoom, getMobileViewportInfo } from './mobile-viewport.js';
 
 const MENU_VIDEO_URL = assetUrl('assets/menu/intro1.mp4');
+const MENU_MUSIC_URL = assetUrl('assets/menu/intro1.mp3');
 const CHICO_PORTRAIT_URL = assetUrl('assets/campaign/portrait_chico.png');
 const ISLAND_BRYNN_FRAME_URLS = Array.from({ length: 50 }, (_, i) => assetUrl(`assets/campaign/island_brynn/frame_${String(i + 1).padStart(4, '0')}.png`));
 const ARENA_WORLD_WIDTH = WORLD_WIDTH * 5;
@@ -306,14 +307,33 @@ function createMenuBackdrop(container: HTMLElement) {
   video.style.background = '#06101f';
   container.appendChild(video);
 
+  // Menu theme (the video's music). Browsers block audio autoplay until a user
+  // gesture, so we start it on the first tap/click/key while the menu is showing.
+  const music = document.createElement('audio');
+  music.src = MENU_MUSIC_URL;
+  music.loop = true;
+  music.volume = 0.55;
+  music.preload = 'auto';
+  music.style.display = 'none';
+  container.appendChild(music);
+  let menuShown = true; // the game boots into the menu; start paths call hide()
+  const tryPlayMusic = () => { if (menuShown) void music.play().catch(() => undefined); };
+  for (const ev of ['pointerdown', 'touchstart', 'click', 'keydown']) {
+    window.addEventListener(ev, tryPlayMusic, { passive: true });
+  }
+
   return {
     show() {
+      menuShown = true;
       video.style.display = 'block';
       void video.play().catch(() => undefined);
+      void music.play().catch(() => undefined);
     },
     hide() {
+      menuShown = false;
       video.style.display = 'none';
       video.pause();
+      music.pause();
     },
   };
 }
