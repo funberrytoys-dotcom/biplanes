@@ -8,8 +8,23 @@ import {
   RARITY_PALETTE,
   type UpgradeRarity,
 } from './level-up-screen-layout.js';
+import { branchStyleForUpgradeId } from './branch-style.js';
 
-export function createLevelUpScreen(width: number, height: number, onPick: (id: string) => void) {
+export interface LevelUpRunControls {
+  rerollsRemaining: number;
+}
+
+export interface LevelUpScreenOpts {
+  onReroll?: () => void;
+  onSkip?: () => void;
+}
+
+export function createLevelUpScreen(
+  width: number,
+  height: number,
+  onPick: (id: string) => void,
+  opts: LevelUpScreenOpts = {},
+) {
   const c = new Container();
   c.visible = false;
   c.eventMode = 'static';
@@ -44,6 +59,7 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
     badge: Graphics;
     rarityText: Text;
     categoryText: Text;
+    branchText: Text;
     titleText: Text;
     descText: Text;
     pickText: Text;
@@ -54,6 +70,7 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
     width: number;
     height: number;
     rarity: UpgradeRarity;
+    branchColor: number;
     pressed: boolean;
   }
 
@@ -99,9 +116,17 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
     fontWeight: 'bold',
     letterSpacing: 0,
   });
+  const branchTextStyle = new TextStyle({
+    fontFamily: 'monospace',
+    fontSize: 10,
+    fill: 0xffffff,
+    fontWeight: 'bold',
+    letterSpacing: 1,
+    stroke: { color: 0x05070a, width: 3 },
+  });
 
   function drawCard(card: CardHandle, highlighted = false) {
-    const { bg, shine, badge, width: cardW, height: cardH, rarity, pressed } = card;
+    const { bg, shine, badge, width: cardW, height: cardH, rarity, branchColor, pressed } = card;
     const pal = RARITY_PALETTE[rarity];
     const accent = pal.accent;
     const secondary = pal.secondary;
@@ -116,6 +141,12 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
       .fill({ color: pal.deep, alpha: 0.52 });
     bg.roundRect(5, 5, cardW - 10, cardH - 10)
       .stroke({ color: edge, width: highlighted || pressed ? 3 : 2, alpha: 0.92 });
+    // Branch colour channel: a bold spine down the left edge + a soft glow, so the
+    // pick's build branch reads instantly, independent of the rarity body colour.
+    bg.roundRect(8, 10, 6, cardH - 20, 3)
+      .fill({ color: branchColor, alpha: highlighted || pressed ? 1 : 0.92 });
+    bg.roundRect(8, 10, 6, cardH - 20, 3)
+      .stroke({ color: 0x05070a, width: 1, alpha: 0.6 });
     bg.rect(12, 43, cardW - 24, 1).fill({ color: accent, alpha: 0.62 });
     bg.rect(12, cardH - 48, cardW - 24, 1).fill({ color: 0x6f8792, alpha: 0.42 });
     // Single decorative rivet bottom-right only (the old top-right + bottom-left
@@ -146,11 +177,12 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
     const badge = new Graphics();
     const rarityText = new Text({ text: '', style: rarityStyle });
     const categoryText = new Text({ text: '', style: labelStyle });
+    const branchText = new Text({ text: '', style: branchTextStyle.clone() });
     const titleText = new Text({ text: '', style: cardTitleStyle });
     const descText = new Text({ text: '', style: cardDescStyle });
     const pickText = new Text({ text: 'ВЫБРАТЬ', style: pickStyle });
 
-    btn.addChild(bg, shine, badge, categoryText, rarityText, titleText, descText, pickText);
+    btn.addChild(bg, shine, badge, categoryText, rarityText, branchText, titleText, descText, pickText);
 
     const card: CardHandle = {
       container: btn,
@@ -159,6 +191,7 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
       badge,
       rarityText,
       categoryText,
+      branchText,
       titleText,
       descText,
       pickText,
@@ -169,6 +202,7 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
       width: 260,
       height: 190,
       rarity: 'common',
+      branchColor: 0xffffff,
       pressed: false,
     };
 
@@ -196,6 +230,62 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
     cards.push(card);
     c.addChild(btn);
   }
+
+  // === Run controls: Reroll + Skip (shown only in «Забег», via show(choices, run)) ===
+  function makePillButton(label: string, accent: number, onTap: () => void) {
+    const btn = new Container();
+    btn.eventMode = 'static';
+    btn.cursor = 'pointer';
+    btn.visible = false;
+    const bg = new Graphics();
+    const txt = new Text({
+      text: label,
+      style: new TextStyle({
+        fontFamily: 'monospace',
+        fontSize: 14,
+        fill: accent,
+        fontWeight: 'bold',
+        letterSpacing: 1,
+        stroke: { color: 0x05080e, width: 3 },
+      }),
+    });
+    const W = 230;
+    const H = 46;
+    const redraw = (hover: boolean) => {
+      bg.clear()
+        .roundRect(-W / 2, -H / 2, W, H, 9)
+        .fill({ color: 0x0c1420, alpha: hover ? 0.92 : 0.78 })
+        .stroke({ color: accent, width: hover ? 3 : 2, alpha: hover ? 1 : 0.82 });
+    };
+    redraw(false);
+    btn.addChild(bg, txt);
+    btn.on('pointerover', () => { btn.scale.set(1.04); redraw(true); });
+    btn.on('pointerout', () => { btn.scale.set(1.0); redraw(false); });
+    btn.on('pointerdown', onTap);
+    return {
+      container: btn,
+      width: W,
+      setLabel(next: string) {
+        txt.text = next;
+        txt.x = -txt.width / 2;
+        txt.y = -txt.height / 2 - 1;
+      },
+      setAccent(next: number) {
+        txt.style.fill = next;
+        redraw(false);
+      },
+      reposition() {
+        txt.x = -txt.width / 2;
+        txt.y = -txt.height / 2 - 1;
+      },
+    };
+  }
+
+  const rerollBtn = makePillButton('ПЕРЕБРОС', 0x6ee0a0, () => opts.onReroll?.());
+  const skipBtn = makePillButton('ПРОПУСТИТЬ', 0xc8b48a, () => opts.onSkip?.());
+  rerollBtn.reposition();
+  skipBtn.reposition();
+  c.addChild(rerollBtn.container, skipBtn.container);
 
   function layout(w: number, h: number) {
     dim.clear().rect(0, 0, w, h).fill({ color: 0x08090d, alpha: 0.66 });
@@ -228,22 +318,25 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
       card.container.pivot.set(bounds.width / 2, bounds.height / 2);
       card.targetX = bounds.x;
       card.targetY = bounds.y;
-      card.titleText.style.wordWrapWidth = bounds.width - 28;
-      card.descText.style.wordWrapWidth = bounds.width - 28;
+      card.titleText.style.wordWrapWidth = bounds.width - 40;
+      card.descText.style.wordWrapWidth = bounds.width - 40;
       card.titleText.style.fontSize = bounds.width < 230 ? 17 : 20;
       card.descText.style.fontSize = bounds.width < 230 ? 13 : 14;
       card.rarityText.style.fontSize = bounds.width < 230 ? 8 : 9;
-      card.categoryText.x = 19;
+      card.categoryText.x = 27;
       card.categoryText.y = 16;
-      card.badge.x = 14;
+      card.badge.x = 22;
       card.badge.y = 12;
       card.rarityText.x = bounds.width - card.rarityText.width - 16;
       card.rarityText.y = 16;
-      card.titleText.x = 14;
+      card.branchText.style.fontSize = bounds.width < 230 ? 8 : 9;
+      card.branchText.y = 30;
+      card.branchText.x = bounds.width - card.branchText.width - 16;
+      card.titleText.x = 22;
       card.titleText.y = 55;
-      card.descText.x = 14;
+      card.descText.x = 22;
       card.descText.y = 106;
-      card.pickText.x = 14;
+      card.pickText.x = 22;
       card.pickText.y = bounds.height - 30;
       if (!c.visible) {
         card.container.x = bounds.x;
@@ -251,25 +344,52 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
       }
       drawCard(card, false);
     });
+
+    // Run controls sit centred just below the card row.
+    const firstCard = cardLayout.cards[0]!;
+    const rowBottom = firstCard.y + firstCard.height / 2;
+    const ctrlY = Math.min(h - 34, rowBottom + 40);
+    const gap = 18;
+    const totalW = rerollBtn.width + skipBtn.width + gap;
+    rerollBtn.container.x = w / 2 - totalW / 2 + rerollBtn.width / 2;
+    skipBtn.container.x = w / 2 + totalW / 2 - skipBtn.width / 2;
+    rerollBtn.container.y = ctrlY;
+    skipBtn.container.y = ctrlY;
   }
   layout(width, height);
 
   return {
     container: c,
-    show(choices: readonly UpgradeDef[]) {
+    show(choices: readonly UpgradeDef[], run?: LevelUpRunControls) {
       c.visible = true;
+      if (run) {
+        subtitle.text = 'Поставь модуль, перебрось выдачу или пропусти ради темпа';
+        rerollBtn.container.visible = run.rerollsRemaining > 0;
+        rerollBtn.setLabel(`ПЕРЕБРОС (${run.rerollsRemaining})`);
+        rerollBtn.reposition();
+        skipBtn.container.visible = true;
+      } else {
+        subtitle.text = 'Установи один модуль перед следующей волной';
+        rerollBtn.container.visible = false;
+        skipBtn.container.visible = false;
+      }
       cards.forEach((card, i) => {
         const upgrade = choices[i];
         if (upgrade) {
+          const branch = branchStyleForUpgradeId(upgrade.id);
           card.currentId = upgrade.id;
           card.rarity = rarityForUpgrade(upgrade);
+          card.branchColor = branch.color;
           card.pressed = false;
           card.categoryText.text = categoryLabel(upgrade.category);
           card.rarityText.text = rarityLabel(card.rarity);
+          card.branchText.text = branch.label;
+          card.branchText.style.fill = branch.color;
           card.titleText.text = upgrade.title;
           card.descText.text = upgrade.description;
           card.pickText.text = upgrade.isEvolution ? 'СТАВИТЬ ЭВОЛЮЦИЮ' : 'СТАВИТЬ МОДУЛЬ';
           card.rarityText.x = card.width - card.rarityText.width - 16;
+          card.branchText.x = card.width - card.branchText.width - 16;
           card.animTimer = -i * 0.12;
           card.container.x = card.targetX;
           card.container.y = card.targetY + 72;
@@ -284,6 +404,8 @@ export function createLevelUpScreen(width: number, height: number, onPick: (id: 
     },
     hide() {
       c.visible = false;
+      rerollBtn.container.visible = false;
+      skipBtn.container.visible = false;
     },
     update(dt: number) {
       if (!c.visible) return;
