@@ -132,8 +132,8 @@ import { createGameAudio } from './audio/game-audio.js';
 import { shouldShowTouchGuide } from './mobile-touch-guide.js';
 import { fitMobileZoom, getMobileViewportInfo } from './mobile-viewport.js';
 
-const MENU_VIDEO_URL = assetUrl('assets/menu/intro1.mp4');
-const MENU_MUSIC_URL = assetUrl('assets/menu/intro1.mp3');
+const MENU_VIDEO_URL = assetUrl('assets/menu/intro2.mp4');
+const MENU_MUSIC_URL = assetUrl('assets/menu/intro2.mp3');
 const CHICO_PORTRAIT_URL = assetUrl('assets/campaign/portrait_chico.png');
 const ISLAND_BRYNN_FRAME_URLS = Array.from({ length: 50 }, (_, i) => assetUrl(`assets/campaign/island_brynn/frame_${String(i + 1).padStart(4, '0')}.png`));
 const ARENA_WORLD_WIDTH = WORLD_WIDTH * 5;

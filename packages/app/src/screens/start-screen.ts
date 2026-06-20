@@ -22,6 +22,12 @@ export function createStartScreen(
   const statusPanel = new Container();
   c.addChild(dim, leftShade, panel, statusPanel);
 
+  // Blue backing/frame that sits ONLY behind the menu button rows (not the whole
+  // start screen) so the menu reads over the video without hiding it. Added first
+  // to `panel` so it renders behind the buttons; drawn over the button bbox in layout().
+  const menuBacking = new Graphics();
+  panel.addChild(menuBacking);
+
   const titleStyle = new TextStyle({
     fontFamily: 'Georgia, Times New Roman, serif',
     fontSize: 58,
@@ -184,12 +190,10 @@ export function createStartScreen(
   c.addChild(musicBtn);
 
   function layout(w: number, h: number) {
-    dim.clear().rect(0, 0, w, h).fill({ color: 0x03101e, alpha: 0.34 });
-    leftShade.clear()
-      .rect(0, 0, Math.max(620, w * 0.42), h)
-      .fill({ color: 0x06101f, alpha: 0.58 })
-      .rect(0, 0, w, h)
-      .fill({ color: 0x000000, alpha: 0.08 });
+    // Just a whisper of darkening for overall contrast — the menu video stays visible.
+    dim.clear().rect(0, 0, w, h).fill({ color: 0x040b14, alpha: 0.2 });
+    // The old strong blue left-panel is gone (it covered the whole start screen + video).
+    leftShade.clear();
 
     const screenLayout = getStartScreenLayout(w, h, buttons.length);
     panel.x = screenLayout.panelX;
@@ -207,6 +211,20 @@ export function createStartScreen(
       btn.x = screenLayout.buttonX;
       btn.y = screenLayout.buttonStartY + i * screenLayout.buttonGap;
     });
+
+    // Blue frame hugging ONLY the menu button rows (panel coords → scales with panel).
+    const firstCenterY = screenLayout.buttonStartY;
+    const lastCenterY = screenLayout.buttonStartY + Math.max(0, buttons.length - 1) * screenLayout.buttonGap;
+    const padX = 16;
+    const padY = 16;
+    const mbX = screenLayout.buttonX - 180 - padX;
+    const mbY = firstCenterY - 27 - padY;
+    const mbW = 360 + padX * 2;
+    const mbH = (lastCenterY - firstCenterY) + 54 + padY * 2;
+    menuBacking.clear()
+      .roundRect(mbX, mbY, mbW, mbH, 16)
+      .fill({ color: 0x06101f, alpha: 0.6 })
+      .stroke({ color: 0x3b6ea5, width: 2, alpha: 0.6 });
 
     statusWidth = screenLayout.statusWidth;
     statusHeight = screenLayout.statusHeight;
