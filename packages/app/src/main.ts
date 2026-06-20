@@ -863,8 +863,28 @@ const DEBUG_ARENA_SCORE = DEBUG_HUD_ON_BOOT
   ? Math.max(0, Math.min(ARENA_FINAL_BOSS_SCORE, Math.floor(parseFloat(URL_PARAMS.get('arenaScore') ?? '0') || 0)))
   : 0;
 
+/**
+ * Load every visual asset, but NEVER let one failure block the game. `Assets.load`
+ * on an array rejects if ANY url fails — on a phone / flaky connection that means a
+ * single heavy image (or a slow request) blanks the whole app with a load error.
+ * Here each asset loads independently; failures are skipped + logged, and the game
+ * still starts (a missing cloud just renders empty — far better than a black screen).
+ */
+async function loadVisualAssetsResilient(urls: readonly string[]): Promise<void> {
+  const results = await Promise.allSettled(urls.map((url) => Assets.load(url)));
+  const failed = results
+    .map((r, i) => (r.status === 'rejected' ? urls[i]! : null))
+    .filter((u): u is string => u !== null);
+  if (failed.length > 0) {
+    console.warn(
+      `[assets] ${failed.length}/${urls.length} visual assets failed to load — continuing without them:`,
+      failed,
+    );
+  }
+}
+
 export async function startGame(container: HTMLElement) {
-  await Assets.load(VISUAL_ASSET_URLS);
+  await loadVisualAssetsResilient(VISUAL_ASSET_URLS);
   const menuBackdrop = createMenuBackdrop(container);
 
   const app = await createPixiApp(container);
