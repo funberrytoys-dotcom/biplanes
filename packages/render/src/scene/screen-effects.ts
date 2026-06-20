@@ -7,6 +7,8 @@ export interface ScreenEffectsHandle {
   enableDeathTint(): void;
   disableDeathTint(): void;
   triggerOilSplatter(): void;
+  /** Ambient windshield oil whose density tracks the player's HP (1 = clean glass). */
+  setDamageOil(hpRatio: number): void;
   triggerHitGlitch(): void;
   update(dt: number, timeSec: number, worldRoot: Container): void;
   resize(w: number, h: number): void;
@@ -83,6 +85,8 @@ export function createScreenEffects(width: number, height: number): ScreenEffect
   const oilDropsG = new Graphics();
   c.addChild(oilDropsG);
   let oilDrops: OilDrop[] = [];
+  let oilHpRatio = 1;     // 1 = full HP / clean glass
+  let oilSpawnAcc = 0;
 
   const deathFilter = new ColorMatrixFilter();
   let deathTintActive = false;
@@ -121,6 +125,9 @@ export function createScreenEffects(width: number, height: number): ScreenEffect
         });
       }
     },
+    setDamageOil(hpRatio) {
+      oilHpRatio = Math.max(0, Math.min(1, hpRatio));
+    },
     triggerHitGlitch() {
       glitchLife = GLITCH_DURATION;
     },
@@ -154,6 +161,29 @@ export function createScreenEffects(width: number, height: number): ScreenEffect
         glitchG.rect(-shiftX, 0, w, h).fill({ color: 0x00ffcc, alpha: 0.16 * alphaFrac });
       } else {
         glitchG.visible = false;
+      }
+
+      // Ambient windshield oil — density scales with player damage (clean glass above
+      // 60% HP, heavily splattered toward 20%), like rain beads on a fast windscreen.
+      // Beads keep respawning as old ones slide off, so low HP stays persistently oily.
+      const oilDmg = Math.max(0, Math.min(1, (0.6 - oilHpRatio) / (0.6 - 0.2)));
+      if (oilDmg > 0 && oilDrops.length < 70) {
+        oilSpawnAcc += oilDmg * 15 * dt;
+        while (oilSpawnAcc >= 1 && oilDrops.length < 70) {
+          oilSpawnAcc -= 1;
+          oilDrops.push({
+            x: Math.random() * w,
+            y: Math.random() * (h * 0.82),
+            vx: (Math.random() - 0.5) * 10,
+            vy: 8 + Math.random() * 18,
+            life: 2.4 + Math.random() * 2.2,
+            maxLife: 4.6,
+            size: 1.8 + Math.random() * 2.6,
+            trail: [],
+          });
+        }
+      } else {
+        oilSpawnAcc = 0;
       }
 
       // Physical Oil Drops Simulation (Phase 2.2)

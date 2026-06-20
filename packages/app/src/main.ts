@@ -3317,6 +3317,8 @@ export async function startGame(container: HTMLElement) {
     damageFx.update(dt);
     groundFx.update(dt, (x, y) => damageFx.addSmokeTrail({ x, y }, 1));
     muzzleFlashes.update(dt);
+    // Windshield oil density tracks the player's HP (clean when healthy → splattered low).
+    screenFx.setDamageOil(state.player.alive ? state.player.hp / state.player.maxHp : 1);
     screenFx.update(dt, renderTimeSec, worldLayer);
     arenaWeather.update(dt, renderTimeSec);
     hud.setArenaRound(runMode === 'arena' ? arenaRound : null);

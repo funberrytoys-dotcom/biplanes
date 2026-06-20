@@ -63,7 +63,9 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
   } = body;
 
   c.addChild(wingContainer, fuselageContainer, propellerContainer);
-  const VISUAL_SCALE = 1.16;
+  // Planes read a touch bigger/chunkier (closer to the Godot build's scale). Purely
+  // cosmetic — gameplay hitboxes live in the core and are unchanged.
+  const VISUAL_SCALE = 1.3;
   wingContainer.scale.set(VISUAL_SCALE);
   fuselageContainer.scale.set(VISUAL_SCALE);
   propellerContainer.scale.set(VISUAL_SCALE);
