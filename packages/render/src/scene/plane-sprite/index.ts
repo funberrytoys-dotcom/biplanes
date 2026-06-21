@@ -129,7 +129,10 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
   const shadow = new Graphics();
   shadow.ellipse(0, 0, 56, 13).fill({ color: 0x070a0e, alpha: 0.95 });
   shadow.visible = false;
-  const SHADOW_MAX_ALT = 760;
+  // Only show right at the deck (takeoff/landing). A larger range made shadows float
+  // in mid-air below low-flying planes — there's no visible ground up there, so it
+  // read as a blob "near the wings". Tight band = a real takeoff shadow only.
+  const SHADOW_MAX_ALT = 150;
   let lastDrawnMaxHp = -1;
   let lastDrawnHpFrac = -1;
   let lastFillMaxHp = -1;
@@ -182,7 +185,9 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
           const s = (0.6 + k * 1.1) * (p.visualScale ?? 1);
           shadow.visible = true;
           shadow.x = p.kinematic.position.x;
-          shadow.y = groundY + 6;
+          // Sit below the fuselage (the plane's spawn origin is AT groundY, so the body
+          // straddles the line) — pushes the shadow under the wheels, not the wings.
+          shadow.y = groundY + 22 * (p.visualScale ?? 1);
           shadow.scale.set(s, s);
           shadow.alpha = k * 0.6;
         } else {
@@ -409,9 +414,10 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
       }
       prevHp = p.hp;
 
-      // 3. Aerodynamic wingtip contrails — now also stream during fast cruise (not just
-      //    hard turns), so flight reads as atmospheric. Throttled to ~30/s for perf.
-      if (fx && aliveAndFlying) {
+      // 3. Aerodynamic wingtip contrails — stream during fast cruise (not just hard
+      //    turns), so flight reads as atmospheric. PLAYER ONLY + throttled to ~30/s:
+      //    8 planes all emitting churned the particle pool hard (a perf risk).
+      if (fx && aliveAndFlying && faction === 'player') {
         const isStalling = p.kinematic.g < G_STALL;
         const isHighG = turnRate > 1.35;
         const fast = p.kinematic.g > G_MAX_LEVEL * 0.82;

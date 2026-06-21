@@ -132,8 +132,9 @@ import { createGameAudio } from './audio/game-audio.js';
 import { shouldShowTouchGuide } from './mobile-touch-guide.js';
 import { fitMobileZoom, getMobileViewportInfo } from './mobile-viewport.js';
 
-const MENU_VIDEO_URL = assetUrl('assets/menu/intro2.mp4');
-const MENU_MUSIC_URL = assetUrl('assets/menu/intro2.mp3');
+// One combined, compressed file (video + its own audio track) — the old split
+// mp4+mp3 drifted out of sync and the 7.5 MB video loaded slowly (often blank).
+const MENU_VIDEO_URL = assetUrl('assets/menu/intro2av.mp4');
 const CHICO_PORTRAIT_URL = assetUrl('assets/campaign/portrait_chico.png');
 const ISLAND_BRYNN_FRAME_URLS = Array.from({ length: 50 }, (_, i) => assetUrl(`assets/campaign/island_brynn/frame_${String(i + 1).padStart(4, '0')}.png`));
 const ARENA_WORLD_WIDTH = WORLD_WIDTH * 5;
@@ -312,7 +313,10 @@ function createMenuBackdrop(container: HTMLElement) {
   video.src = MENU_VIDEO_URL;
   video.autoplay = true;
   video.loop = true;
+  // Must start muted — muted autoplay is the only kind browsers allow before a
+  // gesture. The audio now lives IN this file, so it can never drift from the video.
   video.muted = true;
+  video.volume = 0.45;
   video.playsInline = true;
   video.preload = 'auto';
   video.style.position = 'absolute';
@@ -325,56 +329,49 @@ function createMenuBackdrop(container: HTMLElement) {
   video.style.background = '#06101f';
   container.appendChild(video);
 
-  // Theme music. Browsers block audio autoplay until a user gesture, so it starts
-  // on the FIRST tap/click/key. It plays ONLY while the menu is up: it stops the
-  // moment a game session begins (menuBackdrop.hide()), and resumes on return to
-  // the menu. The player can mute it from the menu; the choice is persisted.
-  const music = document.createElement('audio');
-  music.src = MENU_MUSIC_URL;
-  music.loop = true;
-  music.volume = 0.45;
-  music.preload = 'auto';
-  music.style.display = 'none';
-  container.appendChild(music);
-
   let musicEnabled = (() => {
     try { return localStorage.getItem('biplanes.music') !== 'off'; } catch { return true; }
   })();
   // The app boots into the menu, so the backdrop starts "visible". A game start
   // (menuBackdrop.hide()) flips this off; returning to the menu (show()) flips it on.
   let menuVisible = true;
+  let gestured = false; // a user gesture has happened → unmuting is allowed
 
   const persistMusic = () => {
     try { localStorage.setItem('biplanes.music', musicEnabled ? 'on' : 'off'); } catch { /* ignore */ }
   };
-  const playMusicIfAllowed = () => {
-    if (musicEnabled && menuVisible) void music.play().catch(() => undefined);
+  // Sound = the video's own track. We just (un)mute it; it's always in sync.
+  const applyAudioState = () => {
+    video.muted = !(musicEnabled && menuVisible && gestured);
   };
   const applyMusicEnabled = (on: boolean) => {
     musicEnabled = on;
     persistMusic();
-    if (on) playMusicIfAllowed();
-    else music.pause();
+    applyAudioState();
   };
 
-  const startMusic = () => { playMusicIfAllowed(); };
+  const onGesture = () => {
+    gestured = true;
+    applyAudioState();
+    if (menuVisible) void video.play().catch(() => undefined);
+  };
   for (const ev of ['pointerdown', 'touchstart', 'click', 'keydown']) {
-    window.addEventListener(ev, startMusic, { passive: true });
+    window.addEventListener(ev, onGesture, { passive: true });
   }
 
   return {
     show() {
       menuVisible = true;
       video.style.display = 'block';
+      applyAudioState();
       void video.play().catch(() => undefined);
-      playMusicIfAllowed();
     },
     hide() {
-      // Entering a game session: stop both the menu video and the theme music.
+      // Entering a game session: stop the menu video (its audio stops with it).
       menuVisible = false;
       video.style.display = 'none';
       video.pause();
-      music.pause();
+      applyAudioState();
     },
     isMusicEnabled() { return musicEnabled; },
     setMusicEnabled(on: boolean) { applyMusicEnabled(on); },
@@ -2550,7 +2547,29 @@ export async function startGame(container: HTMLElement) {
     }
   }
 
+  // Self-healing frame guard. A single thrown frame must never permanently freeze
+  // the game (Pixi keeps re-arming rAF, so a deterministic throw would lock the sim
+  // while cosmetic animations keep ticking). We log it, surface it on-screen ONCE so
+  // it can be reported from a screenshot, and let the next frame retry.
+  let frameErrorCount = 0;
+  let frameErrorBanner: HTMLDivElement | null = null;
+  function handleFrameError(err: unknown) {
+    frameErrorCount++;
+    if (frameErrorCount <= 3 || frameErrorCount % 120 === 0) {
+      console.error('[biplanes] frame error:', err);
+    }
+    const msg = err instanceof Error ? `${err.message}\n${(err.stack ?? '').split('\n').slice(0, 4).join('\n')}` : String(err);
+    (window as unknown as { __biplanesFrameError?: string }).__biplanesFrameError = msg;
+    if (!frameErrorBanner) {
+      frameErrorBanner = document.createElement('div');
+      frameErrorBanner.style.cssText = 'position:fixed;left:6px;bottom:6px;max-width:60vw;z-index:99999;background:rgba(120,0,0,0.85);color:#fff;font:11px monospace;padding:6px 8px;border-radius:4px;white-space:pre-wrap;pointer-events:none';
+      document.body.appendChild(frameErrorBanner);
+    }
+    frameErrorBanner.textContent = `render error (#${frameErrorCount}):\n${msg}`;
+  }
+
   app.ticker.add((ticker) => {
+   try {
     // Heal any layout↔viewport desync — iOS Safari (and Telegram) settle the
     // viewport *after* boot and don't reliably fire resize/observer events, which
     // left the controls pinned to the boot-time width even when the canvas itself
@@ -3400,6 +3419,9 @@ export async function startGame(container: HTMLElement) {
     }
 
     publishDebugState();
+   } catch (err) {
+     handleFrameError(err);
+   }
   });
 
   function resetToMenu() {
