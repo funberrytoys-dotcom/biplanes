@@ -127,6 +127,8 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
   shadow.visible = false;
   const SHADOW_MAX_ALT = 560;
   let lastDrawnMaxHp = -1;
+  let lastDrawnHpFrac = -1;
+  let lastFillMaxHp = -1;
   const HP_BAR_HEIGHT = 6;
   const HP_BAR_BASE_W = 42; // px per PLANE_INITIAL_HP
   const HP_BAR_Y_OFFSET = -44;
@@ -481,20 +483,20 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
           const hpFrac = p.hp / p.maxHp;
           if (hpFrac <= FIRE_THRESHOLD) {
             fireAcc += dt;
-            while (fireAcc >= 1 / 26) {
+            while (fireAcc >= 1 / 16) {
               fx.addFireTrail({ x: tailX, y: tailY }, 1);
-              fireAcc -= 1 / 26;
+              fireAcc -= 1 / 16;
             }
             smokeAcc += dt;
-            while (smokeAcc >= 1 / 14) {
+            while (smokeAcc >= 1 / 9) {
               fx.addSmokeTrail({ x: tailX, y: tailY }, 1);
-              smokeAcc -= 1 / 14;
+              smokeAcc -= 1 / 9;
             }
           } else if (hpFrac <= SMOKE_THRESHOLD) {
             smokeAcc += dt;
-            while (smokeAcc >= 1 / 16) {
+            while (smokeAcc >= 1 / 9) {
               fx.addSmokeTrail({ x: tailX, y: tailY }, 1);
-              smokeAcc -= 1 / 16;
+              smokeAcc -= 1 / 9;
             }
           } else {
             smokeAcc = 0;
@@ -546,14 +548,19 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
           }
           const w = hpBarWidth(p);
           const hpFrac = Math.max(0, Math.min(1, p.hp / p.maxHp));
-          // Color shifts green → yellow → red as HP drops.
-          let fillColor = 0x4ade80;
-          if (hpFrac <= 0.25) fillColor = 0xef4444;
-          else if (hpFrac <= 0.5) fillColor = 0xfacc15;
-          hpBarFill.clear()
-            .roundRect(-w / 2, 0, Math.max(1, w * hpFrac), barH, 2.5)
-            .fill({ color: fillColor })
-            .stroke({ color: 0xffffff, width: 0.8, alpha: 0.35 });
+          // Only re-tessellate the fill when HP actually changed (per-plane, every
+          // frame, ×many planes was wasteful) — position still updates below.
+          if (Math.abs(hpFrac - lastDrawnHpFrac) > 0.004 || p.maxHp !== lastFillMaxHp) {
+            let fillColor = 0x4ade80;
+            if (hpFrac <= 0.25) fillColor = 0xef4444;
+            else if (hpFrac <= 0.5) fillColor = 0xfacc15;
+            hpBarFill.clear()
+              .roundRect(-w / 2, 0, Math.max(1, w * hpFrac), barH, 2.5)
+              .fill({ color: fillColor })
+              .stroke({ color: 0xffffff, width: 0.8, alpha: 0.35 });
+            lastDrawnHpFrac = hpFrac;
+            lastFillMaxHp = p.maxHp;
+          }
           hpBar.x = p.kinematic.position.x;
           hpBar.y = p.kinematic.position.y + (p.isBoss ? HP_BAR_Y_OFFSET - 16 : HP_BAR_Y_OFFSET);
         }

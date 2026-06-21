@@ -169,9 +169,11 @@ export function createScreenEffects(width: number, height: number): ScreenEffect
       // Starts with light damage (below ~85% HP) and ramps to heavy near 15% — so it's
       // clearly visible after the first couple of hits, not just at near-death.
       const oilDmg = Math.max(0, Math.min(1, (0.85 - oilHpRatio) / (0.85 - 0.15)));
-      if (oilDmg > 0 && oilDrops.length < 95) {
-        oilSpawnAcc += oilDmg * 22 * dt;
-        while (oilSpawnAcc >= 1 && oilDrops.length < 95) {
+      // Capped LOW + short trails (below) — this whole Graphics is re-tessellated every
+      // frame, so a big drop count is what tanked the framerate at low HP.
+      if (oilDmg > 0 && oilDrops.length < 26) {
+        oilSpawnAcc += oilDmg * 9 * dt;
+        while (oilSpawnAcc >= 1 && oilDrops.length < 26) {
           oilSpawnAcc -= 1;
           oilDrops.push({
             x: Math.random() * w,
@@ -204,7 +206,7 @@ export function createScreenEffects(width: number, height: number): ScreenEffect
         
         // Save trail coordinates before moving
         drop.trail.push({ x: drop.x, y: drop.y });
-        if (drop.trail.length > 25) {
+        if (drop.trail.length > 5) {
           drop.trail.shift();
         }
 
