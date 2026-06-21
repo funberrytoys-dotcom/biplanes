@@ -1,5 +1,5 @@
-import { Container, Graphics, Text, TextStyle } from 'pixi.js';
-import type { UpgradeDef } from '@biplanes/core';
+import { Container, Graphics, Text, TextStyle, Sprite, Texture, BlurFilter } from 'pixi.js';
+import type { UpgradeDef, Branch } from '@biplanes/core';
 import {
   categoryLabel,
   rarityLabel,
@@ -17,6 +17,8 @@ export interface LevelUpRunControls {
 export interface LevelUpScreenOpts {
   onReroll?: () => void;
   onSkip?: () => void;
+  /** Branch emblem textures, shown as a soft blurred watermark on each pick card. */
+  branchEmblems?: Partial<Record<Branch, Texture>>;
 }
 
 export function createLevelUpScreen(
@@ -55,6 +57,8 @@ export function createLevelUpScreen(
   interface CardHandle {
     container: Container;
     bg: Graphics;
+    emblem: Sprite;
+    emblemMask: Graphics;
     shine: Graphics;
     badge: Graphics;
     rarityText: Text;
@@ -126,10 +130,9 @@ export function createLevelUpScreen(
   });
 
   function drawCard(card: CardHandle, highlighted = false) {
-    const { bg, shine, badge, width: cardW, height: cardH, rarity, branchColor, pressed } = card;
+    const { bg, shine, badge, emblem, width: cardW, height: cardH, rarity, branchColor, pressed } = card;
     const pal = RARITY_PALETTE[rarity];
     const accent = pal.accent;
-    const secondary = pal.secondary;
     const edge = highlighted || pressed ? 0xfff0bd : accent;
     const fill = pal.fill;
 
@@ -148,10 +151,11 @@ export function createLevelUpScreen(
     bg.roundRect(8, 10, 6, cardH - 20, 3)
       .stroke({ color: 0x05070a, width: 1, alpha: 0.6 });
     bg.rect(12, 43, cardW - 24, 1).fill({ color: accent, alpha: 0.62 });
-    bg.rect(12, cardH - 48, cardW - 24, 1).fill({ color: 0x6f8792, alpha: 0.42 });
-    // Single decorative rivet bottom-right only (the old top-right + bottom-left
-    // rivets collided with the rarity label and the "СТАВИТЬ" button text).
-    bg.circle(cardW - 22, cardH - 22, 3.4).fill({ color: secondary, alpha: 0.65 });
+    // Decluttered: dropped the lower divider line + decorative rivet — the emblem
+    // watermark now carries the lower half of the card.
+    emblem.alpha = emblem.texture && emblem.texture !== Texture.EMPTY
+      ? (highlighted || pressed ? 0.22 : 0.14)
+      : 0;
 
     shine.clear()
       .moveTo(8, 8)
@@ -173,6 +177,14 @@ export function createLevelUpScreen(
     btn.cursor = 'pointer';
 
     const bg = new Graphics();
+    // Branch emblem watermark — a big, soft, blurred build icon sitting under the text,
+    // clipped to the card. Reads "what build branch is this" at a glance.
+    const emblem = new Sprite(Texture.EMPTY);
+    emblem.anchor.set(0.5);
+    emblem.alpha = 0;
+    emblem.filters = [new BlurFilter({ strength: 5 })];
+    const emblemMask = new Graphics();
+    emblem.mask = emblemMask;
     const shine = new Graphics();
     const badge = new Graphics();
     const rarityText = new Text({ text: '', style: rarityStyle });
@@ -182,11 +194,13 @@ export function createLevelUpScreen(
     const descText = new Text({ text: '', style: cardDescStyle });
     const pickText = new Text({ text: 'ВЫБРАТЬ', style: pickStyle });
 
-    btn.addChild(bg, shine, badge, categoryText, rarityText, branchText, titleText, descText, pickText);
+    btn.addChild(bg, emblem, emblemMask, shine, badge, categoryText, rarityText, branchText, titleText, descText, pickText);
 
     const card: CardHandle = {
       container: btn,
       bg,
+      emblem,
+      emblemMask,
       shine,
       badge,
       rarityText,
@@ -338,6 +352,19 @@ export function createLevelUpScreen(
       card.descText.y = 106;
       card.pickText.x = 22;
       card.pickText.y = bounds.height - 30;
+      // Emblem watermark: large, sitting low-right, clipped to the inner card.
+      const emSize = Math.min(bounds.width, bounds.height) * 1.02;
+      if (card.emblem.texture && card.emblem.texture !== Texture.EMPTY) {
+        const tw = card.emblem.texture.width || 1;
+        const th = card.emblem.texture.height || 1;
+        const scale = emSize / Math.max(tw, th);
+        card.emblem.scale.set(scale);
+      }
+      card.emblem.x = bounds.width - emSize * 0.34;
+      card.emblem.y = bounds.height - emSize * 0.36;
+      card.emblemMask.clear()
+        .roundRect(4, 4, bounds.width - 8, bounds.height - 8, 6)
+        .fill({ color: 0xffffff });
       if (!c.visible) {
         card.container.x = bounds.x;
         card.container.y = bounds.y;
@@ -380,6 +407,15 @@ export function createLevelUpScreen(
           card.currentId = upgrade.id;
           card.rarity = rarityForUpgrade(upgrade);
           card.branchColor = branch.color;
+          const emblemTex = opts.branchEmblems?.[branch.branch];
+          card.emblem.texture = emblemTex ?? Texture.EMPTY;
+          card.emblem.visible = !!emblemTex;
+          // Re-fit the emblem to this card now that it has a real texture.
+          if (emblemTex) {
+            const emSize = Math.min(card.width, card.height) * 1.02;
+            const scale = emSize / Math.max(emblemTex.width || 1, emblemTex.height || 1);
+            card.emblem.scale.set(scale);
+          }
           card.pressed = false;
           card.categoryText.text = categoryLabel(upgrade.category);
           card.rarityText.text = rarityLabel(card.rarity);

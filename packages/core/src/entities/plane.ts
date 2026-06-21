@@ -39,4 +39,8 @@ export interface Plane {
   isBoss?: boolean;
   visualScale?: number;
   bossName?: string;
+  /** Enemy only: this plane can launch homing rockets at the player. */
+  firesRockets?: boolean;
+  /** Enemy only: seconds until the next rocket launch is allowed. */
+  rocketCooldown?: number;
 }

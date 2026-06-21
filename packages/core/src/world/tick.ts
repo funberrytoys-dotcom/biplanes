@@ -24,6 +24,9 @@ import {
   ROCKET_TURN_RATE,
   ROCKET_COOLDOWN,
   ROCKET_LIFETIME,
+  ENEMY_ROCKET_COOLDOWN,
+  ENEMY_ROCKET_DAMAGE,
+  ENEMY_ROCKET_RANGE,
   ROCKET_EXPLOSION_RADIUS,
   ROCKET_DAMAGE,
   WING_ROCKET_CAPACITY,
@@ -493,6 +496,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
 
   // Bullets step
   const newBulletList = stepBullets(state.bullets);
+  const enemyRockets: Rocket[] = []; // homing rockets launched by rocket-capable enemies this tick
 
   // Player weapon (with magazine + reload)
   if (!playerPilotActive && player.state === 'flying' && player.alive) {
@@ -661,6 +665,37 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
         newCooldown = result.newCooldown;
       }
     }
+
+    // === Enemy homing rockets ===
+    // Rocket-capable enemies lob a homing rocket at the player when roughly facing them
+    // and in range. Slow cadence + limited turn rate → a telegraphed threat you can dodge.
+    let rocketCd = Math.max(0, (stepped.rocketCooldown ?? ENEMY_ROCKET_COOLDOWN) - TICK_DT);
+    if (stepped.firesRockets && rocketCd <= 0 && stepped.state === 'flying' && stepped.alive
+        && player.alive && player.state === 'flying') {
+      const dx = player.kinematic.position.x - stepped.kinematic.position.x;
+      const dy = player.kinematic.position.y - stepped.kinematic.position.y;
+      const dist = Math.hypot(dx, dy);
+      let aDiff = Math.atan2(dy, dx) - stepped.kinematic.heading;
+      while (aDiff < -Math.PI) aDiff += 2 * Math.PI;
+      while (aDiff > Math.PI) aDiff -= 2 * Math.PI;
+      if (dist < ENEMY_ROCKET_RANGE && Math.abs(aDiff) < Math.PI / 2) {
+        const h = stepped.kinematic.heading;
+        enemyRockets.push({
+          id: nextEntityId,
+          ownerId: stepped.id,
+          ownerFaction: 'enemy',
+          position: { ...stepped.kinematic.position },
+          velocity: { x: Math.cos(h) * ROCKET_SPEED, y: Math.sin(h) * ROCKET_SPEED },
+          heading: h,
+          lifetime: ROCKET_LIFETIME,
+          alive: true,
+          damage: ENEMY_ROCKET_DAMAGE,
+        });
+        nextEntityId++;
+        rocketCd = ENEMY_ROCKET_COOLDOWN;
+      }
+    }
+    stepped = { ...stepped, rocketCooldown: rocketCd };
 
     // === Enemy eject when burning ===
     // If plane is flying, alive, at/below FIRE_THRESHOLD, and there isn't
@@ -1022,6 +1057,10 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
   // 2b. Inject this tick's manual salvo rockets (fired in the special-weapon block).
   for (const sr of salvoRockets) {
     activeRockets.push(sr);
+  }
+  // 2c. Inject enemy homing rockets fired this tick.
+  for (const er of enemyRockets) {
+    activeRockets.push(er);
   }
 
   // 3. Player homing rocket auto-firing

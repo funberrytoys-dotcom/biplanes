@@ -64,6 +64,7 @@ export interface GameAudioHandle {
   playVictory(): void;
   playDefeat(): void;
   playSalvo(): void;
+  playEnemyRocket(): void;
   playBoostKick(): void;
   playLevelUp(): void;
   playWaveClear(): void;
@@ -324,6 +325,12 @@ export function createGameAudio(): GameAudioHandle {
       synthTone(820, 0.4, 0.18, 'sawtooth', 120, 0.01);      // whoosh sweep down
       synthTone(150, 0.32, 0.14, 'triangle', 70, 0.02);      // low rumble
       playBuffer('heavyGun', 0.3, 0.7 + Math.random() * 0.06);
+    },
+    playEnemyRocket() {
+      // Incoming enemy rocket — a thinner, more distant hiss so you register the threat
+      // without it sounding like your own launch.
+      synthTone(640, 0.34, 0.09, 'sawtooth', 180, 0);
+      synthTone(220, 0.22, 0.07, 'triangle', 110, 0.02);
     },
     playBoostKick() {
       // Afterburner light-up: rising sweep + a touch of the boost sample.

@@ -40,6 +40,8 @@ export class RocketPool {
       n.c.x = r.position.x;
       n.c.y = r.position.y;
       n.c.rotation = Math.atan2(r.velocity.y, r.velocity.x);
+      // Enemy rockets read as an incoming threat — warm red cast vs the player's steel.
+      n.body.tint = r.ownerFaction === 'enemy' ? 0xff6a4d : 0xffffff;
       const flick = 0.7 + 0.3 * Math.sin(this.t * 0.9 + r.id);
       n.flame.clear()
         .moveTo(-11, -3.5).lineTo(-22 - flick * 8, 0).lineTo(-11, 3.5).closePath()

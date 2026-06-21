@@ -741,6 +741,9 @@ function makeArenaRoundEnemy(id: number, player: Plane, round: number, lane: num
     : Math.max(900, player.kinematic.position.x - 1350 - lane * 180);
   const laneOffset = (lane % 2 === 0 ? -1 : 1) * (220 + Math.floor(lane / 2) * 160);
   const y = Math.max(360, Math.min(ARENA_WORLD_HEIGHT - 560, player.kinematic.position.y + laneOffset));
+  // A subset of late-wave aces carry rockets — a dangerous minority, not every plane,
+  // so the sky isn't a constant rocket storm. Staggered first-launch delay per lane.
+  const firesRockets = role === 'ace' && round >= (isRun ? 5 : 4) && lane % 3 === 1;
   return {
     id,
     faction: 'enemy',
@@ -765,6 +768,8 @@ function makeArenaRoundEnemy(id: number, player: Plane, round: number, lane: num
     noThrottleSec: 0,
     aiRole: role,
     visualScale: roleTuning.visualScale,
+    firesRockets,
+    rocketCooldown: firesRockets ? 2.0 + lane * 0.4 : undefined,
   };
 }
 
@@ -1159,6 +1164,7 @@ export async function startGame(container: HTMLElement) {
   const bullets = new BulletPool(bulletLayer);
   const bombSprites = new BombPool(fxLayer);
   const rocketSprites = new RocketPool(fxLayer);
+  let prevEnemyRocketCount = 0; // to detect new enemy rocket launches for the audio cue
   // Wing-rocket rack drawn under the player plane (live = red, spent = dim).
   const wingRocketMount = new Graphics();
   planeLayer.addChild(wingRocketMount);
@@ -1700,6 +1706,12 @@ export async function startGame(container: HTMLElement) {
         levelUpScreen.hide();
         choicesShowing = false;
         updateArenaDirector();
+      },
+      branchEmblems: {
+        assault: Texture.from(assetUrl('assets/run/emblem_assault.png')),
+        bombardier: Texture.from(assetUrl('assets/run/emblem_bombardier.png')),
+        commander: Texture.from(assetUrl('assets/run/emblem_commander.png')),
+        hull: Texture.from(assetUrl('assets/run/emblem_hull.png')),
       },
     },
   );
@@ -3305,6 +3317,11 @@ export async function startGame(container: HTMLElement) {
 
     bullets.sync(state.bullets);
     bombSprites.sync(state.bombs);
+    // Audio cue when an enemy fires a rocket (count of enemy-owned rockets rises).
+    let enemyRocketCount = 0;
+    for (const r of state.rockets) if (r.ownerFaction === 'enemy') enemyRocketCount++;
+    if (enemyRocketCount > prevEnemyRocketCount) audio.playEnemyRocket();
+    prevEnemyRocketCount = enemyRocketCount;
     rocketSprites.sync(state.rockets);
     // Wing rockets mounted under the player — deplete as you fire the special.
     const wrCount = state.player.wingRockets ?? 0;

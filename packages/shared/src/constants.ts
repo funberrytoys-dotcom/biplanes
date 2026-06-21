@@ -96,6 +96,12 @@ export const ROCKET_DAMAGE = 50;              // max damage at center
 export const ROCKET_COOLDOWN = 3.0;           // auto-fire interval in seconds
 export const ROCKET_LIFETIME = 4.0;           // rocket lifetime
 
+// Enemy homing rockets (some enemies launch these at the player). Slower cadence +
+// lighter than the player's so they're a telegraphed threat you dodge, not a death sentence.
+export const ENEMY_ROCKET_COOLDOWN = 4.2;     // sec between an enemy's rocket launches
+export const ENEMY_ROCKET_DAMAGE = 22;        // splash damage at center
+export const ENEMY_ROCKET_RANGE = 1150;       // px — won't fire from farther than this
+
 // === Wing rockets — the manual special weapon (visible, straight, hard-hitting) ===
 // Two rockets ride under each wing. The special button fires one at a time; they
 // fly STRAIGHT (no homing, no gravity) and hit much harder than bullets. They
