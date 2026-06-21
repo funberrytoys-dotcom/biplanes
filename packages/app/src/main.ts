@@ -3127,8 +3127,7 @@ export async function startGame(container: HTMLElement) {
     // Hit glitch & oil splatters on player damage (Phase 2)
     if (state.player.hp < prevPlayerHp && state.player.alive) {
       screenFx.triggerHitGlitch();
-      // Blue panels shear off the airframe on every hit (player plane is blue).
-      damageFx.addDebris(state.player.kinematic.position, 0x4f86c6);
+      // (Blue chunk debris on hit is emitted by the plane sprite's impact handler.)
       // Drop oil if significantly damaged or by chance
       if (state.player.hp / state.player.maxHp <= 0.55 || Math.random() < 0.45) {
         screenFx.triggerOilSplatter();

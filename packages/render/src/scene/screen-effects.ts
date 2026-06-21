@@ -171,9 +171,9 @@ export function createScreenEffects(width: number, height: number): ScreenEffect
       const oilDmg = Math.max(0, Math.min(1, (0.85 - oilHpRatio) / (0.85 - 0.15)));
       // Capped LOW + short trails (below) — this whole Graphics is re-tessellated every
       // frame, so a big drop count is what tanked the framerate at low HP.
-      if (oilDmg > 0 && oilDrops.length < 26) {
+      if (oilDmg > 0 && oilDrops.length < 16) {
         oilSpawnAcc += oilDmg * 9 * dt;
-        while (oilSpawnAcc >= 1 && oilDrops.length < 26) {
+        while (oilSpawnAcc >= 1 && oilDrops.length < 16) {
           oilSpawnAcc -= 1;
           oilDrops.push({
             x: Math.random() * w,
@@ -204,26 +204,11 @@ export function createScreenEffects(width: number, height: number): ScreenEffect
         drop.vy *= 1 - 0.25 * dt;
         drop.vx *= 1 - 0.2 * dt;
         
-        // Save trail coordinates before moving
-        drop.trail.push({ x: drop.x, y: drop.y });
-        if (drop.trail.length > 5) {
-          drop.trail.shift();
-        }
-
         drop.x += drop.vx * dt;
         drop.y += drop.vy * dt;
 
-        // Draw drip trail (thickest near droplet, thins out upward)
-        if (drop.trail.length > 1) {
-          oilDropsG.moveTo(drop.trail[0]!.x, drop.trail[0]!.y);
-          for (let k = 1; k < drop.trail.length; k++) {
-            const pt = drop.trail[k]!;
-            oilDropsG.lineTo(pt.x, pt.y);
-          }
-          oilDropsG.stroke({ color: 0x180f08, width: drop.size * 0.35, alpha: 0.55 * (drop.life / drop.maxLife) });
-        }
-
-        // Draw droplet head (solid dark amber/brown color)
+        // Bead head only — the per-drop drip TRAIL (a stroke per drop, every frame) was
+        // the framerate killer at low HP. Beads read fine as windscreen oil on their own.
         oilDropsG.circle(drop.x, drop.y, drop.size)
                  .fill({ color: 0x0f0904, alpha: 0.82 * (drop.life / drop.maxLife) });
       }

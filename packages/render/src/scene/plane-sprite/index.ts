@@ -372,6 +372,14 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
             wasKill ? 1.35 : 1,
           );
           fx.addImpactFlash({ x: p.kinematic.position.x, y: p.kinematic.position.y }, impact.flashRadius);
+          // Chunks shear off on a real bullet/collision hit — blue for Chico, red for
+          // pirates. Gated on damage > 4 so the steady fire-burn drain doesn't spam them.
+          if (prevHp - p.hp > 4) {
+            fx.addDebris(
+              { x: p.kinematic.position.x, y: p.kinematic.position.y },
+              faction === 'player' ? 0x4f86c6 : 0xc0392b,
+            );
+          }
         }
         const applyImpactCamera = shouldApplyImpactCamera({
           targetFaction: p.faction,
