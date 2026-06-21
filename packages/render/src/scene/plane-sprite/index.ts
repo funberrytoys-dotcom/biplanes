@@ -50,10 +50,17 @@ export interface PlaneSpriteHandle {
   ) => void;
 }
 
-export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandle {
+// `faction` = combat role (drives gameplay-side visuals like contrails/taxi/camera).
+// `visual` = colour scheme (С.О.В.-blue uses 'player' art, Jackal-crimson uses 'enemy'
+// art). They differ when the player picks the Crimson Jackals: the player plane is
+// drawn crimson ('enemy' scheme) and the enemies blue ('player' scheme).
+export function createPlaneSprite(
+  faction: 'player' | 'enemy',
+  visual: 'player' | 'enemy' = faction,
+): PlaneSpriteHandle {
   const c = new Container();
 
-  const body = createPlaneBody(faction);
+  const body = createPlaneBody(visual);
   const {
     fuselageContainer,
     wingContainer,
@@ -80,8 +87,8 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
   const spokes = new Graphics();
   propellerContainer.addChildAt(spokes, propellerContainer.children.indexOf(blades));
 
-  const controls = createPlaneControls(faction);
-  const head = createPilotHead(faction);
+  const controls = createPlaneControls(visual);
+  const head = createPilotHead(visual);
   controls.container.visible = !usesFullSpriteArt;
   head.container.visible = !usesFullSpriteArt;
   fuselageContainer.addChild(controls.container);
@@ -168,7 +175,7 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
       // at the lethal moment.
       const transitionedToDying = prevState === 'flying' && p.state === 'dying';
       if (transitionedToDying && fx) {
-        const bodyColor = faction === 'player' ? 0x4f86c6 : 0xc0392b;
+        const bodyColor = visual === 'player' ? 0x4f86c6 : 0xc0392b;
         fx.addDebris(p.kinematic.position, bodyColor);
       }
 
@@ -382,9 +389,9 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
           // pirates. Gated on damage > 4 so the steady fire-burn drain doesn't spam them.
           // A kill blows a big shower of panels off.
           if (wasKill) {
-            fx.addDebris({ x: p.kinematic.position.x, y: p.kinematic.position.y }, faction === 'player' ? 0x4f86c6 : 0xc0392b, 7);
+            fx.addDebris({ x: p.kinematic.position.x, y: p.kinematic.position.y }, visual === 'player' ? 0x4f86c6 : 0xc0392b, 7);
           } else if (prevHp - p.hp > 4) {
-            fx.addDebris({ x: p.kinematic.position.x, y: p.kinematic.position.y }, faction === 'player' ? 0x4f86c6 : 0xc0392b, 3);
+            fx.addDebris({ x: p.kinematic.position.x, y: p.kinematic.position.y }, visual === 'player' ? 0x4f86c6 : 0xc0392b, 3);
           }
         }
         const applyImpactCamera = shouldApplyImpactCamera({

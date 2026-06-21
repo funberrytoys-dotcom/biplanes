@@ -1174,9 +1174,29 @@ export async function startGame(container: HTMLElement) {
   const floatingNumbers = new FloatingNumbers(fxLayer);
 
   let prevBulletIds = new Set<number>();
-  const playerSprite = createPlaneSprite('player');
+  // === Faction (С.О.В. vs Алые Шакалы) ===
+  // Picked before a mode starts (default С.О.В.). The chosen faction inverts plane
+  // colours — you fly your faction's colour, the enemies wear the other — and swaps
+  // the HUD throttle grip. `?faction=jackals` forces it for testing.
+  let chosenFaction: 'sov' | 'jackals' =
+    URL_PARAMS.get('faction') === 'jackals' ? 'jackals' : 'sov';
+  const playerVisual = (): 'player' | 'enemy' => (chosenFaction === 'jackals' ? 'enemy' : 'player');
+  const enemyVisual = (): 'player' | 'enemy' => (chosenFaction === 'jackals' ? 'player' : 'enemy');
+
+  let playerSprite = createPlaneSprite('player', playerVisual());
   planeLayer.addChild(playerSprite.container, playerSprite.hpBar);
   groundShadowLayer.addChild(playerSprite.shadow);
+
+  function rebuildPlayerSpriteForFaction() {
+    // Player flies their faction's colour — re-create the sprite with the right scheme.
+    // The `playerSprite` var is reassigned; every caller reads it live (no captured copy).
+    planeLayer.removeChild(playerSprite.container);
+    planeLayer.removeChild(playerSprite.hpBar);
+    groundShadowLayer.removeChild(playerSprite.shadow);
+    playerSprite = createPlaneSprite('player', playerVisual());
+    planeLayer.addChild(playerSprite.container, playerSprite.hpBar);
+    groundShadowLayer.addChild(playerSprite.shadow);
+  }
 
   // Wingman drone sprites — small brass dieselpunk drones that trail the plane.
   const droneSprites: { c: Container; prop: Graphics }[] = [];
@@ -1288,6 +1308,40 @@ export async function startGame(container: HTMLElement) {
   ammoHud.addChild(ammoBg, ammoBar, ammoIcon, ammoText);
   ammoHud.visible = false;
   uiLayer.addChild(ammoHud);
+
+  // === Faction throttle grip — a JACKALS-ONLY HUD tell (menacing leather-and-iron
+  // skull T-handle). The red plane is the main faction cue; this reinforces it in the
+  // bottom-left (free corner: gauges top-left, ammo bottom-right, ГАЗ lever right edge).
+  const factionGrip = new Sprite(Texture.from(assetUrl('assets/hud/throttle_jackal.png')));
+  factionGrip.anchor.set(0, 1);
+  factionGrip.alpha = 0.9;
+  factionGrip.visible = false;
+  uiLayer.addChild(factionGrip);
+  function layoutFactionGrip() {
+    const size = Math.max(92, Math.min(150, app.screen.height * 0.19));
+    factionGrip.width = size;
+    factionGrip.height = size;
+    factionGrip.x = 8;
+    factionGrip.y = app.screen.height - 6;
+  }
+  layoutFactionGrip();
+
+  // Re-create the player plane in the chosen faction's colour at each mode start (only
+  // when the scheme actually changed). `setFaction` (the select screen) routes through here.
+  let currentPlayerVisual: 'player' | 'enemy' = playerVisual();
+  function applyFactionForMode() {
+    const want = playerVisual();
+    if (want !== currentPlayerVisual) {
+      rebuildPlayerSpriteForFaction();
+      currentPlayerVisual = want;
+    }
+    layoutFactionGrip();
+  }
+  function setFaction(f: 'sov' | 'jackals') {
+    chosenFaction = f;
+    applyFactionForMode();
+  }
+  void setFaction; // wired to the faction-select screen (next)
 
   function layoutAmmoHud(w: number, h: number) {
     // Bottom-right corner, just left of the far-right throttle lever.
@@ -2152,6 +2206,7 @@ export async function startGame(container: HTMLElement) {
 
   function startArena() {
     runMode = 'arena';
+    applyFactionForMode(); // player flies the chosen faction's colour; show/hide the grip
     arenaShownStage = 0;
     arenaRound = Math.max(1, DEBUG_ARENA_SCORE + 1);
     arenaRoundPhase = 'takeoff';
@@ -3286,7 +3341,7 @@ export async function startGame(container: HTMLElement) {
       seenEnemy.add(e.id);
       let s = enemySprites.get(e.id);
       if (!s) {
-        s = createPlaneSprite('enemy');
+        s = createPlaneSprite('enemy', enemyVisual());
         planeLayer.addChild(s.container, s.hpBar);
         groundShadowLayer.addChild(s.shadow);
         enemySprites.set(e.id, s);
@@ -3395,6 +3450,7 @@ export async function startGame(container: HTMLElement) {
     arenaWeather.update(dt, renderTimeSec);
     hud.setArenaRound(runMode === 'arena' ? arenaRound : null);
     hud.update(state);
+    factionGrip.visible = chosenFaction === 'jackals' && hud.container.visible;
     updateAmmoHud(state);
     ammoHud.visible = (runMode === 'arena' || runMode === 'story')
       && gameRunning && !choicesShowing && !state.gameOver && state.player.alive;
@@ -3557,6 +3613,7 @@ export async function startGame(container: HTMLElement) {
       app.renderer.resize(w, h);
     }
     onResize();
+    layoutFactionGrip();
     laidOutW = w;
     laidOutH = h;
   };
