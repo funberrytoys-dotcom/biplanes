@@ -23,23 +23,26 @@ function plane(id: number, faction: 'player' | 'enemy', x: number, y: number, vx
 }
 
 describe('plane-plane collision', () => {
-  it('head-on at full speed kills both', () => {
+  it('head-on at full speed is a big hit but NEVER an instakill (one-life safety)', () => {
     const a = plane(1, 'player', 500, 500, 900, 0);
     const b = plane(2, 'enemy', 510, 500, -900, 0);
     const { player, enemies, events } = resolvePlanePlaneCollisions(a, [b], new Map(), 0);
-    expect(player.state).toBe('dying');
-    expect(enemies[0]!.state).toBe('dying');
     expect(events.length).toBe(1);
+    // Both survive: damage is capped at 22% of maxHp regardless of closing speed.
+    expect(player.alive).toBe(true);
+    expect(enemies[0]!.alive).toBe(true);
+    expect(player.hp).toBeLessThan(PLANE_INITIAL_HP);
+    expect(player.hp).toBeGreaterThanOrEqual(PLANE_INITIAL_HP * 0.78 - 0.01);
   });
 
-  it('tangential brush takes ~30-50 HP only', () => {
+  it('tangential brush takes a survivable chunk only', () => {
     const a = plane(1, 'player', 500, 500, 800, 0);
     const b = plane(2, 'enemy', 520, 510, 800, 50);
     const { player, enemies } = resolvePlanePlaneCollisions(a, [b], new Map(), 0);
     expect(player.alive).toBe(true);
     expect(enemies[0]!.alive).toBe(true);
     expect(player.hp).toBeLessThan(PLANE_INITIAL_HP);
-    expect(player.hp).toBeGreaterThan(PLANE_INITIAL_HP - 60);
+    expect(player.hp).toBeGreaterThan(PLANE_INITIAL_HP - 30);
   });
 
   it('does not retrigger inside cooldown', () => {

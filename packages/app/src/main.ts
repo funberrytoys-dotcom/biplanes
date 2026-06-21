@@ -770,7 +770,10 @@ function makeArenaRoundEnemy(id: number, player: Plane, round: number, lane: num
 function makeArenaScarBoss(id: number, player: Plane, round: number, isRun = false): Plane {
   const roleTuning = arenaEnemyRoleTuning('boss');
   const hpMul = isRun ? runEnemyHpMultiplierForWave(round) : arenaEnemyHpMultiplierForRound(round);
-  const hp = Math.round(ENEMY_INITIAL_HP_HEAVY * hpMul * 3.2 * roleTuning.hpScale);
+  // The run boss is a fixed, build-gated HP pool; the arena boss keeps its scaling formula.
+  const hp = isRun
+    ? RUN_BOSS_HP
+    : Math.round(ENEMY_INITIAL_HP_HEAVY * hpMul * 3.2 * roleTuning.hpScale);
   const fromRight = player.kinematic.position.x < ARENA_WORLD_WIDTH * 0.55;
   const heading = fromRight ? Math.PI : 0;
   const x = fromRight
@@ -883,14 +886,16 @@ async function loadVisualAssetsResilient(urls: readonly string[]): Promise<void>
   }
 }
 
-// «Забег» player power, from the Godot reference build (player: 260 HP, 34 dmg,
-// 0.085s fire cooldown vs our 100 HP / 10 dmg / 0.12s). Run mode only.
-const RUN_PLAYER_MAX_HP = 260;
-// Damage pulled back from the Godot 3.4× — full power one-shot everything, which got
-// boring. ~1.5× keeps you the predator (enemies take a couple of hits) without melting
-// them instantly. HP + fire-rate buffs stay.
+// «Забег» player power (balance-council tune). Still a predator from wave 1, but
+// trimmed from 260→180 HP so late waves can actually threaten — headroom now comes
+// from enemy scaling + Hull picks, not a huge base. Keep the damage/fire buffs.
+const RUN_PLAYER_MAX_HP = 180;
 const RUN_PLAYER_DAMAGE_MULT = 1.5;
 const RUN_PLAYER_FIRE_RATE_MULT = 0.12 / 0.085; // ≈1.41
+// Boss «Шрам» HP for the run. Big jump from the old ~2100 (which a built-up player
+// melted in seconds) → a real, build-gated fight. PLAYTEST-TUNE THIS knob: if the boss
+// dies too fast, raise it; if it's a slog, lower it.
+const RUN_BOSS_HP = 11000;
 
 export async function startGame(container: HTMLElement) {
   await loadVisualAssetsResilient(VISUAL_ASSET_URLS);

@@ -1,6 +1,8 @@
 import {
   PLANE_COLLISION_RADIUS,
   COLLISION_DAMAGE_K,
+  COLLISION_MAX_HP_FRACTION,
+  COLLISION_MIN_DAMAGE,
   COLLISION_COOLDOWN_TICKS,
   COLLISION_BOUNCE_VELOCITY_RETAIN,
   COLLISION_BOUNCE_HEADING_JITTER,
@@ -85,12 +87,15 @@ export function resolvePlanePlaneCollisions(
       const nx = dx / distMag, ny = dy / distMag;
       const closingSpeed = rvx * nx + rvy * ny;
       const impact = Math.max(0, closingSpeed);
-      // Damage formula calibrated so head-on at ~1800 px/s yields maxHp damage.
-      // Min damage 30 ensures even a graze does noticeable HP.
-      const damage = Math.max(30, Math.min(A.maxHp, impact * COLLISION_DAMAGE_K * 100));
+      // Per-plane damage scales with closing speed but is CAPPED at a fraction of THAT
+      // plane's own maxHp — so a collision is a real bite (and a hard ram costs a fragile
+      // enemy most of its life) but can never one-shot the player in this one-life mode.
+      const raw = impact * COLLISION_DAMAGE_K;
+      const dmgA = Math.min(A.maxHp * COLLISION_MAX_HP_FRACTION, Math.max(COLLISION_MIN_DAMAGE, raw));
+      const dmgB = Math.min(B.maxHp * COLLISION_MAX_HP_FRACTION, Math.max(COLLISION_MIN_DAMAGE, raw));
 
-      const damageToA = damage * (A.faction === 'player' ? playerDamageMultiplier : 1);
-      const damageToB = damage * (B.faction === 'player' ? playerDamageMultiplier : 1);
+      const damageToA = dmgA * (A.faction === 'player' ? playerDamageMultiplier : 1);
+      const damageToB = dmgB * (B.faction === 'player' ? playerDamageMultiplier : 1);
       A.hp = Math.max(0, A.hp - damageToA);
       B.hp = Math.max(0, B.hp - damageToB);
 

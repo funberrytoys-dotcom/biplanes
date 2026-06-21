@@ -7,7 +7,7 @@ export const RUN_WAVE_COUNT = 15;
  * handled separately, so its escort count here is 0 (solo boss for the skeleton).
  */
 export const RUN_WAVE_ENEMY_COUNTS: readonly number[] = [
-  2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 0,
+  3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 12, 13, 13, 14, 0,
 ] as const;
 
 export function isBossWave(wave: number): boolean {
@@ -19,16 +19,17 @@ export function runEnemyCountForWave(wave: number): number {
   return RUN_WAVE_ENEMY_COUNTS[wave - 1]!;
 }
 
-/** Per-wave enemy-HP growth slope (draft, calibration stage — §13.4 / Plan 6). */
+/** Per-wave enemy-HP growth terms (calibration stage — §13.4 / balance council). */
 export const RUN_HP_SLOPE_PER_WAVE = 0.45;
+export const RUN_HP_ACCEL_PER_WAVE = 0.012;
 
 /**
- * Enemy max-HP multiplier for a run wave. Linear and gentle — wave 1 is baseline
- * (1x), wave 14 ≈ 6.9x — so a 14-pick build can actually out-damage a 15-wave run.
- * (The arena's exponential `arenaEnemyHpMultiplierForRound` is tuned for ~6 rounds
- * and would make late run waves unkillable.)
+ * Enemy max-HP multiplier for a run wave. Linear base + a gentle quadratic so HP
+ * keeps visibly rising every round and late enemies are real walls (wave 1 = 1x,
+ * wave 14 ≈ 8.9x, boss wave ≈ 9.6x) — yet still killable by a built-up 14-pick run.
  */
 export function runEnemyHpMultiplierForWave(wave: number): number {
   const w = Math.max(1, Math.min(RUN_WAVE_COUNT, wave));
-  return 1 + (w - 1) * RUN_HP_SLOPE_PER_WAVE;
+  const n = w - 1;
+  return 1 + n * RUN_HP_SLOPE_PER_WAVE + n * n * RUN_HP_ACCEL_PER_WAVE;
 }

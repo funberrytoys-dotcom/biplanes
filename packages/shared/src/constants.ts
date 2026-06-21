@@ -169,9 +169,12 @@ export const PICKUP_REPAIR_FRACTION = 0.35;        // repair pickup = +35% of ma
 export const RAPIDFIRE_DURATION_SEC = 6;           // 'boost' pickup: rapid-fire window (sec)
 export const RAPIDFIRE_MULTIPLIER = 2.2;           // fire-rate multiplier during rapid fire
 
-// Plane-vs-plane collision (Phase 5).
+// Plane-vs-plane collision (Phase 5). Reworked per balance council: a collision is a
+// meaningful HIT but NEVER an instakill in one-life mode.
 export const PLANE_COLLISION_RADIUS = 24;
-export const COLLISION_DAMAGE_K = 0.055;       // tuned so head-on at ~1800 px/s ≈ maxHp damage
-export const COLLISION_COOLDOWN_TICKS = 30;    // 0.5s at 60 Hz
+export const COLLISION_DAMAGE_K = 0.06;        // per-plane dmg = closingSpeed(px/s) × K, then capped
+export const COLLISION_MAX_HP_FRACTION = 0.22; // a single collision can take at most 22% of a plane's maxHp
+export const COLLISION_MIN_DAMAGE = 14;        // floor so a graze still stings
+export const COLLISION_COOLDOWN_TICKS = 30;    // 0.5s at 60 Hz — same pair can't re-hit within this
 export const COLLISION_BOUNCE_VELOCITY_RETAIN = 0.6;
 export const COLLISION_BOUNCE_HEADING_JITTER = 0.4;   // rad
