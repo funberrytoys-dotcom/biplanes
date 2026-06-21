@@ -3222,7 +3222,8 @@ export async function startGame(container: HTMLElement) {
       }
     }
 
-    playerSprite.update(state.player, dt, damageFx, clock, camera, undefined, groundFx, { screenFx });
+    const worldGroundY = (state.worldHeight ?? WORLD_HEIGHT) - 90;
+    playerSprite.update(state.player, dt, damageFx, clock, camera, undefined, groundFx, { screenFx, groundY: worldGroundY });
     // Airframe recoil buck: decay fast, then nudge the plane sprite by the leftover.
     const bodyKickDecay = Math.min(1, dt * 22);
     playerBodyKick.x -= playerBodyKick.x * bodyKickDecay;
@@ -3260,7 +3261,7 @@ export async function startGame(container: HTMLElement) {
         groundShadowLayer.addChild(s.shadow);
         enemySprites.set(e.id, s);
       }
-      s.update(e, dt, damageFx, clock, camera, undefined, groundFx, { screenFx });
+      s.update(e, dt, damageFx, clock, camera, undefined, groundFx, { screenFx, groundY: worldGroundY });
     }
     for (const [id, s] of enemySprites) {
       if (!seenEnemy.has(id)) {

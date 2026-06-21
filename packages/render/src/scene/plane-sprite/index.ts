@@ -27,6 +27,9 @@ interface CameraLike {
 
 export interface PlaneSpriteUpdateOpts {
   screenFx?: ScreenEffectsHandle;
+  /** Actual ground Y of the current world (worldHeight − 90). The arena world is 3×
+   *  tall, so the shared GROUND_Y constant is wrong there — pass the real one. */
+  groundY?: number;
 }
 
 export interface PlaneSpriteHandle {
@@ -125,7 +128,7 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
   const shadow = new Graphics();
   shadow.ellipse(0, 0, 26, 6).fill({ color: 0x0a0d12 });
   shadow.visible = false;
-  const SHADOW_MAX_ALT = 560;
+  const SHADOW_MAX_ALT = 720;
   let lastDrawnMaxHp = -1;
   let lastDrawnHpFrac = -1;
   let lastFillMaxHp = -1;
@@ -168,17 +171,19 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
       updateArt(dt);
 
       // Ground shadow: directly under the plane, biggest/darkest near the deck,
-      // shrinking + fading with altitude until it vanishes high up.
+      // shrinking + fading with altitude until it vanishes high up. Uses the world's
+      // REAL ground (worldHeight−90), not the shared GROUND_Y (wrong in the 3×-tall arena).
       {
-        const altitude = Math.max(0, GROUND_Y - p.kinematic.position.y);
+        const groundY = opts?.groundY ?? GROUND_Y;
+        const altitude = Math.max(0, groundY - p.kinematic.position.y);
         const k = Math.max(0, 1 - altitude / SHADOW_MAX_ALT);
         if (k > 0.02 && p.alive && p.state !== 'crashed') {
           const s = (0.5 + k * 0.95) * (p.visualScale ?? 1);
           shadow.visible = true;
           shadow.x = p.kinematic.position.x;
-          shadow.y = GROUND_Y + 4;
+          shadow.y = groundY + 4;
           shadow.scale.set(s, s);
-          shadow.alpha = k * 0.4;
+          shadow.alpha = k * 0.5;
         } else {
           shadow.visible = false;
         }
