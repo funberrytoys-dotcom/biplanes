@@ -283,11 +283,12 @@ describe('ai difficulty params', () => {
     expect(cmd.throttleDelta).toBe(1);
   });
 
-  it('medium and hard keep a safer tail standoff to avoid ramming', () => {
-    // Pure parameter guard so the owner-tunable knobs do not silently regress.
-    expect(DIFFICULTIES.hard.tailStandoffPx).toBeGreaterThanOrEqual(280);
-    expect(DIFFICULTIES.medium.tailStandoffPx).toBeGreaterThanOrEqual(240);
-    expect(DIFFICULTIES.hard.overshootDistancePx).toBeGreaterThanOrEqual(260);
+  it('medium and hard press a close-but-bounded tail standoff', () => {
+    // Aggression pass: standoff was tightened for tail pressure (collisions no longer
+    // instakill, so a close six is fine). Still bounded so they don't sit ON the player.
+    expect(DIFFICULTIES.hard.tailStandoffPx).toBeGreaterThanOrEqual(150);
+    expect(DIFFICULTIES.medium.tailStandoffPx).toBeGreaterThanOrEqual(140);
+    expect(DIFFICULTIES.hard.overshootDistancePx).toBeGreaterThanOrEqual(200);
     expect(DIFFICULTIES.hard.evasionStrengthRad).toBeGreaterThan(
       DIFFICULTIES.easy.evasionStrengthRad,
     );

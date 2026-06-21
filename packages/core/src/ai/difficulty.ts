@@ -103,7 +103,7 @@ export const DIFFICULTIES: Record<Difficulty, AiParams> = {
     fireRange: 260,
     leadFactor: 0,
     turnDeadzoneRad: 0.25,
-    reactionDelaySec: 0.5,
+    reactionDelaySec: 0.38,
     errorWobbleRad: 0.08,
     evasionChanceWhenHit: 0.3,
     evasionStrengthRad: 0.4,          // sloppy, half-hearted jink
@@ -111,14 +111,14 @@ export const DIFFICULTIES: Record<Difficulty, AiParams> = {
     burstFire: false,                 // sprays continuously like a rookie
     burstOnSec: 0,
     burstOffSec: 0,
-    tailStandoffPx: 280,              // sits way back, never presses
-    overshootDistancePx: 150,
+    tailStandoffPx: 200,              // presses a bit closer now (more aggressive)
+    overshootDistancePx: 130,
     pressAttackThrottle: 1.0,
     manageThrottle: false,            // always full → climbs into stalls
     cruiseThrottle: 1.0,
     diveThrottle: 1.0,
     climbThrottle: 1.0,
-    rookieMistakeChancePerSec: 0.5,   // a mistake every ~2 seconds
+    rookieMistakeChancePerSec: 0.3,   // less goofy — comes after you more
     ejectChancePerSec: 0.3,           // rarely bails, dies in plane
     hpMultiplier: 0.7,                 // fragile — goes down quickly
     damageMultiplier: 0.55,            // weak bullets
@@ -131,21 +131,21 @@ export const DIFFICULTIES: Record<Difficulty, AiParams> = {
     postTakeoffStabilizationSec: 0.8,
     positioningEnabled: true,
     preferredAltitudeOffset: -10,
-    energyManagement: false,          // simple chase, no energy fight
-    fireConeRad: Math.PI / 5.8,       // ±31°
-    fireRange: 700,
+    energyManagement: true,           // now sets up on your TAIL instead of charging head-on
+    fireConeRad: Math.PI / 5.4,       // ±33° — shoots a touch more eagerly
+    fireRange: 740,
     leadFactor: 0.72,
     turnDeadzoneRad: 0.08,
-    reactionDelaySec: 0.08,            // quicker than before — keeps the nose on you
+    reactionDelaySec: 0.07,            // quicker — keeps the nose on you
     errorWobbleRad: 0.018,
     evasionChanceWhenHit: 1.0,
     evasionStrengthRad: 0.6,
     evasionDurationSec: 0.5,
     burstFire: true,                   // disciplined bursts — dangerous but readable
-    burstOnSec: 0.78,
-    burstOffSec: 0.14,
-    tailStandoffPx: 240,
-    overshootDistancePx: 240,
+    burstOnSec: 0.85,
+    burstOffSec: 0.1,
+    tailStandoffPx: 175,               // sets up CLOSE behind you — real tail pressure
+    overshootDistancePx: 185,
     pressAttackThrottle: 1.0,
     manageThrottle: true,
     cruiseThrottle: 1.0,
@@ -176,10 +176,10 @@ export const DIFFICULTIES: Record<Difficulty, AiParams> = {
     evasionStrengthRad: 0.9,          // hard, committed jink — hard to track
     evasionDurationSec: 0.45,         // short so it snaps back onto your tail
     burstFire: true,                  // ace-style controlled bursts
-    burstOnSec: 0.72,
-    burstOffSec: 0.14,
-    tailStandoffPx: 280,
-    overshootDistancePx: 280,
+    burstOnSec: 0.8,
+    burstOffSec: 0.1,
+    tailStandoffPx: 205,              // aces sit right on your six
+    overshootDistancePx: 230,
     pressAttackThrottle: 1.0,
     manageThrottle: true,
     cruiseThrottle: 1.0,
@@ -207,7 +207,7 @@ export function aiParamsForRole(difficulty: Difficulty, role: AiRole = 'chase-pl
       return {
         ...base,
         positioningEnabled: true,
-        energyManagement: false,
+        energyManagement: true, // hunters now work for your tail too (was a straight chaser)
         reactionDelaySec: Math.min(base.reactionDelaySec, DIFFICULTIES.medium.reactionDelaySec),
       };
     case 'ace':

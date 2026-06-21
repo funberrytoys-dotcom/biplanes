@@ -114,6 +114,7 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
 
   // Wind streak accumulator (Task 3.2 — player only at high g)
   let windAcc = 0;
+  let vaporTick = 0; // throttles wingtip contrail emission
 
   // Screen-aligned HP bar. Lives in its own container so it doesn't rotate
   // with the plane body. Width auto-scales with maxHp so the +50% HP upgrade
@@ -126,9 +127,9 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
   // Ground shadow — a flat blob on the deck directly below the plane. Biggest/darkest
   // at ground level (takeoff), shrinks + fades as the plane climbs, gone up high.
   const shadow = new Graphics();
-  shadow.ellipse(0, 0, 26, 6).fill({ color: 0x0a0d12 });
+  shadow.ellipse(0, 0, 56, 13).fill({ color: 0x070a0e, alpha: 0.95 });
   shadow.visible = false;
-  const SHADOW_MAX_ALT = 720;
+  const SHADOW_MAX_ALT = 760;
   let lastDrawnMaxHp = -1;
   let lastDrawnHpFrac = -1;
   let lastFillMaxHp = -1;
@@ -178,12 +179,12 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
         const altitude = Math.max(0, groundY - p.kinematic.position.y);
         const k = Math.max(0, 1 - altitude / SHADOW_MAX_ALT);
         if (k > 0.02 && p.alive && p.state !== 'crashed') {
-          const s = (0.5 + k * 0.95) * (p.visualScale ?? 1);
+          const s = (0.6 + k * 1.1) * (p.visualScale ?? 1);
           shadow.visible = true;
           shadow.x = p.kinematic.position.x;
-          shadow.y = groundY + 4;
+          shadow.y = groundY + 6;
           shadow.scale.set(s, s);
-          shadow.alpha = k * 0.5;
+          shadow.alpha = k * 0.6;
         } else {
           shadow.visible = false;
         }
@@ -374,11 +375,11 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
           fx.addImpactFlash({ x: p.kinematic.position.x, y: p.kinematic.position.y }, impact.flashRadius);
           // Chunks shear off on a real bullet/collision hit — blue for Chico, red for
           // pirates. Gated on damage > 4 so the steady fire-burn drain doesn't spam them.
-          if (prevHp - p.hp > 4) {
-            fx.addDebris(
-              { x: p.kinematic.position.x, y: p.kinematic.position.y },
-              faction === 'player' ? 0x4f86c6 : 0xc0392b,
-            );
+          // A kill blows a big shower of panels off.
+          if (wasKill) {
+            fx.addDebris({ x: p.kinematic.position.x, y: p.kinematic.position.y }, faction === 'player' ? 0x4f86c6 : 0xc0392b, 7);
+          } else if (prevHp - p.hp > 4) {
+            fx.addDebris({ x: p.kinematic.position.x, y: p.kinematic.position.y }, faction === 'player' ? 0x4f86c6 : 0xc0392b, 3);
           }
         }
         const applyImpactCamera = shouldApplyImpactCamera({
@@ -408,10 +409,13 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
       }
       prevHp = p.hp;
 
-      // 3. Aerodynamic Vortex Wingtip Trails (Vapor Ribbons — Phase 3)
+      // 3. Aerodynamic wingtip contrails — now also stream during fast cruise (not just
+      //    hard turns), so flight reads as atmospheric. Throttled to ~30/s for perf.
       if (fx && aliveAndFlying) {
         const isStalling = p.kinematic.g < G_STALL;
         const isHighG = turnRate > 1.35;
+        const fast = p.kinematic.g > G_MAX_LEVEL * 0.82;
+        const wantTrail = isStalling || isHighG || fast;
 
         const cos = Math.cos(p.kinematic.heading);
         const sin = Math.sin(p.kinematic.heading);
@@ -423,15 +427,16 @@ export function createPlaneSprite(faction: 'player' | 'enemy'): PlaneSpriteHandl
         const bx = p.kinematic.position.x - 10 * cos - 15 * sin;
         const by = p.kinematic.position.y - 10 * sin + 15 * cos;
 
-        if (isStalling || isHighG) {
-          if (prevTx !== null && prevTy !== null && prevBx !== null && prevBy !== null) {
-            fx.addVaporSegment({ x: prevTx, y: prevTy }, { x: tx, y: ty }, 2.8);
-            fx.addVaporSegment({ x: prevBx, y: prevBy }, { x: bx, y: by }, 2.8);
+        vaporTick = (vaporTick + 1) % 2; // emit every other frame (segment spans 2 frames → continuous)
+        if (wantTrail) {
+          if (vaporTick === 0 && prevTx !== null && prevTy !== null && prevBx !== null && prevBy !== null) {
+            const sz = isHighG ? 4.0 : 3.2;
+            fx.addVaporSegment({ x: prevTx, y: prevTy }, { x: tx, y: ty }, sz);
+            fx.addVaporSegment({ x: prevBx, y: prevBy }, { x: bx, y: by }, sz);
+            prevTx = tx; prevTy = ty; prevBx = bx; prevBy = by;
+          } else if (prevTx === null) {
+            prevTx = tx; prevTy = ty; prevBx = bx; prevBy = by;
           }
-          prevTx = tx;
-          prevTy = ty;
-          prevBx = bx;
-          prevBy = by;
         } else {
           prevTx = null;
           prevTy = null;

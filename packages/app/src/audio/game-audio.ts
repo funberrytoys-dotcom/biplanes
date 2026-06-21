@@ -265,20 +265,14 @@ export function createGameAudio(): GameAudioHandle {
         rampParam(dive.source.playbackRate, 0.95 + mix.diveGain * 0.55, now, 0.05);
       }
 
-      if (AUDIO_WARNING_BEEPS_ENABLED && mix.warning) {
+      // Only the overheat (boost) cue beeps now. The repeating stall/low-throttle beep
+      // was annoying (it nagged whenever you weren't at full gas / sat still) — removed.
+      if (AUDIO_WARNING_BEEPS_ENABLED && mix.warning === 'overheat') {
         warningTimer -= dt;
         if (mix.warning !== lastWarning) warningTimer = 0;
         if (warningTimer <= 0) {
-          if (mix.warning === 'stall') {
-            synthTone(330, 0.16, 0.12, 'triangle');
-            warningTimer = 0.5;
-          } else if (mix.warning === 'overheat') {
-            synthTone(760, 0.1, 0.1, 'square');
-            warningTimer = 0.62;
-          } else {
-            synthTone(520, 0.1, 0.09, 'square');
-            warningTimer = 0.7;
-          }
+          synthTone(760, 0.1, 0.1, 'square');
+          warningTimer = 0.62;
         }
       } else {
         warningTimer = 0;
@@ -324,9 +318,12 @@ export function createGameAudio(): GameAudioHandle {
       playBuffer('defeat', 0.58, 1);
     },
     playSalvo() {
-      // Rocket whoosh: a quick descending tone + a softened heavy-gun thump.
-      synthTone(440, 0.22, 0.16, 'sawtooth', 150);
-      playBuffer('heavyGun', 0.34, 0.72 + Math.random() * 0.06);
+      // Rocket launch: an ignition crack + a descending whoosh sweep + a low rumble + a
+      // punchy thump — reads clearly as a rocket leaving the rail.
+      synthTone(900, 0.05, 0.13, 'square', 300, 0);          // ignition crack
+      synthTone(820, 0.4, 0.18, 'sawtooth', 120, 0.01);      // whoosh sweep down
+      synthTone(150, 0.32, 0.14, 'triangle', 70, 0.02);      // low rumble
+      playBuffer('heavyGun', 0.3, 0.7 + Math.random() * 0.06);
     },
     playBoostKick() {
       // Afterburner light-up: rising sweep + a touch of the boost sample.

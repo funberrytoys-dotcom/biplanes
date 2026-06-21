@@ -50,7 +50,10 @@ export class DamageFx {
     } else if (type === 'windstreak') {
       g.rect(0, -0.5, 50, 1).fill({ color: 0xffffff, alpha: 0.2 });
     } else if (type === 'debris') {
-      g.rect(-6, -2, 12, 4).fill(color);
+      // Chunkier panel shard (randomised so a shed reads as torn metal, not uniform bars).
+      const wHalf = 6 + Math.random() * 5;
+      const hHalf = 2 + Math.random() * 2.5;
+      g.rect(-wHalf, -hHalf, wHalf * 2, hHalf * 2).fill(color).stroke({ color: 0x1a1208, width: 0.8, alpha: 0.5 });
     } else {
       // Standard smoke/fire circle
       g.circle(0, 0, radius)
@@ -151,13 +154,13 @@ export class DamageFx {
     
     g.moveTo(p1.x, p1.y)
      .lineTo(p2.x, p2.y)
-     .stroke({ color: 0xeeeeee, width: size, alpha: 0.36 });
-     
+     .stroke({ color: 0xf2f6ff, width: size, alpha: 0.5 });
+
     this.active.push({
       g,
       vx: 0, vy: 0,
-      life: 0.3, maxLife: 0.3,
-      baseAlpha: 0.4,
+      life: 0.55, maxLife: 0.55,
+      baseAlpha: 0.5,
       baseRadius: size,
       type: 'windstreak', // keeps scale at 1, only fades alpha
     });
@@ -346,20 +349,20 @@ export class DamageFx {
     });
   }
 
-  addDebris(position: { x: number; y: number }, color: number) {
-    for (let i = 0; i < 2; i++) {
+  addDebris(position: { x: number; y: number }, color: number, count: number = 2) {
+    for (let i = 0; i < count; i++) {
       const g = this.acquire(color, 0, 'debris');
       g.x = position.x;
       g.y = position.y;
       g.rotation = Math.random() * Math.PI * 2;
       const ang = Math.random() * Math.PI * 2;
-      const sp = 100 + Math.random() * 200;
+      const sp = 130 + Math.random() * 240;
       this.active.push({
         g,
         vx: Math.cos(ang) * sp,
-        vy: Math.sin(ang) * sp - 100,
-        life: 1.5,
-        maxLife: 1.5,
+        vy: Math.sin(ang) * sp - 120,
+        life: 1.4 + Math.random() * 0.5,
+        maxLife: 1.9,
         baseAlpha: 1,
         baseRadius: 0,
         type: 'debris',
