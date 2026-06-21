@@ -19,14 +19,16 @@ export function runEnemyCountForWave(wave: number): number {
   return RUN_WAVE_ENEMY_COUNTS[wave - 1]!;
 }
 
-/** Per-wave enemy-HP growth terms (calibration stage — §13.4 / balance council). */
-export const RUN_HP_SLOPE_PER_WAVE = 0.45;
-export const RUN_HP_ACCEL_PER_WAVE = 0.012;
+/** Per-wave enemy-HP growth terms (calibration stage — §13.4 / balance council).
+ *  Flattened (was 0.45/0.012) because the run enemy BASE HP was raised (RUN_ENEMY_BASE_HP
+ *  in the app) so even wave-1 enemies take a few hits — keeps late waves from ballooning. */
+export const RUN_HP_SLOPE_PER_WAVE = 0.30;
+export const RUN_HP_ACCEL_PER_WAVE = 0.008;
 
 /**
  * Enemy max-HP multiplier for a run wave. Linear base + a gentle quadratic so HP
- * keeps visibly rising every round and late enemies are real walls (wave 1 = 1x,
- * wave 14 ≈ 8.9x, boss wave ≈ 9.6x) — yet still killable by a built-up 14-pick run.
+ * keeps visibly rising every round (wave 1 = 1x, wave 14 ≈ 5.6x) — applied on top of
+ * the raised run enemy base HP, so early enemies take ~3 hits and late ones are walls.
  */
 export function runEnemyHpMultiplierForWave(wave: number): number {
   const w = Math.max(1, Math.min(RUN_WAVE_COUNT, wave));

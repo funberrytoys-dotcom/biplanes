@@ -729,9 +729,10 @@ function makeArenaSupplyBalloons(startId: number, player: Plane, count: number):
 function makeArenaRoundEnemy(id: number, player: Plane, round: number, lane: number = 0, isRun = false): Plane {
   const role = arenaEnemyRoleForRound(round, lane);
   const roleTuning = arenaEnemyRoleTuning(role);
-  // «Забег» uses a gentle linear HP curve over 15 waves; arena keeps its exponential.
+  // «Забег» uses a chunkier base HP + gentle curve over 15 waves; arena keeps its own.
   const hpMul = isRun ? runEnemyHpMultiplierForWave(round) : arenaEnemyHpMultiplierForRound(round);
-  const hp = Math.round(ENEMY_INITIAL_HP_LIGHT * hpMul * roleTuning.hpScale);
+  const baseHp = isRun ? RUN_ENEMY_BASE_HP : ENEMY_INITIAL_HP_LIGHT;
+  const hp = Math.round(baseHp * hpMul * roleTuning.hpScale);
   const speed = G_MAX_LEVEL * Math.min(1.2, (0.92 + round * 0.03) * roleTuning.speedScale);
   const fromRight = player.kinematic.position.x < ARENA_WORLD_WIDTH * 0.55;
   const heading = fromRight ? Math.PI : 0;
@@ -896,6 +897,9 @@ const RUN_PLAYER_FIRE_RATE_MULT = 0.12 / 0.085; // ≈1.41
 // melted in seconds) → a real, build-gated fight. PLAYTEST-TUNE THIS knob: if the boss
 // dies too fast, raise it; if it's a slog, lower it.
 const RUN_BOSS_HP = 11000;
+// Run enemies are chunkier than the arena's light pirate (30 HP) so even wave-1 enemies
+// take a short burst (~3 hits), not a single shot. Scaled per wave on top of this.
+const RUN_ENEMY_BASE_HP = 55;
 
 export async function startGame(container: HTMLElement) {
   await loadVisualAssetsResilient(VISUAL_ASSET_URLS);
