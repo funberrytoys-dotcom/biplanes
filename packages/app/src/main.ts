@@ -2317,7 +2317,6 @@ export async function startGame(container: HTMLElement) {
     prevPlayerState = state.player.state;
     prevTickCount = state.tickCount;
     prevPlayerHp = state.player.hp;
-    prevExplosionEventCount = state.explosionEvents.length;
     bullets.sync([]);
     bombSprites.sync([]);
     rocketSprites.sync([]);
@@ -2712,7 +2711,6 @@ export async function startGame(container: HTMLElement) {
   let prevPlayerState = state.player.state;
   let prevTickCount = state.tickCount;
   let prevPlayerHp = state.player.hp;
-  let prevExplosionEventCount = state.explosionEvents.length;
   let prevBoostActive = false;
   let prevSpecialCooldown = 0;
   let prevReloading = false;
@@ -2944,8 +2942,13 @@ export async function startGame(container: HTMLElement) {
       };
     }
     let safety = 8;
+    // Collect explosions across every tick this frame — explosionEvents is now a
+    // per-tick buffer in core, so a slow frame running multiple ticks would otherwise
+    // only surface the last tick's explosions. This keeps all of their VFX/audio/shake.
+    const frameExplosions: typeof state.explosionEvents = [];
     while (acc >= TICK_DT && safety > 0) {
       state = tick(state, cmd);
+      if (state.explosionEvents.length > 0) frameExplosions.push(...state.explosionEvents);
       acc -= TICK_DT;
       safety--;
       if (state.pendingLevelUp || state.gameOver) break;
@@ -3187,16 +3190,13 @@ export async function startGame(container: HTMLElement) {
     // render frames during slow-mo / hit-pause re-read the same events buffer and
     // re-trigger shake + hit-pause every frame — the screen "shakes forever".
     if (state.tickCount !== prevTickCount) {
-      if (state.explosionEvents.length > prevExplosionEventCount) {
-        for (const pos of state.explosionEvents.slice(prevExplosionEventCount)) {
-          damageFx.addExplosion(pos);
-          damageFx.addShockwave(pos);
-          audio.playExplosion();
-          camera.shake(runMode === 'arena' ? 16 : 12);
-          camera.zoomPunch(1.025, 0.18);
-          screenFx.flash(0xffb35c, 0.24, 0.18);
-        }
-        prevExplosionEventCount = state.explosionEvents.length;
+      for (const pos of frameExplosions) {
+        damageFx.addExplosion(pos);
+        damageFx.addShockwave(pos);
+        audio.playExplosion();
+        camera.shake(runMode === 'arena' ? 16 : 12);
+        camera.zoomPunch(1.025, 0.18);
+        screenFx.flash(0xffb35c, 0.24, 0.18);
       }
       for (const ev of state.planeCollisionEvents) {
         damageFx.addSparks({ x: ev.posX, y: ev.posY }, 36);
@@ -3394,7 +3394,6 @@ export async function startGame(container: HTMLElement) {
     prevLevel = state.level;
     prevPlayerAlive = state.player.alive;
     prevPlayerState = state.player.state;
-    prevExplosionEventCount = state.explosionEvents.length;
 
     const hpFrac = state.player.hp / state.player.maxHp;
     const vignette = hpFrac <= LOW_HP_VIGNETTE_THRESHOLD

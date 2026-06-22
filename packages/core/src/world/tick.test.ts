@@ -235,6 +235,11 @@ describe('world tick', () => {
     expect(after.bombs).toHaveLength(0); // exploded
     expect(after.enemies[0]!.hp).toBeLessThan(100);
     expect(after.explosionEvents).toHaveLength(1);
+
+    // Regression (leak fix): explosionEvents is a per-tick buffer. A follow-up tick
+    // with no new explosion must reset it to empty, not carry the history forward.
+    const after2 = tick(after, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+    expect(after2.explosionEvents).toHaveLength(0);
   });
 
   it('special weapon launches one straight wing rocket and spends a tube', () => {

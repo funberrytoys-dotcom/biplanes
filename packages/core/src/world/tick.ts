@@ -915,7 +915,11 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
   }
 
   // === Bomb and Rocket stepping + explosions ===
-  const nextExplosionEvents = [...state.explosionEvents];
+  // Per-tick buffer (reset each tick, like balloonPop/pickupCollect/planeCollision).
+  // It used to accumulate forward via spread — an unbounded array that grew for the
+  // whole run and got O(n)-copied every tick. The app collects explosions across its
+  // within-frame tick loop, so resetting here drops nothing on the render side.
+  const nextExplosionEvents: typeof state.explosionEvents = [];
   const groundY = worldHeight - 90;
 
   // 1. Step bombs
