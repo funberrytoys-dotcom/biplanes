@@ -1,4 +1,4 @@
-import { Container, Graphics, Text, TextStyle, Sprite, Texture, BlurFilter } from 'pixi.js';
+import { Container, Graphics, Text, TextStyle, Sprite, Texture } from 'pixi.js';
 import type { UpgradeDef, Branch } from '@biplanes/core';
 import {
   categoryLabel,
@@ -182,7 +182,8 @@ export function createLevelUpScreen(
     const emblem = new Sprite(Texture.EMPTY);
     emblem.anchor.set(0.5);
     emblem.alpha = 0;
-    emblem.filters = [new BlurFilter({ strength: 5 })];
+    // No blur filter — BlurFilter on a masked sprite crashed the Pixi render pass on some
+    // mobile GPUs (froze the game with no error banner). The low-alpha emblem reads fine raw.
     const emblemMask = new Graphics();
     emblem.mask = emblemMask;
     const shine = new Graphics();

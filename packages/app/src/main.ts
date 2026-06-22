@@ -2788,6 +2788,11 @@ export async function startGame(container: HTMLElement) {
     frameErrorBanner.style.display = 'block';
     frameErrorBanner.textContent = `⚠ ОШИБКА (#${frameErrorCount}) — пришли этот текст Claude:\n${msg}`;
   }
+  // Also catch UNCAUGHT errors — e.g. a crash inside Pixi's own render pass (a bad filter
+  // on some mobile GPUs) happens OUTSIDE the ticker try/catch and would otherwise freeze
+  // the game with no banner. This guarantees the error always surfaces.
+  window.addEventListener('error', (e) => handleFrameError(e.error ?? e.message));
+  window.addEventListener('unhandledrejection', (e) => handleFrameError(e.reason));
 
   app.ticker.add((ticker) => {
    try {
