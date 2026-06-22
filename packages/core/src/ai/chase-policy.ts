@@ -106,7 +106,6 @@ function isHeadOnThreat(self: Plane, target: Plane): boolean {
 function collisionAvoidanceHeading(
   self: Plane,
   target: Plane,
-  worldHeight: number,
 ): { heading: number; throttle: number } | null {
   const dx = target.kinematic.position.x - self.kinematic.position.x;
   const dy = target.kinematic.position.y - self.kinematic.position.y;
@@ -200,7 +199,7 @@ export function aiCommand(
   const g = self.kinematic.g;
   const groundY = worldHeight - 90;
   const avoidance = newState.timeFlyingSec >= params.postTakeoffStabilizationSec
-    ? collisionAvoidanceHeading(self, target, worldHeight)
+    ? collisionAvoidanceHeading(self, target)
     : null;
 
   // 1a. Post-takeoff stabilisation — level out and build speed.

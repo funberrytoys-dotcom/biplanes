@@ -14,3 +14,12 @@ coverage/
 .claude/worktrees/
 
 .superpowers/
+
+# Raw video/audio SOURCE folders dropped in the repo root (compressed versions
+# live under apps/web/public/assets, which ARE tracked). These are large (~190MB)
+# and intentionally NOT committed — keep them out of `git add -A`.
+/0607*/
+/Crimson*/
+/INTRO1/
+/SOV fraction/
+/intro 2/

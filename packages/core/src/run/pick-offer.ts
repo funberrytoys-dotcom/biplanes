@@ -16,7 +16,7 @@ export const AFFINITY_WEIGHT = 0.5;
  * prerequisites). Deterministic given the rng. Stackable picks get their tier numeral.
  *
  * DETERMINISM CONTRACT: the caller MUST pass a CHILD-seeded rng (e.g. derived from
- * `hash(runSeed, wave)`), NOT the live combat `rngState` — otherwise rolling/​re-rolling
+ * `hash(runSeed, wave)`), NOT the live combat `rngState` — otherwise rolling/re-rolling
  * a pick would consume the replay-critical RNG stream (§13.6). For a re-roll, salt the
  * child seed (e.g. `hash(runSeed, wave, rerollIndex)`).
  *

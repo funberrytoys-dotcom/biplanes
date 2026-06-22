@@ -23,7 +23,6 @@ import {
   JACKAL_RELOAD_SEC,
   JACKAL_BOOST_HEAT_MULT,
   RELOAD_SEC,
-  GROUND_Y,
   SUPPLY_BALLOON_HP,
   SUPPLY_BALLOON_DRIFT,
   type PlayerCommand,
@@ -444,16 +443,6 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
     placeIcon(icons.boost, z.boost, 1.6);
     placeIcon(icons.eject, z.eject, 1.78);
     for (const sp of Object.values(icons)) sp.alpha = ICON_IDLE_ALPHA;
-  }
-
-  function drawRing(g: Graphics, x: number, y: number, r: number, color: number, activeRing = false, dim = false) {
-    const baseAlpha = dim ? 0.05 : 0.12;
-    g.clear()
-      .circle(x, y, r)
-      .fill({ color, alpha: activeRing ? 0.3 : baseAlpha })
-      .stroke({ color, width: activeRing ? 4 : 2.5, alpha: dim ? 0.28 : (activeRing ? 0.95 : 0.6) })
-      .circle(x, y, r * 0.58)
-      .stroke({ color: 0xffffff, width: activeRing ? 2 : 1.4, alpha: activeRing ? 0.55 : 0.22 });
   }
 
   function drawStick(base: Graphics, x: number, y: number, r: number, mul: number) {
