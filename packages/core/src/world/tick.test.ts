@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { tick, wingRocketCapacity, toJackalHeavyRound } from './tick.js';
+import { tick, wingRocketCapacity } from './tick.js';
 import { createWorldState, type WorldState } from './world-state.js';
-import { TICK_DT, PLANE_INITIAL_HP, XP_PER_KILL_LIGHT, DYING_DURATION_SEC, BOOST_OVERHEAT_SEC, NO_THROTTLE_STALL_SEC, JACKAL_BULLET_SPEED_MULT, JACKAL_BULLET_LIFETIME_MULT, JACKAL_BULLET_GRAVITY_MULT } from '@biplanes/shared';
+import { TICK_DT, PLANE_INITIAL_HP, XP_PER_KILL_LIGHT, DYING_DURATION_SEC, BOOST_OVERHEAT_SEC, NO_THROTTLE_STALL_SEC } from '@biplanes/shared';
 
 function makePlayer() {
   return {
@@ -22,27 +22,6 @@ function makePlayer() {
     respawnTimer: 0,
   };
 }
-
-describe('toJackalHeavyRound — heavy "boom" slug for the Jackal gun + heavy enemies', () => {
-  const base = {
-    id: 5, ownerId: 2, ownerFaction: 'enemy' as const,
-    position: { x: 0, y: 0 }, velocity: { x: 1000, y: 0 },
-    lifetime: 1.2, damage: 10, alive: true,
-  };
-
-  it('slows the muzzle, matches the parabola/range, tags it heavy', () => {
-    const h = toJackalHeavyRound(base);
-    expect(h.velocity.x).toBeCloseTo(1000 * JACKAL_BULLET_SPEED_MULT);
-    expect(h.lifetime).toBeCloseTo(1.2 * JACKAL_BULLET_LIFETIME_MULT);
-    expect(h.gravityScale).toBe(JACKAL_BULLET_GRAVITY_MULT);
-    expect(h.heavyRound).toBe(true);
-    expect(h.damage).toBe(10); // default damageMult = 1
-  });
-
-  it('applies the heavy-enemy per-shot damage multiplier', () => {
-    expect(toJackalHeavyRound(base, 1.6).damage).toBeCloseTo(16);
-  });
-});
 
 describe('world tick', () => {
   it('advances time', () => {

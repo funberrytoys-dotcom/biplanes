@@ -51,15 +51,6 @@ export const JACKAL_ROCKET_RADIUS_MULT = 1.22; // and splash wider
 // gun braking the plane. Easily countered by throttle, so it reads as "weight",
 // not a stall trap. (Mirrors the Godot reference's per-shot speed cost.)
 export const FIRE_RECOIL_SPEED_LOSS = 3.5;
-
-// === Враги-Шакалы — when you play С.О.В., the red opponents fly the HEAVY brawler. ===
-// They fire the same fat slow "boom" slugs as the Jackal player gun (reusing the
-// JACKAL_BULLET_* feel → big ember balls, matched parabola/range), hitting harder per
-// shot but on a slower cadence: net DPS is barely up (~1.07×), the threat is chunkier,
-// heavier hits + tougher hulls, not a rate-of-fire spike. "Тяжёлые, но честные."
-// (Hull/speed bumps live app-side as ARENA_JACKAL_ENEMY_* — these two are read in the core gun.)
-export const JACKAL_ENEMY_BULLET_DAMAGE_MULT = 1.6;  // harder per shot
-export const JACKAL_ENEMY_FIRE_INTERVAL_MULT = 1.5;  // but slower cadence
 // Per-shot dispersion (rad): each bullet leaves the barrel at a slightly random
 // angle, so the stream scatters (mostly vertically in level flight) instead of a
 // laser-straight line — like the Godot build's spray.
