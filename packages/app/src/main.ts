@@ -1735,25 +1735,29 @@ export async function startGame(container: HTMLElement) {
     const title = document.createElement('div');
     title.textContent = 'ВЫБЕРИ ФРАКЦИЮ';
     title.style.cssText = 'color:#f7d69a;font-size:clamp(18px,3vw,32px);font-weight:bold;letter-spacing:2px;text-shadow:0 2px 6px #000';
-    const panels = document.createElement('div');
-    panels.style.cssText = 'display:flex;gap:2vw;width:100%;max-width:760px;justify-content:center';
+    // Layout: vertical video LEFT, description CENTER, vertical video RIGHT.
+    const mainRow = document.createElement('div');
+    mainRow.style.cssText = 'display:flex;gap:2.2vw;width:100%;max-width:1100px;justify-content:center;align-items:stretch;flex-wrap:wrap;flex:1 1 auto';
+    const centerCol = document.createElement('div');
+    centerCol.style.cssText = 'display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2.4vh;flex:1 1 200px;max-width:440px;min-width:190px;text-align:center';
     const info = document.createElement('div');
-    info.style.cssText = 'max-width:760px;width:96%;text-align:center;color:#d6e2e7';
+    info.style.cssText = 'color:#d6e2e7';
     const row = document.createElement('div');
-    row.style.cssText = 'display:flex;gap:14px;align-items:center';
+    row.style.cssText = 'display:flex;gap:14px;align-items:center;flex-wrap:wrap;justify-content:center';
     const back = document.createElement('button');
     back.textContent = '← Назад';
     back.style.cssText = 'pointer-events:auto;cursor:pointer;font-family:monospace;font-weight:bold;font-size:clamp(12px,1.5vw,16px);color:#cdd6e0;background:#1a2433;border:2px solid #3a4658;border-radius:8px;padding:12px 20px';
     const confirm = document.createElement('button');
     confirm.textContent = 'ПОДТВЕРДИТЬ ВЫБОР';
-    confirm.style.cssText = 'pointer-events:auto;cursor:pointer;font-family:monospace;font-weight:bold;font-size:clamp(14px,1.8vw,20px);letter-spacing:1px;color:#0d141a;background:#f7d69a;border:none;border-radius:8px;padding:14px 28px';
+    confirm.style.cssText = 'pointer-events:auto;cursor:pointer;font-family:monospace;font-weight:bold;font-size:clamp(13px,1.7vw,20px);letter-spacing:1px;color:#0d141a;background:#f7d69a;border:none;border-radius:8px;padding:14px 24px';
     row.appendChild(back); row.appendChild(confirm);
-    root.appendChild(title); root.appendChild(panels); root.appendChild(info); root.appendChild(row);
+    centerCol.appendChild(info); centerCol.appendChild(row);
+    root.appendChild(title); root.appendChild(mainRow);
     const panelEls: Record<string, HTMLElement> = {};
     (['sov', 'jackals'] as const).forEach((key) => {
       const f = FACTIONS[key];
       const panel = document.createElement('div');
-      panel.style.cssText = 'position:relative;flex:1 1 0;max-width:240px;aspect-ratio:9/16;max-height:38vh;border-radius:12px;overflow:hidden;cursor:pointer;border:4px solid transparent;transition:border-color .15s,transform .15s;background:#06101f';
+      panel.style.cssText = 'position:relative;flex:1 1 0;max-width:260px;min-width:120px;aspect-ratio:9/16;max-height:66vh;align-self:center;border-radius:12px;overflow:hidden;cursor:pointer;border:4px solid transparent;transition:border-color .15s,transform .15s;background:#06101f';
       const vid = document.createElement('video');
       vid.src = f.video; vid.autoplay = true; vid.loop = true; vid.muted = true; vid.playsInline = true; vid.preload = 'auto';
       vid.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block';
@@ -1764,8 +1768,9 @@ export async function startGame(container: HTMLElement) {
       const select = () => { selected = key; render(); };
       panel.addEventListener('click', select);
       panel.addEventListener('mouseenter', () => { if (!('ontouchstart' in window)) { selected = key; render(); } });
-      panels.appendChild(panel); panelEls[key] = panel;
+      panelEls[key] = panel;
     });
+    mainRow.appendChild(panelEls.sov!); mainRow.appendChild(centerCol); mainRow.appendChild(panelEls.jackals!);
     function render() {
       (['sov', 'jackals'] as const).forEach((key) => {
         const on = key === selected;
