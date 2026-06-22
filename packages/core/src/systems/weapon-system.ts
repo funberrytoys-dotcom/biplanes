@@ -96,7 +96,7 @@ export function stepBullets(bullets: readonly Bullet[]): Bullet[] {
     if (newLifetime <= 0) continue;
     // Semi-implicit Euler: bleed speed (drag), then arc down (gravity), then move.
     const vx = b.velocity.x * drag;
-    const vy = b.velocity.y * drag + BULLET_GRAVITY * TICK_DT;
+    const vy = b.velocity.y * drag + BULLET_GRAVITY * (b.gravityScale ?? 1) * TICK_DT;
     out.push({
       ...b,
       position: {

@@ -14,5 +14,8 @@ export interface Bullet {
   pierceCount?: number;
   /** Алые Шакалы main-gun round — rendered as a big slow glowing ball (not a thin tracer). */
   heavyRound?: boolean;
+  /** Scales gravity on this bullet (1 = normal). Used to match the Jackal slug's slower
+   *  speed to С.О.В.'s parabola so it arcs identically and stays aim-able. */
+  gravityScale?: number;
 }
 

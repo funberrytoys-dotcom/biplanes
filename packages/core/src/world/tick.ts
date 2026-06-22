@@ -43,6 +43,7 @@ import {
   JACKAL_RELOAD_SEC,
   JACKAL_BULLET_SPEED_MULT,
   JACKAL_BULLET_LIFETIME_MULT,
+  JACKAL_BULLET_GRAVITY_MULT,
   JACKAL_RECOIL_MULT,
   JACKAL_ROCKET_DMG_MULT,
   JACKAL_ROCKET_RADIUS_MULT,
@@ -546,8 +547,9 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
             x: (b.velocity.x * ca - b.velocity.y * sa) * spd,
             y: (b.velocity.x * sa + b.velocity.y * ca) * spd,
           },
-          // Slow slugs live much longer → ~2× the С.О.В. flight range (owner-tuned).
+          // Mildly slower, but matched gravity + lifetime → SAME parabola + range as С.О.В.
           lifetime: jk ? b.lifetime * JACKAL_BULLET_LIFETIME_MULT : b.lifetime,
+          gravityScale: jk ? JACKAL_BULLET_GRAVITY_MULT : 1,
           heavyRound: jk,
         });
         nextEntityId++;
@@ -830,9 +832,10 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
             ownerFaction: 'player',
             position: dronePos,
             velocity: { x: Math.cos(angle) * BULLET_SPEED * (jk ? JACKAL_BULLET_SPEED_MULT : 1), y: Math.sin(angle) * BULLET_SPEED * (jk ? JACKAL_BULLET_SPEED_MULT : 1) },
-            lifetime: jk ? BULLET_LIFETIME * JACKAL_BULLET_LIFETIME_MULT : BULLET_LIFETIME, // ~2× range
+            lifetime: jk ? BULLET_LIFETIME * JACKAL_BULLET_LIFETIME_MULT : BULLET_LIFETIME,
             damage: DRONE_DAMAGE * state.damageMultiplier,
             alive: true,
+            gravityScale: jk ? JACKAL_BULLET_GRAVITY_MULT : 1,
             heavyRound: jk, // «Ведомый» fires the same fat Jackal slugs
           });
           nextEntityId++;

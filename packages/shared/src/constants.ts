@@ -36,10 +36,13 @@ export const MACHINE_GUN_DAMAGE = 10;
 // (RUN_JACKAL_* in the app); these are the per-shot FEEL knobs read in the core tick. ===
 export const JACKAL_MAG_SIZE = 60;           // owner-mandated: fewer rounds before reload
 export const JACKAL_RELOAD_SEC = 6;          // owner-tuned reload time
-export const JACKAL_BULLET_SPEED_MULT = 0.74; // big SLOW slugs you can see travel
-// Slugs live this much longer than a С.О.В. round → ~2× the С.О.В. flight RANGE despite
-// being slower (≈ (1/0.74)×2 — owner wanted +100% range over the parity value).
-export const JACKAL_BULLET_LIFETIME_MULT = 2.7;
+// Jackal slugs are only MILDLY slower (so they still read as heavy balls) but their
+// trajectory is matched to С.О.В.: gravity is scaled by speed² → the drop-vs-distance
+// PARABOLA is identical, and the longer lifetime gives the SAME flight RANGE. This keeps
+// the heavy look while staying just as aim-able as the light gun.
+export const JACKAL_BULLET_SPEED_MULT = 0.85;
+export const JACKAL_BULLET_GRAVITY_MULT = 0.85 * 0.85;   // = speed² → same parabola shape
+export const JACKAL_BULLET_LIFETIME_MULT = 1 / 0.85;     // ≈1.18 → same range despite slower speed
 export const JACKAL_RECOIL_MULT = 2.4;       // the cannon really brakes the plane
 export const JACKAL_BOOST_HEAT_MULT = 0.77;  // overheats ~30% LATER → dogfight edge
 export const JACKAL_ROCKET_DMG_MULT = 1.36;  // rockets hit harder
