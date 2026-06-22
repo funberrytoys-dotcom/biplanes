@@ -21,6 +21,7 @@ import {
   MAG_SIZE,
   JACKAL_MAG_SIZE,
   JACKAL_RELOAD_SEC,
+  JACKAL_BOOST_HEAT_MULT,
   RELOAD_SEC,
   GROUND_Y,
   SUPPLY_BALLOON_HP,
@@ -1743,7 +1744,7 @@ export async function startGame(container: HTMLElement) {
         desc: 'Шакалы не воруют по мелочи — они хотят само небо. Под алыми знамёнами Барона собрались те, кто уверовал, будто рождён править: один вид, один флаг, один порядок, а Содружество — «стая дворняг». Налетают с маршами и пафосом, забирают своё силой и зовут это «новым небом».',
         pilot: 'Барон Рудольф фон Клык',
         pilotBio: 'Говорит красиво и громко — про порядок, про величие. Кланяется перед атакой, извиняется после. Откуда взялся — никто так и не выяснил.',
-        pocherk: 'Почерк: тонкая броня, мощный калибр, скорость. Берут числом и наглостью, бьют первыми — рой «Ведомых».',
+        pocherk: 'Самолёт: мощная броня, огромная огневая мощь, медленная скорость. Тяжёлый бугай — бьёт редко, но как кувалда.',
         video: assetUrl('assets/factions/faction_jackals.mp4'), color: '#c0392b', accent: '#e8b04a',
       },
     } as const;
@@ -2438,6 +2439,7 @@ export async function startGame(container: HTMLElement) {
       },
       damageMultiplier: state.damageMultiplier * RUN_PLAYER_DAMAGE_MULT * (isJackals ? RUN_JACKAL_DAMAGE_MULT : 1),
       fireRateMultiplier: state.fireRateMultiplier * RUN_PLAYER_FIRE_RATE_MULT * (isJackals ? RUN_JACKAL_FIRE_RATE_MULT : 1),
+      boostHeatMultiplier: state.boostHeatMultiplier * (isJackals ? JACKAL_BOOST_HEAT_MULT : 1), // overheats ~30% later
     };
   }
 
