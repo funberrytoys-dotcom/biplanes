@@ -45,3 +45,38 @@ describe('run-waves', () => {
     expect(runEnemyHpMultiplierForWave(99)).toBe(runEnemyHpMultiplierForWave(15));
   });
 });
+
+describe('run-waves edge cases', () => {
+  it('boss/escort: count list length matches RUN_WAVE_COUNT and wave 15 escort = 0', () => {
+    expect(RUN_WAVE_ENEMY_COUNTS.length).toBe(RUN_WAVE_COUNT);
+    expect(RUN_WAVE_ENEMY_COUNTS[RUN_WAVE_COUNT - 1]).toBe(0);
+  });
+
+  it('isBossWave is false for all out-of-range inputs', () => {
+    expect(isBossWave(0)).toBe(false);
+    expect(isBossWave(-1)).toBe(false);
+    expect(isBossWave(RUN_WAVE_COUNT + 1)).toBe(false);
+    expect(isBossWave(999)).toBe(false);
+  });
+
+  it('runEnemyCountForWave returns 0 below 1 and above RUN_WAVE_COUNT', () => {
+    expect(runEnemyCountForWave(-5)).toBe(0);
+    expect(runEnemyCountForWave(0)).toBe(0);
+    expect(runEnemyCountForWave(RUN_WAVE_COUNT + 1)).toBe(0);
+    expect(runEnemyCountForWave(999)).toBe(0);
+  });
+
+  it('runEnemyCountForWave matches the table for every in-range wave', () => {
+    for (let w = 1; w <= RUN_WAVE_COUNT; w++) {
+      expect(runEnemyCountForWave(w)).toBe(RUN_WAVE_ENEMY_COUNTS[w - 1]);
+    }
+  });
+
+  it('runEnemyHpMultiplierForWave clamps both ends into 1..RUN_WAVE_COUNT', () => {
+    expect(runEnemyHpMultiplierForWave(-10)).toBe(runEnemyHpMultiplierForWave(1));
+    expect(runEnemyHpMultiplierForWave(0)).toBe(runEnemyHpMultiplierForWave(1));
+    expect(runEnemyHpMultiplierForWave(RUN_WAVE_COUNT + 5)).toBe(
+      runEnemyHpMultiplierForWave(RUN_WAVE_COUNT),
+    );
+  });
+});

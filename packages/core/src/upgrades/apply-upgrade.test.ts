@@ -92,3 +92,19 @@ describe('applyUpgrade', () => {
     expect(after.hasDrone).toBe(true);
   });
 });
+
+describe('applyUpgrade — wingman (Алые Шакалы signature)', () => {
+  it('sets hasDrone true and droneCount 1 on first apply', () => {
+    const after = applyUpgrade(createWorldState(42, makePlayer()), 'wingman');
+    expect(after.hasDrone).toBe(true);
+    expect(after.droneCount).toBe(1);
+  });
+
+  it('accumulates droneCount to 2 when applied twice (uncapped at apply layer)', () => {
+    let s = createWorldState(42, makePlayer());
+    s = applyUpgrade(s, 'wingman');
+    s = applyUpgrade(s, 'wingman');
+    expect(s.droneCount).toBe(2);
+    expect(s.hasDrone).toBe(true);
+  });
+});

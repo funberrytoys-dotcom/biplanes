@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { aiCommand, aiCommandPilotTarget, chasePolicy, createAiState } from './chase-policy.js';
 import { DIFFICULTIES } from './difficulty.js';
+import { WORLD_HEIGHT } from '@biplanes/shared';
 import type { Plane } from '../entities/plane.js';
 import type { Pilot } from '../entities/pilot.js';
 
@@ -116,5 +117,43 @@ describe('chase policy', () => {
     );
 
     expect(cmd.fire).toBe(true);
+  });
+});
+
+// The Layer-1 survival logic that keeps enemies from flying into the dirt — the
+// documented "enemies kill themselves" class. Pure functions, so headless + deterministic.
+const GROUND_Y = WORLD_HEIGHT - 90;
+
+describe('chase policy — ground/ceiling survival (anti-self-crash)', () => {
+  it('pulls the nose UP (and stops firing) when skimming just above the ground', () => {
+    const enemy = makePlane(500, GROUND_Y - 2, 0.6); // facing right, diving, right on the deck
+    const target = makePlane(1800, GROUND_Y - 2, 0); // far away → no collision-avoidance override
+    const aiState = { ...createAiState(3), timeFlyingSec: 5 }; // well past post-takeoff stabilisation
+    const { cmd } = aiCommand(enemy, target, DIFFICULTIES.hard, aiState, enemy.hp, 1 / 60, 5);
+    expect(cmd.rotate).toBe(-1); // -1 = nose up when facing right (see "target above" case)
+    expect(cmd.fire).toBe(false); // survival overrides combat
+  });
+
+  it('starts the pull-out EARLY when moderately low AND steeply diving (altitude-aware anti-dive)', () => {
+    const gc = DIFFICULTIES.hard.groundClearance;
+    // Between the raw clearance band and the 2.4× early-trigger band, with a steep dive.
+    const enemy = makePlane(500, GROUND_Y - gc * 1.5, 0.6); // sin(0.6)≈0.56 > 0.45 → diving
+    expect(enemy.kinematic.position.y).toBeLessThan(GROUND_Y - gc); // NOT yet in the raw-proximity band
+    const target = makePlane(1800, GROUND_Y - gc * 1.5, 0);
+    const aiState = { ...createAiState(4), timeFlyingSec: 5 };
+    const { cmd } = aiCommand(enemy, target, DIFFICULTIES.hard, aiState, enemy.hp, 1 / 60, 5);
+    expect(cmd.rotate).toBe(-1); // pulling up early, before it's too late to reverse the dive
+  });
+
+  it('collision break is UPWARD (away from ground) when there is room above', () => {
+    const enemy = makePlane(300, 600, 0); // mid-air, lots of room above (600 > 220)
+    enemy.kinematic.velocity = { x: 900, y: 0 };
+    const target = makePlane(500, 600, Math.PI); // closing head-on
+    target.faction = 'player';
+    target.kinematic.velocity = { x: -900, y: 0 };
+    const aiState = { ...createAiState(5), timeFlyingSec: 5 };
+    const { cmd } = aiCommand(enemy, target, DIFFICULTIES.hard, aiState, enemy.hp, 1 / 60, 5);
+    expect(cmd.rotate).toBe(-1); // breaks UP, not down into the ground
+    expect(cmd.fire).toBe(false);
   });
 });
