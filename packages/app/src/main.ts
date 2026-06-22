@@ -772,12 +772,17 @@ function makeArenaRoundEnemy(id: number, player: Plane, round: number, lane: num
   };
 }
 
-function makeArenaScarBoss(id: number, player: Plane, round: number, isRun = false): Plane {
+function makeArenaScarBoss(id: number, player: Plane, round: number, isRun = false, faction: 'sov' | 'jackals' = 'sov'): Plane {
   const roleTuning = arenaEnemyRoleTuning('boss');
   const hpMul = isRun ? runEnemyHpMultiplierForWave(round) : arenaEnemyHpMultiplierForRound(round);
+  // С.О.В. fight «Шрам» (the Baron). Алые Шакалы fight CHICO — the С.О.В. hero, an even
+  // tougher (~1.2×) wall you must out-build. The boss renders in the OTHER faction's
+  // colour automatically (it's an enemy sprite, which uses the inverted visual scheme):
+  // blue Chico for the Jackals, red Шрам for С.О.В.
+  const isChico = faction === 'jackals';
   // The run boss is a fixed, build-gated HP pool; the arena boss keeps its scaling formula.
   const hp = isRun
-    ? RUN_BOSS_HP
+    ? Math.round(RUN_BOSS_HP * (isChico ? 1.2 : 1))
     : Math.round(ENEMY_INITIAL_HP_HEAVY * hpMul * 3.2 * roleTuning.hpScale);
   const fromRight = player.kinematic.position.x < ARENA_WORLD_WIDTH * 0.55;
   const heading = fromRight ? Math.PI : 0;
@@ -811,7 +816,7 @@ function makeArenaScarBoss(id: number, player: Plane, round: number, isRun = fal
     aiRole: 'boss',
     isBoss: true,
     visualScale: roleTuning.visualScale,
-    bossName: 'ШРАМ',
+    bossName: isChico ? 'ЧИКО' : 'ШРАМ',
   };
 }
 
@@ -1899,7 +1904,7 @@ export async function startGame(container: HTMLElement) {
       arenaRoundPhase === 'upgradeDelay' ? `ТРОФЕИ ${Math.max(0, 3 - arenaUpgradeDelaySec).toFixed(1)}С` :
       arenaRoundPhase === 'victoryFlight' ? `ЧИСТЫЙ ПОЛЕТ ${Math.max(0, 3 - arenaVictoryFlightSec).toFixed(1)}С` :
       arenaRoundPhase === 'upgrade' ? 'ДОРАБОТКА' :
-      state.enemies.some(e => e.isBoss && e.alive) ? 'ШРАМ' :
+      (state.enemies.find(e => e.isBoss && e.alive)?.bossName) ??
       'БОЙ';
     // Weather/location name lives in the dedicated weather panel — keep the status
     // bar short so it doesn't collide with the cockpit panel (left) or that panel (right).
@@ -1963,7 +1968,7 @@ export async function startGame(container: HTMLElement) {
     if (runSession && finalBossReady) runBossSpawned = true;
     const isRun = runSession !== null;
     const enemies = finalBossReady
-      ? [makeArenaScarBoss(state.nextEntityId, state.player, arenaRound, isRun)]
+      ? [makeArenaScarBoss(state.nextEntityId, state.player, arenaRound, isRun, chosenFaction)]
       : Array.from({ length: nextEnemyCount }, (_, lane) =>
         makeArenaRoundEnemy(state.nextEntityId + lane, state.player, arenaRound, lane, isRun)
       );
@@ -3132,6 +3137,10 @@ export async function startGame(container: HTMLElement) {
       const boss = state.enemies.find(e => e.isBoss && e.alive && e.state !== 'crashed');
       if (boss && boss.alive && boss.state !== 'crashed') {
         bossMarker.visible = true;
+        if (boss.bossName && bossMarkerLabel.text !== boss.bossName) {
+          bossMarkerLabel.text = boss.bossName; // «ЧИКО» vs «ШРАМ»
+          bossMarkerLabel.x = -bossMarkerLabel.width / 2;
+        }
         bossMarker.x = boss.kinematic.position.x;
         bossMarker.y = boss.kinematic.position.y - 70 + Math.sin(renderTimeSec * 4) * 3;
       } else {
