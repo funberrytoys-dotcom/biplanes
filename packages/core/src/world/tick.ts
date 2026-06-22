@@ -1258,15 +1258,22 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
   const newTime = state.timeSec + TICK_DT;
   const enemyPilotInPlay = findPilot(pilots, 'enemy') !== undefined;
   const targetEnemies = targetEnemyCount(state.difficulty, newTime, playerScore);
+  const wantsAutoSpawn = !state.disableAutoEnemySpawn && !caravan && enemies.length < targetEnemies && newTime > 1.0 && !enemyPilotInPlay;
+  if (wantsAutoSpawn) {
+    // Bump nextEntityId past every live entity ONCE before the loop. After the first
+    // spawn, each new enemy's id is already the largest, so the per-iteration rescan was
+    // redundant — and the variadic `Math.max(...bigArray)` could blow the call stack with
+    // thousands of bullets. O(n) scan via explicit loops, no array spread. The resulting
+    // ids are identical to the old code, so replay/determinism is unchanged.
+    let maxId = player.id;
+    for (const e of enemies) if (e.id > maxId) maxId = e.id;
+    for (const p of pilots) if (p.id > maxId) maxId = p.id;
+    for (const b of newBulletList) if (b.id > maxId) maxId = b.id;
+    for (const b of state.bombs) if (b.id > maxId) maxId = b.id;
+    for (const r of state.rockets) if (r.id > maxId) maxId = r.id;
+    nextEntityId = Math.max(nextEntityId, maxId + 1);
+  }
   while (!state.disableAutoEnemySpawn && !caravan && enemies.length < targetEnemies && newTime > 1.0 && !enemyPilotInPlay) {
-    nextEntityId = Math.max(nextEntityId, 1 + Math.max(
-      player.id,
-      ...enemies.map(e => e.id),
-      ...pilots.map(p => p.id),
-      ...newBulletList.map(b => b.id),
-      ...state.bombs.map(b => b.id),
-      ...state.rockets.map(r => r.id),
-    ));
     enemies.push(spawnEnemy(
       nextEntityId,
       baseParams.hpMultiplier,

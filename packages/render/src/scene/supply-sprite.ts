@@ -240,12 +240,15 @@ export class SupplyFx {
       if (it.label) { it.label.y = -22 - t * 26; it.label.alpha = 1 - t; }
     }
     const dead = this.items.filter(it => it.age >= it.ttl);
-    for (const it of dead) this.container.removeChild(it.container);
+    // destroy (not just removeChild) so the per-instance Text glyph texture + Graphics
+    // geometry are freed — these are created fresh on every pop/collect, so over a long
+    // Забег they'd otherwise orphan GPU resources.
+    for (const it of dead) it.container.destroy({ children: true });
     this.items = this.items.filter(it => it.age < it.ttl);
   }
 
   clear() {
-    for (const it of this.items) this.container.removeChild(it.container);
+    for (const it of this.items) it.container.destroy({ children: true });
     this.items = [];
   }
 }
