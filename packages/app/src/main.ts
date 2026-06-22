@@ -478,10 +478,13 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
       .roundRect(left + 3, fillTopY, s.w - 6, s.yBottom - fillTopY, Math.max(2, (s.w - 6) / 2))
       .fill({ color: gasColor, alpha: 0.42 });
     rings.throttleKnob.clear();
-    // Art knob slides along the track to the current throttle position.
+    // Art knob slides along the track to the current throttle position. Uses the texture's
+    // own aspect so the С.О.В. brass handle AND the Jackal skull grip both sit right.
     const knobW = s.w * 2.6;
+    const tex = leverKnob.texture;
+    const aspect = tex && tex.height > 2 ? tex.height / tex.width : 667 / 718;
     leverKnob.width = knobW;
-    leverKnob.height = knobW * (667 / 718);
+    leverKnob.height = knobW * aspect;
     leverKnob.x = s.x;
     leverKnob.y = fillTopY;
   }
@@ -551,6 +554,8 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
     container: c,
     layout,
     setActive,
+    /** Swap the throttle handle art per faction (С.О.В. brass / Jackal skull grip). */
+    setThrottleKnob(url: string) { leverKnob.texture = Texture.from(url); },
     isTouchLikely() { return touchLikely; },
     update(specialCdRatio: number = 0) {
       updateStickKnob();
@@ -1319,23 +1324,6 @@ export async function startGame(container: HTMLElement) {
   ammoHud.visible = false;
   uiLayer.addChild(ammoHud);
 
-  // === Faction throttle grip — a JACKALS-ONLY HUD tell (menacing leather-and-iron
-  // skull T-handle). The red plane is the main faction cue; this reinforces it in the
-  // bottom-left (free corner: gauges top-left, ammo bottom-right, ГАЗ lever right edge).
-  const factionGrip = new Sprite(Texture.from(assetUrl('assets/hud/throttle_jackal.png')));
-  factionGrip.anchor.set(0, 1);
-  factionGrip.alpha = 0.9;
-  factionGrip.visible = false;
-  uiLayer.addChild(factionGrip);
-  function layoutFactionGrip() {
-    const size = Math.max(92, Math.min(150, app.screen.height * 0.19));
-    factionGrip.width = size;
-    factionGrip.height = size;
-    factionGrip.x = 8;
-    factionGrip.y = app.screen.height - 6;
-  }
-  layoutFactionGrip();
-
   // Re-create the player plane in the chosen faction's colour at each mode start (only
   // when the scheme actually changed). `setFaction` (the select screen) routes through here.
   let currentPlayerVisual: 'player' | 'enemy' = playerVisual();
@@ -1352,7 +1340,12 @@ export async function startGame(container: HTMLElement) {
         ? assetUrl('assets/biplanes/supply_balloon_chest_red.png')
         : assetUrl('assets/biplanes/supply_balloon_chest.png'),
     );
-    layoutFactionGrip();
+    // The ГАЗ throttle handle ITSELF becomes the Jackal skull grip (С.О.В. keep the brass one).
+    touchGuide.setThrottleKnob(
+      chosenFaction === 'jackals'
+        ? assetUrl('assets/hud/throttle_jackal.png')
+        : assetUrl('assets/biplanes/hud/lever_knob.png'),
+    );
   }
   function setFaction(f: 'sov' | 'jackals') {
     chosenFaction = f;
@@ -1726,26 +1719,26 @@ export async function startGame(container: HTMLElement) {
       sov: {
         name: 'С.О.В.', sub: 'Содружество Объединённых Видов · Капитан Чико',
         tagline: '«Разные крылья — одно небо.»',
-        desc: 'Сотни видов под одним флагом. Дерутся не за то, чтобы править, а чтобы каждый мог летать свободно. Крепкие машины, верное звено — прощают ошибку. Идеальны, чтобы научиться.',
+        desc: 'Сотни видов под одним флагом — за всех своих. Крепкий корпус, верное звено, ведомые-дроны; прощают ошибку. Идеальны, чтобы освоиться.',
         video: assetUrl('assets/factions/faction_sov.mp4'), color: '#3a86d6', accent: '#ffcf45',
       },
       jackals: {
         name: 'АЛЫЕ ШАКАЛЫ', sub: 'Краснокрылая стая · Барон фон Клык',
         tagline: '«Небо — сильным. Остальные потеснятся.»',
-        desc: 'Тонкая броня, злой калибр, скорость. Берут числом и наглостью, бьют первыми. «Ведомый» поднимает в небо стаю зеркальных бортов. Для тех, кто атакует и не оглядывается.',
+        desc: 'Тонкая броня, злой калибр, скорость. Берут числом: «Ведомый» поднимает стаю зеркальных бортов, что бьёт вдвое. Для тех, кто атакует первым.',
         video: assetUrl('assets/factions/faction_jackals.mp4'), color: '#c0392b', accent: '#e8b04a',
       },
     } as const;
     let selected: 'sov' | 'jackals' = 'sov';
     const root = document.createElement('div');
-    root.style.cssText = 'position:absolute;inset:0;z-index:50;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1.6vh;background:rgba(4,6,12,0.92);font-family:monospace;padding:2vh 2vw;box-sizing:border-box';
+    root.style.cssText = 'position:absolute;inset:0;z-index:50;display:none;flex-direction:column;align-items:center;justify-content:flex-start;gap:1.2vh;background:rgba(4,6,12,0.93);font-family:monospace;padding:2vh 2vw 2.5vh;box-sizing:border-box;overflow-y:auto';
     const title = document.createElement('div');
     title.textContent = 'ВЫБЕРИ ФРАКЦИЮ';
     title.style.cssText = 'color:#f7d69a;font-size:clamp(18px,3vw,32px);font-weight:bold;letter-spacing:2px;text-shadow:0 2px 6px #000';
     const panels = document.createElement('div');
     panels.style.cssText = 'display:flex;gap:2vw;width:100%;max-width:760px;justify-content:center';
     const info = document.createElement('div');
-    info.style.cssText = 'max-width:720px;text-align:center;color:#d6e2e7;min-height:13vh';
+    info.style.cssText = 'max-width:760px;width:96%;text-align:center;color:#d6e2e7';
     const row = document.createElement('div');
     row.style.cssText = 'display:flex;gap:14px;align-items:center';
     const back = document.createElement('button');
@@ -1760,7 +1753,7 @@ export async function startGame(container: HTMLElement) {
     (['sov', 'jackals'] as const).forEach((key) => {
       const f = FACTIONS[key];
       const panel = document.createElement('div');
-      panel.style.cssText = 'position:relative;flex:1 1 0;max-width:280px;aspect-ratio:9/16;max-height:52vh;border-radius:12px;overflow:hidden;cursor:pointer;border:4px solid transparent;transition:border-color .15s,transform .15s;background:#06101f';
+      panel.style.cssText = 'position:relative;flex:1 1 0;max-width:240px;aspect-ratio:9/16;max-height:38vh;border-radius:12px;overflow:hidden;cursor:pointer;border:4px solid transparent;transition:border-color .15s,transform .15s;background:#06101f';
       const vid = document.createElement('video');
       vid.src = f.video; vid.autoplay = true; vid.loop = true; vid.muted = true; vid.playsInline = true; vid.preload = 'auto';
       vid.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block';
@@ -3588,7 +3581,6 @@ export async function startGame(container: HTMLElement) {
     arenaWeather.update(dt, renderTimeSec);
     hud.setArenaRound(runMode === 'arena' ? arenaRound : null);
     hud.update(state);
-    factionGrip.visible = chosenFaction === 'jackals' && hud.container.visible;
     updateAmmoHud(state);
     ammoHud.visible = (runMode === 'arena' || runMode === 'story')
       && gameRunning && !choicesShowing && !state.gameOver && state.player.alive;
@@ -3751,7 +3743,6 @@ export async function startGame(container: HTMLElement) {
       app.renderer.resize(w, h);
     }
     onResize();
-    layoutFactionGrip();
     laidOutW = w;
     laidOutH = h;
   };
