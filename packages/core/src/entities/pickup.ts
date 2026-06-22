@@ -1,7 +1,8 @@
 import type { EntityId, Vec2 } from '@biplanes/shared';
 
-/** What a collected pickup gives the player. */
-export type PickupKind = 'ammo' | 'repair' | 'rapidfire';
+/** What a collected pickup gives the player. 'level' grants a bonus card pick (handled
+ *  app-side via the collect event — the core just signals it). */
+export type PickupKind = 'ammo' | 'repair' | 'rapidfire' | 'level';
 
 /**
  * A supply balloon: a chest hanging under a balloon, drifting across the arena.

@@ -18,7 +18,24 @@ import type { Bullet } from '../entities/bullet.js';
 import type { Pickup, PickupKind, SupplyBalloon } from '../entities/pickup.js';
 import { nextRandom } from '../rng/next-random.js';
 
-const PICKUP_KINDS: readonly PickupKind[] = ['ammo', 'repair', 'rapidfire'];
+// Weighted drop table: ammo/repair common, rapidfire less, 'level' (a bonus card pick)
+// rare so it stays a treat worth chasing, not a constant interruption.
+const PICKUP_WEIGHTS: readonly { kind: PickupKind; w: number }[] = [
+  { kind: 'ammo', w: 34 },
+  { kind: 'repair', w: 34 },
+  { kind: 'rapidfire', w: 22 },
+  { kind: 'level', w: 10 },
+];
+const PICKUP_WEIGHT_TOTAL = PICKUP_WEIGHTS.reduce((s, k) => s + k.w, 0);
+
+function pickKind(roll: number): PickupKind {
+  let r = roll * PICKUP_WEIGHT_TOTAL;
+  for (const k of PICKUP_WEIGHTS) {
+    if (r < k.w) return k.kind;
+    r -= k.w;
+  }
+  return 'ammo';
+}
 
 /** Drift balloons horizontally (wrapping the world) and advance their bob phase. */
 export function stepSupplyBalloons(
@@ -90,7 +107,7 @@ export function resolveBulletBalloonHits(
         const count = SUPPLY_DROP_MIN + Math.min(span - 1, Math.floor(rc.value * span));
         for (let i = 0; i < count; i++) {
           const rk = nextRandom(rng); rng = rk.rngState;
-          const kind = PICKUP_KINDS[Math.min(PICKUP_KINDS.length - 1, Math.floor(rk.value * PICKUP_KINDS.length))]!;
+          const kind = pickKind(rk.value);
           const ra = nextRandom(rng); rng = ra.rngState;
           const angle = (ra.value - 0.5) * Math.PI * 0.8;  // fan out left/right
           const rs = nextRandom(rng); rng = rs.rngState;
@@ -179,9 +196,11 @@ export function resolvePlayerPickups(
       p = { ...p, ammo: PICKUP_AMMO_REFILL, reloadTimer: 0 };
     } else if (pk.kind === 'repair') {
       p = { ...p, hp: Math.min(p.maxHp, p.hp + p.maxHp * PICKUP_REPAIR_FRACTION) };
-    } else {
+    } else if (pk.kind === 'rapidfire') {
       rf = Math.max(rf, RAPIDFIRE_DURATION_SEC);
     }
+    // 'level' grants a bonus card pick — no player-state change here; the app reacts to
+    // the collect event (pauses + shows the pick screen).
   }
 
   return { player: p, pickups: remaining, collectEvents, rapidFireSec: rf };

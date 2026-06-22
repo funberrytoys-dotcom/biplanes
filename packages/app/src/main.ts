@@ -205,6 +205,7 @@ const VISUAL_ASSET_URLS = [
   assetUrl('assets/biplanes/sky_night.jpg'),
   assetUrl('assets/biplanes/plane_chico_blue.png'),
   assetUrl('assets/biplanes/supply_balloon_chest.png'),
+  assetUrl('assets/biplanes/supply_balloon_chest_red.png'),
   // «Забег» branch emblems (shown on the run-summary screen).
   assetUrl('assets/run/emblem_assault.png'),
   assetUrl('assets/run/emblem_bombardier.png'),
@@ -1339,6 +1340,13 @@ export async function startGame(container: HTMLElement) {
       rebuildPlayerSpriteForFaction();
       currentPlayerVisual = want;
     }
+    // Jackal supply balloons are crimson; С.О.В. blue.
+    supplyBalloons.setFaction(
+      chosenFaction === 'jackals' ? 'jackals' : 'sov',
+      chosenFaction === 'jackals'
+        ? assetUrl('assets/biplanes/supply_balloon_chest_red.png')
+        : assetUrl('assets/biplanes/supply_balloon_chest.png'),
+    );
     layoutFactionGrip();
   }
   function setFaction(f: 'sov' | 'jackals') {
@@ -1871,8 +1879,9 @@ export async function startGame(container: HTMLElement) {
     state.pilots = state.pilots.filter(p => p.faction !== 'enemy');
     state.enemyAiStates.clear();
     state.prevEnemyHp.clear();
-    // Drop 1-3 supply balloons for the player to shoot down this round.
-    const balloonCount = 1 + Math.floor(Math.random() * 3);
+    // Drop 2-4 supply balloons for the player to shoot down this round (worth chasing:
+    // ammo / repair / rapidfire / a bonus card pick).
+    const balloonCount = 2 + Math.floor(Math.random() * 3);
     const balloons = makeArenaSupplyBalloons(state.nextEntityId, state.player, balloonCount);
     state.nextEntityId += balloons.length;
     state.balloons = balloons;
@@ -1958,6 +1967,22 @@ export async function startGame(container: HTMLElement) {
     } else {
       choicesShowing = false;
     }
+  }
+
+  // A balloon dropped a «КАРТА» pickup → grant a bonus card pick mid-round. Reuses the
+  // level-up screen + its onPick (applies the upgrade, then resumes). `choicesShowing`
+  // pauses the sim; we do NOT touch the round phase, so combat resumes cleanly after.
+  function showBonusPick() {
+    if (choicesShowing || !gameRunning || state.gameOver) return;
+    if (!state.player.alive || state.player.state !== 'flying') return;
+    const rng = createRng((state.rngState ^ 0x5a17b3 ^ (state.tickCount * 0x9e3779b9)) >>> 0);
+    const pool = factionUpgradePool(chosenFaction);
+    const choices = runSession
+      ? rollRunPickChoices(state.appliedUpgradeIds, runSession.affinity, rng, pool)
+      : rollUpgradeChoices(state.appliedUpgradeIds, rng, pool);
+    if (choices.length === 0) return;
+    choicesShowing = true;
+    levelUpScreen.show(choices); // a clean bonus — no reroll/skip
   }
 
   function updateArenaDirector(elapsedSec = TICK_DT) {
@@ -3434,6 +3459,7 @@ export async function startGame(container: HTMLElement) {
       supplyFx.collect(ev.position, ev.kind);
       if (ev.kind === 'ammo') audio.playUpgradePick();
       else if (ev.kind === 'repair') audio.playLevelUp();
+      else if (ev.kind === 'level') { audio.playUpgradeOpen(); showBonusPick(); }
       else audio.playBoostKick();
     }
     supplyFx.update(dt);
