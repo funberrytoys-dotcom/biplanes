@@ -19,6 +19,8 @@ import {
   HIT_PAUSE_FRAMES_RAM_KILL,
   SALVO_COOLDOWN,
   MAG_SIZE,
+  JACKAL_MAG_SIZE,
+  JACKAL_RELOAD_SEC,
   RELOAD_SEC,
   GROUND_Y,
   SUPPLY_BALLOON_HP,
@@ -909,9 +911,12 @@ async function loadVisualAssetsResilient(urls: readonly string[]): Promise<void>
 const RUN_PLAYER_MAX_HP = 180;
 const RUN_PLAYER_DAMAGE_MULT = 1.5;
 const RUN_PLAYER_FIRE_RATE_MULT = 0.12 / 0.085; // ≈1.41
-// Алые Шакалы run modifiers: glass cannon — thinner hull, meaner caliber (tunable).
-const RUN_JACKAL_HP_MULT = 0.7;     // ~126 HP vs С.О.В. 180
-const RUN_JACKAL_DAMAGE_MULT = 1.15;
+// Алые Шакалы run modifiers: HEAVY BRAWLER (KillZone-style) — tougher hull, twice the
+// per-shot punch but a much slower gun (mag/recoil/slow-slug feel live in the core via
+// state.playerFaction). С.О.В. stays the light rapid baseline. All tunable.
+const RUN_JACKAL_HP_MULT = 240 / 180;       // ≈1.33 → 240 HP, tankier
+const RUN_JACKAL_DAMAGE_MULT = 2.0;          // 30 dmg/shot sledgehammer
+const RUN_JACKAL_FIRE_RATE_MULT = 0.085 / 0.150; // ≈0.567 → fire interval 0.085s→0.150s
 // Boss «Шрам» HP for the run. Big jump from the old ~2100 (which a built-up player
 // melted in seconds) → a real, build-gated fight. PLAYTEST-TUNE THIS knob: if the boss
 // dies too fast, raise it; if it's a slog, lower it.
@@ -1374,20 +1379,23 @@ export async function startGame(container: HTMLElement) {
   }
 
   function updateAmmoHud(state: WorldState) {
-    const ammo = state.player.ammo ?? MAG_SIZE;
+    const jkMag = chosenFaction === 'jackals';
+    const mag = jkMag ? JACKAL_MAG_SIZE : MAG_SIZE;
+    const reloadFull = jkMag ? JACKAL_RELOAD_SEC : RELOAD_SEC;
+    const ammo = state.player.ammo ?? mag;
     const reloadLeft = state.player.reloadTimer ?? 0;
     const barX = 12, barY = AMMO_PANEL_H - 8, barW = AMMO_PANEL_W - 24, barH = 4;
     ammoBar.clear().roundRect(barX, barY, barW, barH, 2).fill({ color: 0x05080e, alpha: 0.6 });
     if (reloadLeft > 0) {
       ammoText.text = `${Math.ceil(reloadLeft)}с`;
       ammoText.tint = 0xffb15a;
-      const frac = Math.max(0, Math.min(1, 1 - reloadLeft / RELOAD_SEC));
+      const frac = Math.max(0, Math.min(1, 1 - reloadLeft / reloadFull));
       if (frac > 0) ammoBar.roundRect(barX, barY, barW * frac, barH, 2).fill({ color: 0xff9a4a });
     } else {
       const low = ammo <= 15;
       ammoText.text = `${ammo}`;
       ammoText.tint = low ? 0xff5a4a : 0xffe08a;
-      const frac = Math.max(0, Math.min(1, ammo / MAG_SIZE));
+      const frac = Math.max(0, Math.min(1, ammo / mag));
       if (frac > 0) ammoBar.roundRect(barX, barY, barW * frac, barH, 2).fill({ color: low ? 0xff5a4a : 0x7cff8f });
     }
   }
@@ -2417,9 +2425,15 @@ export async function startGame(container: HTMLElement) {
     const runMaxHp = Math.round(RUN_PLAYER_MAX_HP * (isJackals ? RUN_JACKAL_HP_MULT : 1));
     state = {
       ...state,
-      player: { ...state.player, maxHp: runMaxHp, hp: runMaxHp },
+      playerFaction: isJackals ? 'jackals' : 'sov', // core reads this for the heavy gun
+      player: {
+        ...state.player,
+        maxHp: runMaxHp, hp: runMaxHp,
+        ammo: isJackals ? JACKAL_MAG_SIZE : MAG_SIZE, // 60-round Jackal magazine
+        reloadTimer: 0,
+      },
       damageMultiplier: state.damageMultiplier * RUN_PLAYER_DAMAGE_MULT * (isJackals ? RUN_JACKAL_DAMAGE_MULT : 1),
-      fireRateMultiplier: state.fireRateMultiplier * RUN_PLAYER_FIRE_RATE_MULT,
+      fireRateMultiplier: state.fireRateMultiplier * RUN_PLAYER_FIRE_RATE_MULT * (isJackals ? RUN_JACKAL_FIRE_RATE_MULT : 1),
     };
   }
 

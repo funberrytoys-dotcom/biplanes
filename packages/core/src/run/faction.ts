@@ -11,9 +11,10 @@ export const FACTION_BRANCH_LABEL: Record<RunFaction, Record<Branch, string>> = 
   jackals: { assault: 'Налётчик', bombardier: 'Стервятник', commander: 'Атаман', hull: 'Корпус Барона' },
 };
 
-// Cards that DON'T fit the Jackals (cut list from the design council): the С.О.В. hero
-// companion, the fat HP burst (anti-glass-cannon), and the basic drone (replaced by «Ведомый»).
-const JACKAL_CUT: ReadonlySet<UpgradeId> = new Set<UpgradeId>(['chico_wing', 'hp_plus_50', 'drone_wingman']);
+// Cards that DON'T fit the Jackals: the С.О.В. hero companion, and the basic drone
+// (replaced by «Ведомый»). NOTE: hp_plus_50 is KEPT now — the Jackals are a heavy
+// brawler (tough hull), so a fat armor pick is on-theme («Броня Барона»).
+const JACKAL_CUT: ReadonlySet<UpgradeId> = new Set<UpgradeId>(['chico_wing', 'drone_wingman']);
 
 // Re-skin the reused С.О.В. effects with Jackal-flavoured names/text (same id + effect,
 // so apply-upgrade / tick / evolution prereqs all keep working unchanged — only display).
@@ -34,7 +35,8 @@ const JACKAL_OVERRIDES: Partial<Record<UpgradeId, { title: string; description: 
   flame_trail: { title: 'Выжженный след', description: 'За самолётом тянется горящий хвост.' },
   fire_screen: { title: 'Погребальный костёр', description: 'ЭВОЛЮЦИЯ: залп + огненный след выжигают зону.' },
   quick_salvo: { title: 'Шакалья перезарядка', description: 'Ракетный залп перезаряжается быстрее.' },
-  hp_plus_25: { title: 'Латаный корпус', description: '+25% прочности — всё, что Шакал может себе позволить.' },
+  hp_plus_25: { title: 'Латаный корпус', description: '+25% прочности корпуса.' },
+  hp_plus_50: { title: 'Броня Барона', description: '+50% прочности разом — Шакал прёт сквозь огонь.' },
   magnet_range_plus: { title: 'Боевой раскрас', description: 'Машина чинит себя в полёте.' },
   reinforced_struts: { title: 'Трофейная обшивка', description: 'Меньше урона от таранов, чуть крепче.' },
   coolant_injector: { title: 'Кровью охлаждённый', description: 'Форсаж меньше греет, быстрее стынет.' },
@@ -47,10 +49,10 @@ const JACKAL_OVERRIDES: Partial<Record<UpgradeId, { title: string; description: 
 export const WINGMAN_DEF: UpgradeDef = {
   id: 'wingman',
   title: 'Ведомый',
-  description: 'Ведомый садится на хвост, повторяет каждое твоё движение и бьёт вдвое.',
+  description: 'Один ведомый садится на хвост, повторяет твои движения и бьёт той же тяжёлой пушкой.',
   category: 'companion',
   isEvolution: false,
-  maxStacks: 4,
+  maxStacks: 1, // a single wingman, not a swarm (owner's call)
 };
 
 const JACKAL_DEFS: UpgradeDef[] = [

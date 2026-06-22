@@ -30,6 +30,9 @@ export interface WorldState {
   tickCount: number;
   worldWidth?: number;
   worldHeight?: number;
+  /** Which faction the player is flying — 'jackals' switches to the heavy-brawler gun
+   *  (slow fat slugs, smaller mag, harder recoil, stronger rockets). Default С.О.В. */
+  playerFaction?: 'sov' | 'jackals';
   disableAutoEnemySpawn?: boolean;
   // Campaign: no lethal ground. The bottom of the map turns the plane back like
   // the ceiling instead of crashing it.

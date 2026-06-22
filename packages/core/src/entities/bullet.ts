@@ -12,5 +12,7 @@ export interface Bullet {
   alive: boolean;
   isHeavy?: boolean;
   pierceCount?: number;
+  /** Алые Шакалы main-gun round — rendered as a big slow glowing ball (not a thin tracer). */
+  heavyRound?: boolean;
 }
 

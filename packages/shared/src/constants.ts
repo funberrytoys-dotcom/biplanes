@@ -30,6 +30,16 @@ export const MAG_SIZE = 100;                 // shots per magazine
 export const RELOAD_SEC = 10;                // seconds to reload an empty magazine
 export const MACHINE_GUN_COOLDOWN = 0.12;
 export const MACHINE_GUN_DAMAGE = 10;
+
+// === Алые Шакалы heavy-brawler gun (KillZone-style: a slow, fat, hard-hitting "ball"
+// cannon vs С.О.В.'s light rapid stream). HP/damage/fire-rate come from the run loadout
+// (RUN_JACKAL_* in the app); these are the per-shot FEEL knobs read in the core tick. ===
+export const JACKAL_MAG_SIZE = 60;           // owner-mandated: fewer rounds before reload
+export const JACKAL_RELOAD_SEC = 8.5;        // a touch faster reload offsets the small mag
+export const JACKAL_BULLET_SPEED_MULT = 0.74; // big SLOW slugs you can see travel
+export const JACKAL_RECOIL_MULT = 2.4;       // the cannon really brakes the plane
+export const JACKAL_ROCKET_DMG_MULT = 1.36;  // rockets hit harder
+export const JACKAL_ROCKET_RADIUS_MULT = 1.22; // and splash wider
 // Airspeed (px/sec) bled from the player on every shot — you physically feel the
 // gun braking the plane. Easily countered by throttle, so it reads as "weight",
 // not a stall trap. (Mirrors the Godot reference's per-shot speed cost.)

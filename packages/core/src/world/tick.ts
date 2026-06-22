@@ -39,6 +39,12 @@ import {
   HP_REGEN_PER_SEC,
   MAG_SIZE,
   RELOAD_SEC,
+  JACKAL_MAG_SIZE,
+  JACKAL_RELOAD_SEC,
+  JACKAL_BULLET_SPEED_MULT,
+  JACKAL_RECOIL_MULT,
+  JACKAL_ROCKET_DMG_MULT,
+  JACKAL_ROCKET_RADIUS_MULT,
   FIRE_RECOIL_SPEED_LOSS,
   BULLET_SPREAD_RAD,
   RAPIDFIRE_MULTIPLIER,
@@ -498,15 +504,19 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
   const newBulletList = stepBullets(state.bullets);
   const enemyRockets: Rocket[] = []; // homing rockets launched by rocket-capable enemies this tick
 
-  // Player weapon (with magazine + reload)
+  // Player weapon (with magazine + reload). Алые Шакалы fly a heavy-brawler gun: smaller
+  // magazine, slow fat "ball" rounds, and a harder recoil (С.О.В. = the light rapid stream).
+  const jk = state.playerFaction === 'jackals';
+  const playerMag = jk ? JACKAL_MAG_SIZE : MAG_SIZE;
+  const playerReloadSec = jk ? JACKAL_RELOAD_SEC : RELOAD_SEC;
   if (!playerPilotActive && player.state === 'flying' && player.alive) {
-    let ammo = player.ammo ?? MAG_SIZE;
+    let ammo = player.ammo ?? playerMag;
     let reloadTimer = player.reloadTimer ?? 0;
     const decrementedPlayerCooldown = Math.max(0, player.weaponCooldown - TICK_DT);
     if (reloadTimer > 0) {
       // Reloading — no firing; refill when the timer runs out.
       reloadTimer = Math.max(0, reloadTimer - TICK_DT);
-      if (reloadTimer === 0) ammo = MAG_SIZE;
+      if (reloadTimer === 0) ammo = playerMag;
       player = { ...player, weaponCooldown: decrementedPlayerCooldown, ammo, reloadTimer };
     } else {
       const fireResult = firePlayerWeapon(
@@ -526,24 +536,28 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
         const a = (roll.value - 0.5) * 2 * BULLET_SPREAD_RAD;
         const ca = Math.cos(a);
         const sa = Math.sin(a);
+        // Jackal rounds are big SLOW slugs — scale the muzzle velocity down and tag them
+        // so the renderer draws a fat glowing ball instead of a thin tracer.
+        const spd = jk ? JACKAL_BULLET_SPEED_MULT : 1;
         newBulletList.push({
           ...b,
           velocity: {
-            x: b.velocity.x * ca - b.velocity.y * sa,
-            y: b.velocity.x * sa + b.velocity.y * ca,
+            x: (b.velocity.x * ca - b.velocity.y * sa) * spd,
+            y: (b.velocity.x * sa + b.velocity.y * ca) * spd,
           },
+          heavyRound: jk,
         });
         nextEntityId++;
       }
       const firedThisTick = fireResult.bullets.length > 0;
       if (firedThisTick) {
         ammo = Math.max(0, ammo - 1);           // one trigger pull = one round
-        if (ammo === 0) reloadTimer = RELOAD_SEC;
+        if (ammo === 0) reloadTimer = playerReloadSec;
       }
       // Recoil: every shot bleeds a little airspeed — the gun physically brakes the
-      // plane (recovered with throttle). Reducing g; physics rebuilds velocity next tick.
+      // plane (recovered with throttle). The Jackal cannon brakes MUCH harder.
       const recoiledKinematic = firedThisTick
-        ? { ...player.kinematic, g: Math.max(0, player.kinematic.g - FIRE_RECOIL_SPEED_LOSS) }
+        ? { ...player.kinematic, g: Math.max(0, player.kinematic.g - FIRE_RECOIL_SPEED_LOSS * (jk ? JACKAL_RECOIL_MULT : 1)) }
         : player.kinematic;
       player = { ...player, kinematic: recoiledKinematic, weaponCooldown: fireResult.newCooldown, ammo, reloadTimer };
     }
@@ -761,9 +775,10 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
         heading,
         lifetime: WING_ROCKET_LIFETIME,
         alive: true,
-        damage: WING_ROCKET_DAMAGE * state.damageMultiplier * (cluster ? 1.4 : 1),
+        // Алые Шакалы carry heavier warheads.
+        damage: WING_ROCKET_DAMAGE * state.damageMultiplier * (cluster ? 1.4 : 1) * (jk ? JACKAL_ROCKET_DMG_MULT : 1),
         straight: true,
-        blastRadius: WING_ROCKET_BLAST_RADIUS * (cluster ? 1.3 : 1),
+        blastRadius: WING_ROCKET_BLAST_RADIUS * (cluster ? 1.3 : 1) * (jk ? JACKAL_ROCKET_RADIUS_MULT : 1),
       });
       nextEntityId++;
       wingRockets -= 1;
@@ -811,10 +826,11 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
             ownerId: player.id,
             ownerFaction: 'player',
             position: dronePos,
-            velocity: { x: Math.cos(angle) * BULLET_SPEED, y: Math.sin(angle) * BULLET_SPEED },
+            velocity: { x: Math.cos(angle) * BULLET_SPEED * (jk ? JACKAL_BULLET_SPEED_MULT : 1), y: Math.sin(angle) * BULLET_SPEED * (jk ? JACKAL_BULLET_SPEED_MULT : 1) },
             lifetime: BULLET_LIFETIME,
             damage: DRONE_DAMAGE * state.damageMultiplier,
             alive: true,
+            heavyRound: jk, // «Ведомый» fires the same fat Jackal slugs
           });
           nextEntityId++;
           firedAny = true;
