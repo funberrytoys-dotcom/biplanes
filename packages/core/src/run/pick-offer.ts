@@ -29,10 +29,11 @@ export function rollRunPickChoices(
   applied: readonly string[],
   affinity: Record<Branch, number>,
   rng: PickRng,
+  defs: readonly UpgradeDef[] = UPGRADE_DEFS,
 ): UpgradeDef[] {
   const timesTaken = (id: string) => applied.filter(a => a === id).length;
 
-  const available = UPGRADE_DEFS.filter(u => {
+  const available = defs.filter(u => {
     const taken = timesTaken(u.id);
     if (taken >= (u.maxStacks ?? 1)) return false;
     if (u.isEvolution) return u.evolutionRequires!.every(req => applied.includes(req));

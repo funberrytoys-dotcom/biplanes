@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { UPGRADE_DEFS } from '../upgrades/upgrade-pool.js';
+import { WINGMAN_DEF } from './faction.js';
 import {
   BRANCHES,
   BRANCH_LABEL,
@@ -23,8 +24,8 @@ describe('branches', () => {
       const branch = branchOfUpgrade(def.id);
       expect(BRANCHES).toContain(branch);
     }
-    // No stray ids in the map that are not real upgrades.
-    const realIds = new Set(UPGRADE_DEFS.map(d => d.id));
+    // No stray ids in the map that are not real upgrades (incl. faction-only ids).
+    const realIds = new Set([...UPGRADE_DEFS, WINGMAN_DEF].map(d => d.id));
     for (const id of Object.keys(UPGRADE_BRANCH)) {
       expect(realIds.has(id as never)).toBe(true);
     }

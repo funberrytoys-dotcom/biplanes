@@ -24,7 +24,8 @@ export type UpgradeId =
   | 'multishot'
   | 'lifesteal'
   | 'quick_salvo'
-  | 'bullet_storm';
+  | 'bullet_storm'
+  | 'wingman'; // Алые Шакалы — signature stackable mirror-plane (Jackal pool only)
 
 export interface UpgradeDef {
   id: UpgradeId;
@@ -85,11 +86,12 @@ export function upgradeChoiceTitle(def: UpgradeDef, nextTier: number): string {
 
 export function rollUpgradeChoices(
   applied: readonly string[],
-  rng: { pickN: <T>(items: readonly T[], n: number) => T[] }
+  rng: { pickN: <T>(items: readonly T[], n: number) => T[] },
+  pool: readonly UpgradeDef[] = UPGRADE_DEFS,
 ): UpgradeDef[] {
   const timesTaken = (id: string) => applied.filter(a => a === id).length;
 
-  const available = UPGRADE_DEFS.filter(u => {
+  const available = pool.filter(u => {
     const taken = timesTaken(u.id);
     if (taken >= (u.maxStacks ?? 1)) return false;
     if (u.isEvolution) {

@@ -36,9 +36,10 @@ export const UPGRADE_BRANCH: Record<UpgradeId, Branch> = {
   flame_trail: 'bombardier',
   fire_screen: 'bombardier',
   quick_salvo: 'bombardier',
-  // Командир звена — drones
+  // Командир звена — drones / swarm
   drone_wingman: 'commander',
   chico_wing: 'commander',
+  wingman: 'commander',
   // Корпус и сила — survival / passive
   hp_plus_25: 'hull',
   hp_plus_50: 'hull',

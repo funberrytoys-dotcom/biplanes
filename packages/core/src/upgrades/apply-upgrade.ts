@@ -44,6 +44,13 @@ export function applyUpgrade(state: WorldState, id: UpgradeId): WorldState {
       hasDrone = true;
       droneCount = Math.max(droneCount, 1);
       break;
+    case 'wingman':
+      // «Ведомый» — the Jackal signature. Each stack adds another mirror-plane on your
+      // tail (reuses the trailing-drone firing loop). Phase 1: immortal; phase 2 gives
+      // each its own HP that vanishes when shot.
+      hasDrone = true;
+      droneCount += 1;
+      break;
     case 'multishot': multishotExtra += 1; break;
     case 'lifesteal': lifestealPerKill += 8; break;
     case 'quick_salvo': salvoCooldownMultiplier *= 0.78; break;

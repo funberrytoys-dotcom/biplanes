@@ -45,6 +45,7 @@ import {
   recordReroll,
   recordSkip,
   rollRunPickChoices,
+  factionUpgradePool,
   buildRunSummary,
   isBossWave,
   runEnemyCountForWave,
@@ -895,6 +896,9 @@ async function loadVisualAssetsResilient(urls: readonly string[]): Promise<void>
 const RUN_PLAYER_MAX_HP = 180;
 const RUN_PLAYER_DAMAGE_MULT = 1.5;
 const RUN_PLAYER_FIRE_RATE_MULT = 0.12 / 0.085; // ≈1.41
+// Алые Шакалы run modifiers: glass cannon — thinner hull, meaner caliber (tunable).
+const RUN_JACKAL_HP_MULT = 0.7;     // ~126 HP vs С.О.В. 180
+const RUN_JACKAL_DAMAGE_MULT = 1.15;
 // Boss «Шрам» HP for the run. Big jump from the old ~2100 (which a built-up player
 // melted in seconds) → a real, build-gated fight. PLAYTEST-TUNE THIS knob: if the boss
 // dies too fast, raise it; if it's a slog, lower it.
@@ -1200,7 +1204,7 @@ export async function startGame(container: HTMLElement) {
 
   // Wingman drone sprites — small brass dieselpunk drones that trail the plane.
   const droneSprites: { c: Container; prop: Graphics }[] = [];
-  for (let i = 0; i < 2; i++) {
+  for (let i = 0; i < 5; i++) { // up to 5 for the Jackal «Ведомый» swarm (wingman ×4 + base)
     const c = new Container();
     const body = new Graphics();
     body.ellipse(0, 0, 12, 7).fill({ color: 0xc8922e }).stroke({ color: 0x2a1a0e, width: 1.6 });
@@ -1928,7 +1932,7 @@ export async function startGame(container: HTMLElement) {
     const salt =
       ((arenaRound * 0x9e3779b9) ^ (runSession.picks.length * 0x85ebca6b) ^ (runSession.rerollsRemaining * 0xc2b2ae35)) >>> 0;
     const rng = createRng((state.rngState ^ salt ^ state.tickCount) >>> 0);
-    const choices = rollRunPickChoices(state.appliedUpgradeIds, runSession.affinity, rng);
+    const choices = rollRunPickChoices(state.appliedUpgradeIds, runSession.affinity, rng, factionUpgradePool(chosenFaction));
     arenaRoundPhase = 'upgrade';
     state = { ...state, pendingLevelUp: false };
     if (choices.length > 0) {
@@ -1945,7 +1949,7 @@ export async function startGame(container: HTMLElement) {
       return;
     }
     const rng = createRng((state.rngState ^ (arenaRound * 0x9e3779b9) ^ state.tickCount) >>> 0);
-    const choices = rollUpgradeChoices(state.appliedUpgradeIds, rng);
+    const choices = rollUpgradeChoices(state.appliedUpgradeIds, rng, factionUpgradePool(chosenFaction));
     arenaRoundPhase = 'upgrade';
     state = { ...state, pendingLevelUp: false };
     if (choices.length > 0) {
@@ -2058,7 +2062,7 @@ export async function startGame(container: HTMLElement) {
   function openLevelUpChoices() {
     if (!state.pendingLevelUp || choicesShowing) return;
     const rng = createRng((state.rngState ^ (state.level * 0x9e3779b9) ^ state.tickCount) >>> 0);
-    const choices = rollUpgradeChoices(state.appliedUpgradeIds, rng);
+    const choices = rollUpgradeChoices(state.appliedUpgradeIds, rng, factionUpgradePool(chosenFaction));
     if (choices.length > 0) {
       if (shouldShowFirstUpgradeBriefing({
         runMode,
@@ -2274,10 +2278,15 @@ export async function startGame(container: HTMLElement) {
     // run still ramps — but you START as the predator. maxHp carries across waves
     // (makeArenaRunwayPlayer preserves it); the multipliers persist on world state
     // and upgrades stack on top.
+    // Алые Шакалы are GLASS: thinner hull (less HP) but a meaner caliber (more damage).
+    // С.О.В. keep the balanced power-fantasy loadout. Their swarm («Ведомый») + aggressive
+    // build pool is how the Jackals win — by numbers, not survivability.
+    const isJackals = chosenFaction === 'jackals';
+    const runMaxHp = Math.round(RUN_PLAYER_MAX_HP * (isJackals ? RUN_JACKAL_HP_MULT : 1));
     state = {
       ...state,
-      player: { ...state.player, maxHp: RUN_PLAYER_MAX_HP, hp: RUN_PLAYER_MAX_HP },
-      damageMultiplier: state.damageMultiplier * RUN_PLAYER_DAMAGE_MULT,
+      player: { ...state.player, maxHp: runMaxHp, hp: runMaxHp },
+      damageMultiplier: state.damageMultiplier * RUN_PLAYER_DAMAGE_MULT * (isJackals ? RUN_JACKAL_DAMAGE_MULT : 1),
       fireRateMultiplier: state.fireRateMultiplier * RUN_PLAYER_FIRE_RATE_MULT,
     };
   }
