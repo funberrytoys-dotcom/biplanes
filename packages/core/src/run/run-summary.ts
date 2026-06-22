@@ -1,8 +1,8 @@
-import { UPGRADE_DEFS } from '../upgrades/upgrade-pool.js';
 import type { Branch } from './branches.js';
-import { BRANCHES, BRANCH_LABEL, branchOfUpgrade, keystoneTier } from './branches.js';
+import { BRANCHES, branchOfUpgrade, keystoneTier } from './branches.js';
 import { RUN_WAVE_COUNT } from './run-waves.js';
 import type { RunState } from './run-state.js';
+import { factionUpgradePool, FACTION_BRANCH_LABEL, type RunFaction } from './faction.js';
 
 export interface RunSummaryBranch {
   branch: Branch;
@@ -28,23 +28,27 @@ export interface RunSummary {
   branches: RunSummaryBranch[]; // one per branch, sorted by affinity desc
 }
 
-const TITLE_BY_ID: Record<string, string> = Object.fromEntries(
-  UPGRADE_DEFS.map(d => [d.id, d.title]),
-);
-
 export function buildRunSummary(
   run: RunState,
   outcome: 'won' | 'lost',
   stats: RunSummaryStats,
+  faction: RunFaction = 'sov',
 ): RunSummary {
+  // Resolve titles + branch labels from the player's FACTION pool, so an Алые Шакалы
+  // debrief shows Jackal card names ('Железный дождь', «Ведомый», …) and Jackal branch
+  // labels ('Налётчик'…) instead of С.О.В. names or the raw 'wingman' token.
+  const titleById: Record<string, string> = Object.fromEntries(
+    factionUpgradePool(faction).map(d => [d.id, d.title]),
+  );
+  const branchLabel = FACTION_BRANCH_LABEL[faction];
   const branches: RunSummaryBranch[] = BRANCHES.map(branch => ({
     branch,
-    label: BRANCH_LABEL[branch],
+    label: branchLabel[branch],
     affinity: run.affinity[branch],
     keystoneTier: keystoneTier(run.affinity[branch]),
     pickTitles: run.picks
       .filter(id => branchOfUpgrade(id) === branch)
-      .map(id => TITLE_BY_ID[id] ?? id),
+      .map(id => titleById[id] ?? id),
   })).sort((a, b) => b.affinity - a.affinity);
 
   return {

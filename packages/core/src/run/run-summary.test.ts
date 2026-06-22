@@ -37,6 +37,31 @@ describe('buildRunSummary', () => {
     expect(s.branches).toHaveLength(4);
   });
 
+  it('uses the FACTION pool titles + labels for an Алые Шакалы run (no raw "wingman")', () => {
+    let run = createRunState();
+    run = recordPick(run, 'wingman');      // commander — the Jackal signature card
+    run = recordPick(run, 'cluster_bomb'); // bombardier — Jackal-overridden title
+    const s = buildRunSummary(run, 'won', { kills: 5, timeSec: 30 }, 'jackals');
+
+    const commander = s.branches.find(b => b.branch === 'commander')!;
+    expect(commander.label).toBe('Атаман');                 // Jackal branch label, not 'Командир звена'
+    expect(commander.pickTitles).toContain('Ведомый');      // human title…
+    expect(commander.pickTitles).not.toContain('wingman');  // …not the raw id
+
+    const bombardier = s.branches.find(b => b.branch === 'bombardier')!;
+    expect(bombardier.label).toBe('Стервятник');
+    expect(bombardier.pickTitles).toContain('Железный дождь'); // Jackal override of cluster_bomb
+  });
+
+  it('defaults to С.О.В. titles/labels when no faction is passed', () => {
+    let run = createRunState();
+    run = recordPick(run, 'cluster_bomb');
+    const s = buildRunSummary(run, 'won', { kills: 1, timeSec: 1 });
+    const bombardier = s.branches.find(b => b.branch === 'bombardier')!;
+    expect(bombardier.label).toBe('Бомбардир');
+    expect(bombardier.pickTitles).toContain('Тяжёлые БЧ');
+  });
+
   it('reports keystone tier per branch from affinity (3/6/9)', () => {
     let run = createRunState();
     for (let i = 0; i < 3; i++) run = recordPick(run, 'damage_plus_25'); // assault x3 (maxStacks 4)

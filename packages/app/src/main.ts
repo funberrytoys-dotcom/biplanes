@@ -2267,6 +2267,7 @@ export async function startGame(container: HTMLElement) {
       { ...runSession, wave: arenaRound },
       outcome,
       { kills: state.playerScore, timeSec: state.timeSec },
+      chosenFaction,
     );
     gameRunning = false;
     choicesShowing = true; // pauses the sim while the debrief is up
