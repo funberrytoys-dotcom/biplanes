@@ -917,6 +917,8 @@ const RUN_PLAYER_FIRE_RATE_MULT = 0.12 / 0.085; // ≈1.41
 const RUN_JACKAL_HP_MULT = 240 / 180;       // ≈1.33 → 240 HP, tankier
 const RUN_JACKAL_DAMAGE_MULT = 2.0;          // 30 dmg/shot sledgehammer
 const RUN_JACKAL_FIRE_RATE_MULT = 0.085 / 0.150; // ≈0.567 → fire interval 0.085s→0.150s
+const RUN_JACKAL_INCOMING_DMG_MULT = 0.8;    // armored: takes 20% less incoming damage
+const RUN_JACKAL_SPEED_MULT = 0.9;           // heavier airframe: ~10% slower top speed
 // Boss «Шрам» HP for the run. Big jump from the old ~2100 (which a built-up player
 // melted in seconds) → a real, build-gated fight. PLAYTEST-TUNE THIS knob: if the boss
 // dies too fast, raise it; if it's a slog, lower it.
@@ -2431,6 +2433,8 @@ export async function startGame(container: HTMLElement) {
         maxHp: runMaxHp, hp: runMaxHp,
         ammo: isJackals ? JACKAL_MAG_SIZE : MAG_SIZE, // 60-round Jackal magazine
         reloadTimer: 0,
+        incomingDamageMultiplier: isJackals ? RUN_JACKAL_INCOMING_DMG_MULT : 1, // armor
+        speedMultiplier: isJackals ? RUN_JACKAL_SPEED_MULT : 1,                  // heavier airframe
       },
       damageMultiplier: state.damageMultiplier * RUN_PLAYER_DAMAGE_MULT * (isJackals ? RUN_JACKAL_DAMAGE_MULT : 1),
       fireRateMultiplier: state.fireRateMultiplier * RUN_PLAYER_FIRE_RATE_MULT * (isJackals ? RUN_JACKAL_FIRE_RATE_MULT : 1),
@@ -3421,7 +3425,9 @@ export async function startGame(container: HTMLElement) {
       seenBulletIds.add(b.id);
       if (!prevBulletIds.has(b.id)) {
         const heading = Math.atan2(b.velocity.y, b.velocity.x);
-        emitGunfeelShotVfx(b.position.x, b.position.y, heading, b.ownerFaction, b.isHeavy);
+        // Jackal heavy rounds get the HEAVY gun-feel: big nose-kick, deep BOOM sound, fat
+        // muzzle flash (routed through the same isHeavy path as the heavy cannon).
+        emitGunfeelShotVfx(b.position.x, b.position.y, heading, b.ownerFaction, b.isHeavy || !!b.heavyRound);
       }
     }
     prevBulletIds = seenBulletIds;

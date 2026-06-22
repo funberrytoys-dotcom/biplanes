@@ -39,6 +39,10 @@ export interface Plane {
   isBoss?: boolean;
   visualScale?: number;
   bossName?: string;
+  /** <1 = armored (takes less damage). Алые Шакалы run with ~0.8. Default 1. */
+  incomingDamageMultiplier?: number;
+  /** Scales the airframe's top speed (level + dive caps). Алые Шакалы ~0.9. Default 1. */
+  speedMultiplier?: number;
   /** Enemy only: this plane can launch homing rockets at the player. */
   firesRockets?: boolean;
   /** Enemy only: seconds until the next rocket launch is allowed. */

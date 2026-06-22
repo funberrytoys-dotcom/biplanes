@@ -217,7 +217,7 @@ function stepPlaneByState(
     rotate: cmd.rotate,
     boost: cmd.boost,
     boostMultiplier: cmd.boostMultiplier,
-  }, dt, worldWidth, softFloor, worldHeight);
+  }, dt, worldWidth, softFloor, worldHeight, p.speedMultiplier ?? 1);
 
   if (!softFloor && newKin.position.y >= worldHeight - 90 - 0.5 && preVy > CRASH_VY_THRESHOLD) {
     return {
@@ -545,6 +545,8 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
             x: (b.velocity.x * ca - b.velocity.y * sa) * spd,
             y: (b.velocity.x * sa + b.velocity.y * ca) * spd,
           },
+          // Slower slugs live proportionally LONGER so they reach the same RANGE as С.О.В.
+          lifetime: jk ? b.lifetime / JACKAL_BULLET_SPEED_MULT : b.lifetime,
           heavyRound: jk,
         });
         nextEntityId++;
@@ -827,7 +829,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
             ownerFaction: 'player',
             position: dronePos,
             velocity: { x: Math.cos(angle) * BULLET_SPEED * (jk ? JACKAL_BULLET_SPEED_MULT : 1), y: Math.sin(angle) * BULLET_SPEED * (jk ? JACKAL_BULLET_SPEED_MULT : 1) },
-            lifetime: BULLET_LIFETIME,
+            lifetime: jk ? BULLET_LIFETIME / JACKAL_BULLET_SPEED_MULT : BULLET_LIFETIME, // same range despite slower slugs
             damage: DRONE_DAMAGE * state.damageMultiplier,
             alive: true,
             heavyRound: jk, // «Ведомый» fires the same fat Jackal slugs

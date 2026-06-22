@@ -94,8 +94,8 @@ export function resolvePlanePlaneCollisions(
       const dmgA = Math.min(A.maxHp * COLLISION_MAX_HP_FRACTION, Math.max(COLLISION_MIN_DAMAGE, raw));
       const dmgB = Math.min(B.maxHp * COLLISION_MAX_HP_FRACTION, Math.max(COLLISION_MIN_DAMAGE, raw));
 
-      const damageToA = dmgA * (A.faction === 'player' ? playerDamageMultiplier : 1);
-      const damageToB = dmgB * (B.faction === 'player' ? playerDamageMultiplier : 1);
+      const damageToA = dmgA * (A.faction === 'player' ? playerDamageMultiplier : 1) * (A.incomingDamageMultiplier ?? 1);
+      const damageToB = dmgB * (B.faction === 'player' ? playerDamageMultiplier : 1) * (B.incomingDamageMultiplier ?? 1);
       A.hp = Math.max(0, A.hp - damageToA);
       B.hp = Math.max(0, B.hp - damageToB);
 

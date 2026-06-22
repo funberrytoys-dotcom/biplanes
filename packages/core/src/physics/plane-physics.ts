@@ -47,7 +47,8 @@ export function stepPlane(
   dt: number = TICK_DT,
   worldWidth: number = WORLD_WIDTH,
   softFloor: boolean = false,
-  worldHeight: number = WORLD_HEIGHT
+  worldHeight: number = WORLD_HEIGHT,
+  speedMult: number = 1, // <1 = heavier airframe with a lower top speed (Алые Шакалы)
 ): PlaneKinematic {
   const groundY = worldHeight - 90;
   // 1) Continuous rotation
@@ -111,7 +112,8 @@ export function stepPlane(
   const throttleLevel = Math.max(0, Math.min(1, p.throttleLevel));
   const targetSpeed = G_MAX_LEVEL
     * throttleLevel
-    * (input.boost ? BOOST_SPEED_MULTIPLIER * (input.boostMultiplier ?? 1) : 1);
+    * (input.boost ? BOOST_SPEED_MULTIPLIER * (input.boostMultiplier ?? 1) : 1)
+    * speedMult;
   const thrustFactor = Math.abs(cosH); // 1 at horizontal, 0 at vertical
   if (g < targetSpeed) {
     // Accelerate toward target
@@ -129,7 +131,7 @@ export function stepPlane(
   if (pitchEffect > 0) {
     g = Math.max(0, g - pitchEffect);
   } else {
-    g = Math.min(G_MAX_DIVE, g - pitchEffect);
+    g = Math.min(G_MAX_DIVE * speedMult, g - pitchEffect);
   }
 
   // 6) Constant drag

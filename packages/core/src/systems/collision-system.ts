@@ -44,7 +44,7 @@ export function resolveBulletPlaneHits(
       const dx = b.position.x - player.kinematic.position.x;
       const dy = b.position.y - player.kinematic.position.y;
       if (dx * dx + dy * dy < PLANE_HIT_RADIUS * PLANE_HIT_RADIUS) {
-        newPlayer = { ...newPlayer, hp: Math.max(0, newPlayer.hp - b.damage) };
+        newPlayer = { ...newPlayer, hp: Math.max(0, newPlayer.hp - b.damage * (newPlayer.incomingDamageMultiplier ?? 1)) };
         if (newPlayer.hp === 0) {
           newPlayer.alive = false;
           newPlayer.state = 'dying';
@@ -153,7 +153,7 @@ export function applyExplosionDamage(
     const dy = player.kinematic.position.y - pos.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
     if (dist < radius) {
-      const damage = maxDamage * (1 - dist / radius);
+      const damage = maxDamage * (1 - dist / radius) * (newPlayer.incomingDamageMultiplier ?? 1);
       newPlayer.hp = Math.max(0, newPlayer.hp - damage);
       if (newPlayer.hp === 0) {
         newPlayer.alive = false;
