@@ -266,7 +266,6 @@ function applyPlayerEngineStress(
   worldHeight: number,
   heatMultiplier: number = 1,
   coolingMultiplier: number = 1,
-  overheatRoll: number | null = null,
 ): Plane {
   if (p.state !== 'flying' || !p.alive) {
     return { ...p, boostHeat: 0, boostActive: false, noThrottleSec: 0 };
@@ -283,10 +282,11 @@ function applyPlayerEngineStress(
   const stressed = { ...p, boostHeat: heat, boostActive: boost, noThrottleSec };
 
   if (heat >= 1) {
-    if (overheatRoll !== null && overheatRoll < 0.5) {
-      return igniteByEngineOverheat(stressed);
-    }
-    return killByEngineFailure(stressed);
+    // Overheat = the engine catches FIRE: drop to the fire threshold and burn down
+    // while you fall ("мотор перегрелся"). It must NEVER be an instant death-spin /
+    // game-over the moment heat hits the redline (owner request). The death-spin
+    // (killByEngineFailure) is reserved for choking the engine by idling low.
+    return igniteByEngineOverheat(stressed);
   }
 
   const lowerDangerY = (worldHeight - 90) * 0.55;
@@ -438,16 +438,6 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
       boost: boostActive,
       boostMultiplier: state.boostPowerMultiplier,
     }, TICK_DT, worldWidth, softFloor, worldHeight);
-    let overheatRoll: number | null = null;
-    const willOverheat = player.state === 'flying'
-      && player.alive
-      && boostActive
-      && ((player.boostHeat ?? 0) + TICK_DT / BOOST_OVERHEAT_SEC * state.boostHeatMultiplier) >= 1;
-    if (willOverheat) {
-      const roll = nextRandom(rngState);
-      rngState = roll.rngState;
-      overheatRoll = roll.value;
-    }
     player = applyPlayerEngineStress(
       player,
       boostActive,
@@ -455,7 +445,6 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
       worldHeight,
       state.boostHeatMultiplier,
       state.boostCoolingMultiplier,
-      overheatRoll,
     );
 
     // Eject player → spawn player pilot

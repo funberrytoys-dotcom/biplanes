@@ -61,42 +61,29 @@ describe('world tick', () => {
     expect(boosted.player.boostActive).toBe(true);
   });
 
-  it('kills the player in a death spin after sustained boost overheat', () => {
+  it('IGNITES the engine (fire + HP loss), never an instant death spin, on sustained overheat', () => {
     let s = createWorldState(42, makePlayer());
     for (let i = 0; i < Math.ceil(BOOST_OVERHEAT_SEC / TICK_DT) + 2; i++) {
       s = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false, boost: true });
     }
 
-    expect(s.player.state).toBe('dying');
-    expect(s.player.alive).toBe(false);
-    expect(s.player.hp).toBe(0);
+    // Overheat = engine catches fire: still flying, alive, but burned down to the
+    // fire threshold (then it keeps burning and you fall). NOT a game-over the moment
+    // the gauge redlines. (Owner: overheat must be "мотор перегрелся", not instant death.)
+    expect(s.player.state).toBe('flying');
+    expect(s.player.alive).toBe(true);
+    expect(s.player.hp / s.player.maxHp).toBeLessThanOrEqual(0.25);
   });
 
-  it('can ignite the player engine instead of immediately killing it on boost overheat', () => {
-    const s = createWorldState(7, {
-      ...makePlayer(),
-      boostHeat: 0.999,
-    });
-
-    const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false, boost: true });
-
-    expect(after.player.state).toBe('flying');
-    expect(after.player.alive).toBe(true);
-    expect(after.player.hp / after.player.maxHp).toBeLessThanOrEqual(0.25);
-    expect(after.player.boostHeat).toBeLessThan(1);
-  });
-
-  it('can choke the player engine into a death spin on boost overheat', () => {
-    const s = createWorldState(1, {
-      ...makePlayer(),
-      boostHeat: 0.999,
-    });
-
-    const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false, boost: true });
-
-    expect(after.player.state).toBe('dying');
-    expect(after.player.alive).toBe(false);
-    expect(after.player.hp).toBe(0);
+  it('ignite on overheat is deterministic — same outcome regardless of seed', () => {
+    for (const seed of [7, 1, 99]) {
+      const s = createWorldState(seed, { ...makePlayer(), boostHeat: 0.999 });
+      const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false, boost: true });
+      expect(after.player.state).toBe('flying');
+      expect(after.player.alive).toBe(true);
+      expect(after.player.hp / after.player.maxHp).toBeLessThanOrEqual(0.25);
+      expect(after.player.boostHeat).toBeLessThan(1);
+    }
   });
 
   it('kills the player in a death spin after three seconds with no throttle in the lower map', () => {
