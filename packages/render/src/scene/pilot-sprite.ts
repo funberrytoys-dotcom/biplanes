@@ -26,6 +26,7 @@ const ENEMY_COLORS: PilotColors = {
 export function createPilotSprite(faction: 'player' | 'enemy' = 'player'): {
   container: Container;
   update: (p: Pilot) => void;
+  destroy: () => void;
 } {
   const colors = faction === 'player' ? PLAYER_COLORS : ENEMY_COLORS;
   const c = new Container();
@@ -160,6 +161,9 @@ export function createPilotSprite(faction: 'player' | 'enemy' = 'player'): {
       if (p.state === 'dead') {
         deadGroup.alpha = Math.max(0.4, Math.min(1, p.deathTimer / 2.0));
       }
+    },
+    destroy() {
+      c.destroy({ children: true });
     },
   };
 }

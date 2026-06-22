@@ -48,6 +48,8 @@ export interface PlaneSpriteHandle {
     groundFx?: GroundFx,
     opts?: PlaneSpriteUpdateOpts,
   ) => void;
+  /** Free this sprite's display objects (children only — keeps the shared spritesheet). */
+  destroy: () => void;
 }
 
 // `faction` = combat role (drives gameplay-side visuals like contrails/taxi/camera).
@@ -599,6 +601,13 @@ export function createPlaneSprite(
 
       wasAlive = p.alive && p.state !== 'crashed';
       prevState = p.state;
+    },
+    destroy() {
+      // Free per-sprite Graphics/geometry. children:true only — the shared spritesheet
+      // texture is NOT destroyed, so the other planes keep rendering.
+      c.destroy({ children: true });
+      hpBar.destroy({ children: true });
+      shadow.destroy();
     },
   };
 }

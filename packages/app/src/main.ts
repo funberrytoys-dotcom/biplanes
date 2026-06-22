@@ -2318,6 +2318,15 @@ export async function startGame(container: HTMLElement) {
     prevPlayerState = state.player.state;
     prevTickCount = state.tickCount;
     prevPlayerHp = state.player.hp;
+    // Reset rising-edge VFX/audio detectors so a fresh mode doesn't fire a phantom
+    // one-frame cue (reload-ready chime, enemy-rocket hiss, boost kick…) carried over
+    // from the previous session, and so stale per-enemy HP-diff numbers can't mis-spawn.
+    prevBoostActive = false;
+    prevSpecialCooldown = 0;
+    prevReloading = false;
+    prevEnemyRocketCount = 0;
+    flameTrailAcc = 0;
+    enemyHpForFx.clear();
     bullets.sync([]);
     bombSprites.sync([]);
     rocketSprites.sync([]);
@@ -3233,8 +3242,11 @@ export async function startGame(container: HTMLElement) {
         }
         enemyHpForFx.set(e.id, e.hp);
       }
-      for (const id of [...enemyHpForFx.keys()]) {
-        if (!state.enemies.some(e => e.id === id)) enemyHpForFx.delete(id);
+      // Prune HP-FX entries for despawned enemies. O(n+m) via a live-id Set instead of
+      // the old O(n*m) `.some()` scan (deleting the current key during Map iteration is safe).
+      const liveEnemyIds = new Set<number>(state.enemies.map(e => e.id));
+      for (const id of enemyHpForFx.keys()) {
+        if (!liveEnemyIds.has(id)) enemyHpForFx.delete(id);
       }
 
       // Salvo launch VFX — specialCooldown jumps from ~0 back to full when fired.
@@ -3521,9 +3533,7 @@ export async function startGame(container: HTMLElement) {
     }
     for (const [id, s] of enemySprites) {
       if (!seenEnemy.has(id)) {
-        planeLayer.removeChild(s.container);
-        planeLayer.removeChild(s.hpBar);
-        groundShadowLayer.removeChild(s.shadow);
+        s.destroy(); // detaches from layers + frees Graphics/geometry (keeps shared spritesheet)
         enemySprites.delete(id);
       }
     }
@@ -3542,7 +3552,7 @@ export async function startGame(container: HTMLElement) {
     }
     for (const [id, s] of pilotSprites) {
       if (!seenPilot.has(id)) {
-        planeLayer.removeChild(s.container);
+        s.destroy();
         pilotSprites.delete(id);
       }
     }
@@ -3674,13 +3684,11 @@ export async function startGame(container: HTMLElement) {
     choicesShowing = false;
     acc = 0; // Reset physics time accumulator to avoid hyper-speed catch-up spikes
     for (const [, s] of enemySprites) {
-      planeLayer.removeChild(s.container);
-      planeLayer.removeChild(s.hpBar);
-      groundShadowLayer.removeChild(s.shadow);
+      s.destroy();
     }
     enemySprites.clear();
     for (const [, s] of pilotSprites) {
-      planeLayer.removeChild(s.container);
+      s.destroy();
     }
     pilotSprites.clear();
     bullets.sync([]);
