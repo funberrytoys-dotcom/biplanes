@@ -25,5 +25,10 @@ export function branchStyle(branch: Branch): BranchStyle {
 }
 
 export function branchStyleForUpgradeId(id: string): BranchStyle {
-  return branchStyle(branchOfUpgrade(id as UpgradeId));
+  // branchOfUpgrade is typed Branch but returns undefined at runtime for an id not in
+  // UPGRADE_BRANCH (e.g. a future faction pick). Fall back to a neutral 'hull' style so
+  // the level-up card render never dereferences an undefined palette entry (a throw in
+  // the Pixi draw path freezes the game).
+  const branch = branchOfUpgrade(id as UpgradeId) as Branch | undefined;
+  return branchStyle(branch && BRANCH_PALETTE[branch] ? branch : 'hull');
 }

@@ -213,16 +213,21 @@ export function createScreenEffects(width: number, height: number): ScreenEffect
                  .fill({ color: 0x0f0904, alpha: 0.82 * (drop.life / drop.maxLife) });
       }
 
-      // Desaturation death filter
+      // Desaturation death filter. Splice deathFilter in/out of whatever filters the
+      // worldRoot already has instead of replacing/nulling the whole array, so a filter
+      // owned by another system isn't clobbered on enable or wiped on disable.
+      const current = worldRoot.filters;
+      const arr = Array.isArray(current) ? [...current] : current ? [current] : [];
+      const hasFilter = arr.includes(deathFilter);
       if (deathTintActive) {
-        const hasFilter = Array.isArray(worldRoot.filters) && worldRoot.filters.includes(deathFilter);
         if (!hasFilter) {
           deathFilter.reset();
           deathFilter.saturate(-0.6, true);
-          worldRoot.filters = [deathFilter];
+          worldRoot.filters = [...arr, deathFilter];
         }
-      } else if (Array.isArray(worldRoot.filters) && worldRoot.filters.includes(deathFilter)) {
-        worldRoot.filters = null;
+      } else if (hasFilter) {
+        const remaining = arr.filter(f => f !== deathFilter);
+        worldRoot.filters = remaining.length > 0 ? remaining : null;
       }
     },
     resize(nw, nh) {

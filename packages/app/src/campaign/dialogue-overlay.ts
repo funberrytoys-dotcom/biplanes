@@ -128,8 +128,18 @@ export function createDialogueOverlay(width: number, height: number) {
     portraitSprite.anchor.set(0.5);
     portraitSprite.x = 63;
     portraitSprite.y = 63;
-    const scale = 118 / Math.max(portraitSprite.width, portraitSprite.height);
-    portraitSprite.scale.set(scale);
+    const spr = portraitSprite;
+    // Fit into a 118px box from the TEXTURE size (idempotent; unaffected by current scale).
+    // If the texture isn't loaded yet its size is 0 — the old `118 / 0` made scale Infinity
+    // (an invisible/garbage portrait). Guard that and re-fit once the texture resolves.
+    const fitPortrait = () => {
+      const m = Math.max(spr.texture.width, spr.texture.height);
+      spr.scale.set(m > 0 ? 118 / m : 1);
+    };
+    fitPortrait();
+    if (!(spr.texture.width > 0)) {
+      spr.texture.source.once('update', fitPortrait);
+    }
     portraitHolder.addChild(portraitSprite);
   }
 

@@ -48,7 +48,7 @@ function createAnimatedPlaneArt(art: typeof PLANE_ART.player | typeof PLANE_ART.
     });
   });
   const firstFrame = frames[0];
-  if (!firstFrame) throw new Error('Enemy plane spritesheet has no frames');
+  if (!firstFrame) throw new Error(`Plane spritesheet ${art.url} has no frames`);
   const sprite = new Sprite(firstFrame);
   let time = 0;
 
