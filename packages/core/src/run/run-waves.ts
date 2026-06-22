@@ -2,12 +2,16 @@
 export const RUN_WAVE_COUNT = 15;
 
 /**
- * Enemy count per wave (index 0 = wave 1). Draft curve, calibration stage — the
- * real numbers come from §13.4 in the balance plan (Plan 6). Wave 15 is the boss,
- * handled separately, so its escort count here is 0 (solo boss for the skeleton).
+ * Enemy count per wave (index 0 = wave 1). Smooth ramp: **+1 enemy every round** so the
+ * difficulty visibly rises EACH wave (owner: "сложность должна расти постепенно каждый
+ * раунд"). The old curve repeated 12,12 and 13,13 → those rounds were no harder than the
+ * previous (a threat dip). Strictly increasing fixes that; combined with the HP curve the
+ * total threat (count×HP) rises every wave with a smoothly-shrinking step (≈×1.7 early →
+ * ×1.16 late), i.e. steep onboarding then a gentle grind — matching §13.4. Wave 15 is the
+ * boss (handled separately) so its escort count is 0.
  */
 export const RUN_WAVE_ENEMY_COUNTS: readonly number[] = [
-  3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 12, 13, 13, 14, 0,
+  3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 0,
 ] as const;
 
 export function isBossWave(wave: number): boolean {

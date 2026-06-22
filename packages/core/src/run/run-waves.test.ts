@@ -25,9 +25,21 @@ describe('run-waves', () => {
     expect(runEnemyCountForWave(16)).toBe(0);
   });
 
-  it('ramps enemy counts non-decreasing across waves 1..14', () => {
+  it('ramps enemy counts STRICTLY UP every wave 1..14 (difficulty rises each round)', () => {
     for (let w = 2; w <= 14; w++) {
-      expect(runEnemyCountForWave(w)).toBeGreaterThanOrEqual(runEnemyCountForWave(w - 1));
+      expect(runEnemyCountForWave(w)).toBeGreaterThan(runEnemyCountForWave(w - 1));
+    }
+  });
+
+  it('total threat (count × HP) rises EVERY round, with a smoothly shrinking step', () => {
+    const threat = (w: number) => runEnemyCountForWave(w) * runEnemyHpMultiplierForWave(w);
+    let prevRatio = Infinity;
+    for (let w = 2; w <= 14; w++) {
+      const ratio = threat(w) / threat(w - 1);
+      expect(threat(w)).toBeGreaterThan(threat(w - 1)); // постепенно: each round harder
+      expect(ratio).toBeLessThanOrEqual(prevRatio + 1e-9); // gradual: step never grows
+      expect(ratio).toBeLessThan(1.8); // no brutal spike
+      prevRatio = ratio;
     }
   });
 
