@@ -724,14 +724,14 @@ function makeArenaSupplyBalloons(startId: number, player: Plane, count: number):
   return out;
 }
 
-function makeArenaRoundEnemy(id: number, player: Plane, round: number, lane: number = 0, isRun = false): Plane {
+function makeArenaRoundEnemy(id: number, player: Plane, round: number, lane: number = 0, isRun = false, jackalEnemy = false): Plane {
   const role = arenaEnemyRoleForRound(round, lane);
   const roleTuning = arenaEnemyRoleTuning(role);
   // «Забег» uses a chunkier base HP + gentle curve over 15 waves; arena keeps its own.
   const hpMul = isRun ? runEnemyHpMultiplierForWave(round) : arenaEnemyHpMultiplierForRound(round);
   const baseHp = isRun ? RUN_ENEMY_BASE_HP : ENEMY_INITIAL_HP_LIGHT;
-  const hp = Math.round(baseHp * hpMul * roleTuning.hpScale);
-  const speed = G_MAX_LEVEL * Math.min(1.2, (0.92 + round * 0.03) * roleTuning.speedScale);
+  const hp = Math.round(baseHp * hpMul * roleTuning.hpScale * (jackalEnemy ? ARENA_JACKAL_ENEMY_HP_MULT : 1));
+  const speed = G_MAX_LEVEL * Math.min(1.2, (0.92 + round * 0.03) * roleTuning.speedScale) * (jackalEnemy ? ARENA_JACKAL_ENEMY_SPEED_MULT : 1);
   const fromRight = player.kinematic.position.x < ARENA_WORLD_WIDTH * 0.55;
   const heading = fromRight ? Math.PI : 0;
   const x = fromRight
@@ -768,6 +768,7 @@ function makeArenaRoundEnemy(id: number, player: Plane, round: number, lane: num
     visualScale: roleTuning.visualScale,
     firesRockets,
     rocketCooldown: firesRockets ? 2.0 + lane * 0.4 : undefined,
+    firesHeavy: jackalEnemy,
   };
 }
 
@@ -816,6 +817,8 @@ function makeArenaScarBoss(id: number, player: Plane, round: number, isRun = fal
     isBoss: true,
     visualScale: roleTuning.visualScale,
     bossName: isChico ? 'ЧИКО' : 'ШРАМ',
+    // The Baron «ШРАМ» is a Jackal → heavy boom gun; Chico (Jackals' boss) stays light.
+    firesHeavy: !isChico,
   };
 }
 
@@ -909,6 +912,11 @@ const RUN_JACKAL_DAMAGE_MULT = 2.0;          // 30 dmg/shot sledgehammer
 const RUN_JACKAL_FIRE_RATE_MULT = 0.085 / 0.150; // ≈0.567 → fire interval 0.085s→0.150s
 const RUN_JACKAL_INCOMING_DMG_MULT = 0.8;    // armored: takes 20% less incoming damage
 const RUN_JACKAL_SPEED_MULT = 0.9;           // heavier airframe: ~10% slower top speed
+// When you play С.О.В., the red OPPONENTS are the heavy Алые Шакалы. They fly the heavy
+// "boom" gun (JACKAL_ENEMY_* in the core) plus a modest hull/speed bump LAYERED on the
+// existing per-wave scaling — "тяжёлые, но честные", not a 240-HP wall on all 14. All tunable.
+const ARENA_JACKAL_ENEMY_HP_MULT = 1.3;      // ~30% tankier on top of the wave curve
+const ARENA_JACKAL_ENEMY_SPEED_MULT = 0.92;  // heavier airframe: a touch slower
 // Boss «Шрам» HP for the run. Big jump from the old ~2100 (which a built-up player
 // melted in seconds) → a real, build-gated fight. PLAYTEST-TUNE THIS knob: if the boss
 // dies too fast, raise it; if it's a slog, lower it.
@@ -1978,7 +1986,8 @@ export async function startGame(container: HTMLElement) {
     const enemies = finalBossReady
       ? [makeArenaScarBoss(state.nextEntityId, state.player, arenaRound, isRun, chosenFaction)]
       : Array.from({ length: nextEnemyCount }, (_, lane) =>
-        makeArenaRoundEnemy(state.nextEntityId + lane, state.player, arenaRound, lane, isRun)
+        // Player С.О.В. → red opponents fly the heavy Алые Шакалы spec; player Jackals → light С.О.В. enemies.
+        makeArenaRoundEnemy(state.nextEntityId + lane, state.player, arenaRound, lane, isRun, chosenFaction === 'sov')
       );
     arenaDuelEnemyId = enemies[0]?.id ?? null;
     state.nextEntityId += enemies.length;

@@ -46,6 +46,8 @@ import {
   JACKAL_RECOIL_MULT,
   JACKAL_ROCKET_DMG_MULT,
   JACKAL_ROCKET_RADIUS_MULT,
+  JACKAL_ENEMY_BULLET_DAMAGE_MULT,
+  JACKAL_ENEMY_FIRE_INTERVAL_MULT,
   FIRE_RECOIL_SPEED_LOSS,
   BULLET_SPREAD_RAD,
   RAPIDFIRE_MULTIPLIER,
@@ -256,6 +258,23 @@ function igniteByEngineOverheat(p: Plane): Plane {
     boostHeat: 0.72,
     boostActive: false,
     noThrottleSec: 0,
+  };
+}
+
+/**
+ * Turn a standard round into the heavy Алые Шакалы "boom" slug: slower muzzle speed +
+ * matched gravity & lifetime (so the parabola and RANGE stay identical to С.О.В. — you
+ * aim it the same), tagged `heavyRound` so the renderer draws a fat glowing ember ball,
+ * optionally harder-hitting. Shared by the Jackal player gun feel and the heavy-enemy gun.
+ */
+export function toJackalHeavyRound(b: Bullet, damageMult = 1): Bullet {
+  return {
+    ...b,
+    velocity: { x: b.velocity.x * JACKAL_BULLET_SPEED_MULT, y: b.velocity.y * JACKAL_BULLET_SPEED_MULT },
+    lifetime: b.lifetime * JACKAL_BULLET_LIFETIME_MULT,
+    gravityScale: JACKAL_BULLET_GRAVITY_MULT,
+    heavyRound: true,
+    damage: b.damage * damageMult,
   };
 }
 
@@ -659,17 +678,20 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
 
     if (cmd.fire && newCooldown === 0 && stepped.state === 'flying' && stepped.alive) {
       const fakeForFire = { ...stepped, weaponCooldown: 0 };
+      const heavyEnemy = !!stepped.firesHeavy;
       const result = firePlayerWeapon(
         fakeForFire, true, nextEntityId,
         baseParams.damageMultiplier,
         baseParams.fireRateMultiplier,
       );
       for (const b of result.bullets) {
-        newBulletList.push(b);
+        // Heavy Jackal enemies fire the fat slow "boom" slugs (harder per shot).
+        newBulletList.push(heavyEnemy ? toJackalHeavyRound(b, JACKAL_ENEMY_BULLET_DAMAGE_MULT) : b);
         nextEntityId++;
       }
       if (result.bullets.length > 0) {
-        newCooldown = result.newCooldown;
+        // …on a slower cadence, so net DPS barely rises — chunkier, not spammier.
+        newCooldown = heavyEnemy ? result.newCooldown * JACKAL_ENEMY_FIRE_INTERVAL_MULT : result.newCooldown;
       }
     }
 

@@ -47,4 +47,7 @@ export interface Plane {
   firesRockets?: boolean;
   /** Enemy only: seconds until the next rocket launch is allowed. */
   rocketCooldown?: number;
+  /** Enemy only: fires the heavy Алые Шакалы "boom" slugs (fat ember balls, harder per
+   *  shot, slower cadence). Set when С.О.В. is the player — the red opponents ARE Jackals. */
+  firesHeavy?: boolean;
 }
