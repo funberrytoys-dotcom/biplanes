@@ -65,7 +65,7 @@ export function stepPlane(
   // first reach safer altitude before they regain full control.
   const CEILING_ZONE = 120;
   if (p.position.y < CEILING_ZONE) {
-    const ceilingProximity = Math.max(0, (CEILING_ZONE - p.position.y) / CEILING_ZONE); // 0..1
+    const ceilingProximity = Math.max(0, Math.min(1, (CEILING_ZONE - p.position.y) / CEILING_ZONE)); // 0..1 (clamped like floorProximity)
     const diveTarget = Math.PI / 2; // nose-down in screen coords
     let diff = diveTarget - heading;
     while (diff > Math.PI) diff -= 2 * Math.PI;
@@ -110,10 +110,16 @@ export function stepPlane(
   // from pitch-feed but more slowly than at full throttle.
   let g = p.g;
   const throttleLevel = Math.max(0, Math.min(1, p.throttleLevel));
+  // Defensive: keep the speed multipliers finite & non-negative. A NaN/Infinity
+  // here is "sticky" (Math.min/max don't clear it) and would permanently corrupt
+  // this deterministic run's position stream. No live trigger today — cheap insurance.
+  const sm = Number.isFinite(speedMult) ? Math.max(0, speedMult) : 1;
+  const rawBoostMult = input.boostMultiplier ?? 1;
+  const boostMult = Number.isFinite(rawBoostMult) ? rawBoostMult : 1;
   const targetSpeed = G_MAX_LEVEL
     * throttleLevel
-    * (input.boost ? BOOST_SPEED_MULTIPLIER * (input.boostMultiplier ?? 1) : 1)
-    * speedMult;
+    * (input.boost ? BOOST_SPEED_MULTIPLIER * boostMult : 1)
+    * sm;
   const thrustFactor = Math.abs(cosH); // 1 at horizontal, 0 at vertical
   if (g < targetSpeed) {
     // Accelerate toward target
@@ -131,7 +137,7 @@ export function stepPlane(
   if (pitchEffect > 0) {
     g = Math.max(0, g - pitchEffect);
   } else {
-    g = Math.min(G_MAX_DIVE * speedMult, g - pitchEffect);
+    g = Math.min(G_MAX_DIVE * sm, g - pitchEffect);
   }
 
   // 6) Constant drag
@@ -165,9 +171,10 @@ export function stepPlane(
   let px = p.position.x + vx * dt;
   let py = p.position.y + vy * dt;
 
-  // 10) World wrap on X
-  if (px < 0) px += worldWidth;
-  if (px >= worldWidth) px -= worldWidth;
+  // 10) World wrap on X — modulo so any displacement magnitude normalizes into
+  // [0, worldWidth). A single `if` only corrects one width of overshoot, which the
+  // boundary soft-wind + a high-speed dive could exceed on large scrolling worlds.
+  if (worldWidth > 0) px = ((px % worldWidth) + worldWidth) % worldWidth;
 
   // 11) Ground/ceiling
   if (py > groundY) {

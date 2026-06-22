@@ -95,7 +95,10 @@ export function rollUpgradeChoices(
     const taken = timesTaken(u.id);
     if (taken >= (u.maxStacks ?? 1)) return false;
     if (u.isEvolution) {
-      return u.evolutionRequires!.every(req => applied.includes(req));
+      // Fail closed: an evolution with no prereq list is malformed and must not be
+      // offered for free (and must not throw inside the level-up roll).
+      const reqs = u.evolutionRequires;
+      return Array.isArray(reqs) && reqs.length > 0 && reqs.every(req => applied.includes(req));
     }
     return true;
   }).sort((a, b) => Number(b.isEvolution) - Number(a.isEvolution));

@@ -17,7 +17,11 @@ export function createRng(seed: number): Rng {
   }
 
   function range(min: number, max: number): number {
-    return Math.floor(next() * (max - min)) + min;
+    // Clamp the span to >=0 so a degenerate (max<=min) range yields `min` instead of
+    // a wrong/negative index. Still consumes exactly one next() draw in every case, so
+    // the deterministic RNG stream (and replay) is unaffected.
+    const span = Math.max(0, max - min);
+    return Math.floor(next() * span) + min;
   }
 
   function pick<T>(items: readonly T[]): T {

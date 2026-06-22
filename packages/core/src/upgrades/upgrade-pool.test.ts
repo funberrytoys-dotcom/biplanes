@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { rollUpgradeChoices, type UpgradeId } from './upgrade-pool.js';
+import { rollUpgradeChoices, type UpgradeId, type UpgradeDef } from './upgrade-pool.js';
 
 const pickFirst = {
   pickN<T>(items: readonly T[], n: number): T[] {
@@ -46,5 +46,20 @@ describe('rollUpgradeChoices', () => {
     expect(rollUpgradeChoices([], { pickN: items => [...items] }).map(u => u.id)).not.toContain('redline_engine');
     const choices = rollUpgradeChoices(['coolant_injector', 'boost_supercharger'], { pickN: items => [...items] });
     expect(choices.map(u => u.id)).toContain('redline_engine');
+  });
+
+  it('fails closed (no throw, not offered) for a malformed evolution with no prereq list', () => {
+    const malformed: UpgradeDef = {
+      id: 'gatling_evolution', title: 'Bad Evo', description: '',
+      category: 'weapon', isEvolution: true, // intentionally NO evolutionRequires
+    };
+    const normal: UpgradeDef = {
+      id: 'damage_plus_25', title: 'Dmg', description: '', category: 'weapon', isEvolution: false, maxStacks: 4,
+    };
+    const pool = [normal, malformed];
+    expect(() => rollUpgradeChoices([], { pickN: items => [...items] }, pool)).not.toThrow();
+    const ids = rollUpgradeChoices([], { pickN: items => [...items] }, pool).map(u => u.id);
+    expect(ids).toContain('damage_plus_25');
+    expect(ids).not.toContain('gatling_evolution');
   });
 });

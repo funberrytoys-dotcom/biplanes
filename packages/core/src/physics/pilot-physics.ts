@@ -45,8 +45,7 @@ export function stepPilotParachute(
   let py = p.position.y + vy * dt;
 
   // World wrap on X to match plane physics
-  if (px < 0) px += worldWidth;
-  if (px >= worldWidth) px -= worldWidth;
+  if (worldWidth > 0) px = ((px % worldWidth) + worldWidth) % worldWidth;
 
   // Ground contact → switch to walking
   if (py >= ground) {
@@ -123,8 +122,7 @@ export function stepPilotWalking(
   }
 
   // World wrap on X
-  if (px < 0) px += worldWidth;
-  if (px >= worldWidth) px -= worldWidth;
+  if (worldWidth > 0) px = ((px % worldWidth) + worldWidth) % worldWidth;
 
   // Arrival at own hangar — only when grounded.
   const hangarX = ownHangarX(p.faction, worldWidth);

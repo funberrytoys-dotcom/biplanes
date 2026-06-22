@@ -70,7 +70,8 @@ export function firePlayerWeapon(
   const isHeavy = hasHeavyCannon;
   const pierceCount = isHeavy ? HEAVY_CANNON_PIERCE : (hasPiercing ? 1 : 0);
 
-  // Multishot fans an odd number of bullets symmetrically around the nose.
+  // Multishot fans bullets symmetrically around the nose (count = 1 + multishotExtra;
+  // can be even, e.g. 2 or 4 — the symmetric offset handles even counts with no center shot).
   const count = 1 + Math.max(0, multishotExtra);
   const bullets: Bullet[] = [];
   for (let i = 0; i < count; i++) {

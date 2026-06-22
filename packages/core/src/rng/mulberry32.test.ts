@@ -37,6 +37,19 @@ describe('mulberry32 PRNG', () => {
     }
   });
 
+  it('range() with a degenerate span (max<=min) returns min without breaking the stream', () => {
+    const rng = createRng(123);
+    // max==min and max<min both yield min (span clamped to 0)…
+    expect(rng.range(5, 5)).toBe(5);
+    expect(rng.range(9, 3)).toBe(9);
+    // …and each still consumed exactly one draw, so a parallel rng stays in lock-step.
+    const a = createRng(555);
+    const b = createRng(555);
+    a.range(4, 4); // degenerate draw on `a`
+    b.next();      // one plain draw on `b`
+    expect(a.next()).toBeCloseTo(b.next());
+  });
+
   it('pick() returns one of provided items', () => {
     const rng = createRng(7);
     const items = ['a', 'b', 'c'];

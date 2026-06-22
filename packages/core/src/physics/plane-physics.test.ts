@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { stepPlane, stepPlaneTaxi, isStalling, type PlaneKinematic } from './plane-physics.js';
-import { TICK_DT, G_MAX_LEVEL, GROUND_Y, TAKEOFF_LIFTOFF_PITCH } from '@biplanes/shared';
+import { TICK_DT, G_MAX_LEVEL, GROUND_Y, TAKEOFF_LIFTOFF_PITCH, WORLD_WIDTH, WORLD_HEIGHT } from '@biplanes/shared';
 
 function makePlane(overrides: Partial<PlaneKinematic> = {}): PlaneKinematic {
   return {
@@ -121,5 +121,55 @@ describe('plane-physics (continuous model)', () => {
     }
     const pitchUp = Math.PI - Math.abs(p.heading);
     expect(pitchUp).toBeLessThanOrEqual(TAKEOFF_LIFTOFF_PITCH + 0.081);
+  });
+});
+
+describe('plane-physics — ceiling/floor force, wrap, and finite guards', () => {
+  it('ceiling force tilts the nose DOWN (into a dive) near the top of the world', () => {
+    const p = makePlane({ position: { x: 1000, y: 8 }, heading: 0, g: 1200 });
+    const after = stepPlane(p, { rotate: 0 }, TICK_DT);
+    // heading drifts toward +π/2 (screen-down) and stays normalized
+    expect(after.heading).toBeGreaterThan(0);
+    expect(after.heading).toBeLessThanOrEqual(Math.PI);
+    expect(after.heading).toBeGreaterThanOrEqual(-Math.PI);
+  });
+
+  it('ceiling proximity is clamped so y<0 does not over-rotate', () => {
+    const deep = makePlane({ position: { x: 1000, y: -200 }, heading: 0, g: 1200 });
+    const edge = makePlane({ position: { x: 1000, y: 0 }, heading: 0, g: 1200 });
+    const afterDeep = stepPlane(deep, { rotate: 0 }, TICK_DT);
+    const afterEdge = stepPlane(edge, { rotate: 0 }, TICK_DT);
+    // proximity capped at 1, so y=-200 cannot turn harder than y=0
+    expect(afterDeep.heading).toBeLessThanOrEqual(afterEdge.heading + 1e-9);
+    expect(Number.isFinite(afterDeep.heading)).toBe(true);
+  });
+
+  it('floor force (softFloor) tilts the nose UP (into a climb) near the deck', () => {
+    const groundY = WORLD_HEIGHT - 90;
+    const p = makePlane({ position: { x: 1000, y: groundY - 30 }, heading: 0, g: 1200 });
+    const after = stepPlane(p, { rotate: 0 }, TICK_DT, WORLD_WIDTH, /* softFloor */ true);
+    expect(after.heading).toBeLessThan(0); // toward -π/2 (screen-up)
+    expect(after.heading).toBeGreaterThanOrEqual(-Math.PI);
+  });
+
+  it('X-wrap keeps position in [0,worldWidth) even when one tick overshoots >1 width', () => {
+    // tiny world + big displacement: old single-`if` wrap would leave x out of range
+    const tiny = 50;
+    const p = makePlane({ position: { x: 40, y: 500 }, heading: 0, g: 950 });
+    const after = stepPlane(p, { rotate: 0 }, 0.1 /* max clamped dt */, tiny);
+    expect(after.position.x).toBeGreaterThanOrEqual(0);
+    expect(after.position.x).toBeLessThan(tiny);
+  });
+
+  it('non-finite speed/boost multipliers do not corrupt the state (finite guard)', () => {
+    const p = makePlane({ heading: 0.3, g: 800 });
+    const badSpeed = stepPlane(p, { rotate: 0 }, TICK_DT, WORLD_WIDTH, false, WORLD_HEIGHT, NaN);
+    const badBoost = stepPlane(p, { rotate: 0, boost: true, boostMultiplier: Infinity }, TICK_DT);
+    for (const s of [badSpeed, badBoost]) {
+      expect(Number.isFinite(s.g)).toBe(true);
+      expect(Number.isFinite(s.position.x)).toBe(true);
+      expect(Number.isFinite(s.position.y)).toBe(true);
+      expect(Number.isFinite(s.heading)).toBe(true);
+    }
   });
 });
