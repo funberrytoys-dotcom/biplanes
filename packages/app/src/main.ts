@@ -1705,6 +1705,99 @@ export async function startGame(container: HTMLElement) {
   const radioPopup = createRadioPopup(app.screen.width, app.screen.height);
   uiLayer.addChild(radioPopup.container);
 
+  // === Faction-select overlay (DOM: two playing faction videos + info card + confirm) ===
+  // Shown when the player picks Arena / Забег. On confirm → setFaction + start the mode.
+  let pendingFactionMode: 'arena' | 'run' | null = null;
+  const factionSelect = createFactionSelect(container, (f) => {
+    setFaction(f);
+    const mode = pendingFactionMode;
+    pendingFactionMode = null;
+    if (mode === 'run') startRun();
+    else { runSession = null; startArena(); }
+  });
+
+  function createFactionSelect(host: HTMLElement, onConfirm: (f: 'sov' | 'jackals') => void) {
+    const FACTIONS = {
+      sov: {
+        name: 'С.О.В.', sub: 'Содружество Объединённых Видов · Капитан Чико',
+        tagline: '«Разные крылья — одно небо.»',
+        desc: 'Сотни видов под одним флагом. Дерутся не за то, чтобы править, а чтобы каждый мог летать свободно. Крепкие машины, верное звено — прощают ошибку. Идеальны, чтобы научиться.',
+        video: assetUrl('assets/factions/faction_sov.mp4'), color: '#3a86d6', accent: '#ffcf45',
+      },
+      jackals: {
+        name: 'АЛЫЕ ШАКАЛЫ', sub: 'Краснокрылая стая · Барон фон Клык',
+        tagline: '«Небо — сильным. Остальные потеснятся.»',
+        desc: 'Тонкая броня, злой калибр, скорость. Берут числом и наглостью, бьют первыми. «Ведомый» поднимает в небо стаю зеркальных бортов. Для тех, кто атакует и не оглядывается.',
+        video: assetUrl('assets/factions/faction_jackals.mp4'), color: '#c0392b', accent: '#e8b04a',
+      },
+    } as const;
+    let selected: 'sov' | 'jackals' = 'sov';
+    const root = document.createElement('div');
+    root.style.cssText = 'position:absolute;inset:0;z-index:50;display:none;flex-direction:column;align-items:center;justify-content:center;gap:1.6vh;background:rgba(4,6,12,0.92);font-family:monospace;padding:2vh 2vw;box-sizing:border-box';
+    const title = document.createElement('div');
+    title.textContent = 'ВЫБЕРИ ФРАКЦИЮ';
+    title.style.cssText = 'color:#f7d69a;font-size:clamp(18px,3vw,32px);font-weight:bold;letter-spacing:2px;text-shadow:0 2px 6px #000';
+    const panels = document.createElement('div');
+    panels.style.cssText = 'display:flex;gap:2vw;width:100%;max-width:760px;justify-content:center';
+    const info = document.createElement('div');
+    info.style.cssText = 'max-width:720px;text-align:center;color:#d6e2e7;min-height:13vh';
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;gap:14px;align-items:center';
+    const back = document.createElement('button');
+    back.textContent = '← Назад';
+    back.style.cssText = 'pointer-events:auto;cursor:pointer;font-family:monospace;font-weight:bold;font-size:clamp(12px,1.5vw,16px);color:#cdd6e0;background:#1a2433;border:2px solid #3a4658;border-radius:8px;padding:12px 20px';
+    const confirm = document.createElement('button');
+    confirm.textContent = 'ПОДТВЕРДИТЬ ВЫБОР';
+    confirm.style.cssText = 'pointer-events:auto;cursor:pointer;font-family:monospace;font-weight:bold;font-size:clamp(14px,1.8vw,20px);letter-spacing:1px;color:#0d141a;background:#f7d69a;border:none;border-radius:8px;padding:14px 28px';
+    row.appendChild(back); row.appendChild(confirm);
+    root.appendChild(title); root.appendChild(panels); root.appendChild(info); root.appendChild(row);
+    const panelEls: Record<string, HTMLElement> = {};
+    (['sov', 'jackals'] as const).forEach((key) => {
+      const f = FACTIONS[key];
+      const panel = document.createElement('div');
+      panel.style.cssText = 'position:relative;flex:1 1 0;max-width:280px;aspect-ratio:9/16;max-height:52vh;border-radius:12px;overflow:hidden;cursor:pointer;border:4px solid transparent;transition:border-color .15s,transform .15s;background:#06101f';
+      const vid = document.createElement('video');
+      vid.src = f.video; vid.autoplay = true; vid.loop = true; vid.muted = true; vid.playsInline = true; vid.preload = 'auto';
+      vid.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block';
+      const lbl = document.createElement('div');
+      lbl.textContent = f.name;
+      lbl.style.cssText = `position:absolute;left:0;right:0;bottom:0;padding:10px;text-align:center;font-weight:bold;font-size:clamp(13px,1.6vw,18px);color:#fff;background:linear-gradient(transparent, ${f.color}ee);text-shadow:0 2px 4px #000`;
+      panel.appendChild(vid); panel.appendChild(lbl);
+      const select = () => { selected = key; render(); };
+      panel.addEventListener('click', select);
+      panel.addEventListener('mouseenter', () => { if (!('ontouchstart' in window)) { selected = key; render(); } });
+      panels.appendChild(panel); panelEls[key] = panel;
+    });
+    function render() {
+      (['sov', 'jackals'] as const).forEach((key) => {
+        const on = key === selected;
+        panelEls[key]!.style.borderColor = on ? FACTIONS[key].accent : 'transparent';
+        panelEls[key]!.style.transform = on ? 'translateY(-4px)' : 'none';
+      });
+      const f = FACTIONS[selected];
+      info.innerHTML = `<div style="font-size:clamp(16px,2.2vw,24px);font-weight:bold;color:${f.accent}">${f.name}</div>`
+        + `<div style="opacity:.75;font-size:clamp(11px,1.3vw,14px);margin:3px 0 8px">${f.sub}</div>`
+        + `<div style="font-style:italic;color:#fff;margin-bottom:8px">${f.tagline}</div>`
+        + `<div style="font-size:clamp(12px,1.45vw,15px);line-height:1.45">${f.desc}</div>`;
+      confirm.style.background = f.accent;
+      confirm.style.boxShadow = `0 4px 0 ${f.color}`;
+    }
+    const setVideos = (play: boolean) => {
+      for (const k of ['sov', 'jackals'] as const) {
+        const v = panelEls[k]!.querySelector('video') as HTMLVideoElement;
+        if (play) void v.play().catch(() => undefined); else v.pause();
+      }
+    };
+    let onBack: () => void = () => undefined;
+    back.addEventListener('click', () => { audio.playUiSelect(); root.style.display = 'none'; setVideos(false); onBack(); });
+    confirm.addEventListener('click', () => { audio.playUiSelect(); root.style.display = 'none'; setVideos(false); onConfirm(selected); });
+    host.appendChild(root);
+    return {
+      show(back2: () => void) { onBack = back2; selected = chosenFaction; root.style.display = 'flex'; render(); setVideos(true); },
+      hide() { root.style.display = 'none'; setVideos(false); },
+    };
+  }
+
   const startScreen = createStartScreen(
     app.screen.width,
     app.screen.height,
@@ -1716,12 +1809,13 @@ export async function startGame(container: HTMLElement) {
         return;
       }
       if (action === 'arena') {
-        runSession = null;
-        startArena();
+        pendingFactionMode = 'arena';
+        factionSelect.show(() => undefined);
         return;
       }
       if (action === 'run') {
-        startRun();
+        pendingFactionMode = 'run';
+        factionSelect.show(() => undefined);
         return;
       }
       if (action === 'story') {
