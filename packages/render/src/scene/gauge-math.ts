@@ -26,9 +26,11 @@ export function damp(current: number, target: number, factor: number): number {
 
 /** Angular damp toward `target` taking the shortest path around the circle (radians). */
 export function dampAngle(current: number, target: number, factor: number): number {
-  let delta = target - current;
-  while (delta > Math.PI) delta -= Math.PI * 2;
-  while (delta < -Math.PI) delta += Math.PI * 2;
+  if (!Number.isFinite(current) || !Number.isFinite(target)) return Number.isFinite(target) ? target : 0;
+  // Modulo wrap (never a runaway while-loop, even on a huge delta).
+  let delta = (target - current) % (Math.PI * 2);
+  if (delta > Math.PI) delta -= Math.PI * 2;
+  else if (delta < -Math.PI) delta += Math.PI * 2;
   return current + delta * clamp01(factor);
 }
 

@@ -1719,16 +1719,20 @@ export async function startGame(container: HTMLElement) {
   function createFactionSelect(host: HTMLElement, onConfirm: (f: 'sov' | 'jackals') => void) {
     const FACTIONS = {
       sov: {
-        name: 'С.О.В.', sub: 'Содружество Объединённых Видов · Капитан Чико',
+        name: 'С.О.В.', sub: 'Содружество Объединённых Видов',
         tagline: '«Разные крылья — одно небо.»',
         desc: 'Когда-то до Великого Раскола виды враждовали. Потом устали — так родилось С.О.В., сотни видов под одним флагом. На советах спорят до хрипоты, а в небе прикрывают друг друга без вопросов. Сражаются не за то, чтобы править, а за то, чтобы каждый мог летать свободно.',
+        pilot: 'Капитан Чико',
+        pilotBio: 'Сын первого Аса, пропавшего без вести в бою. Спокойный, упрямый, своих не бросает — и готов отомстить за отца.',
         pocherk: 'Почерк: крепкие машины, верное звено, дроны-помощники. Сила — в том, что их много и они вместе.',
         video: assetUrl('assets/factions/faction_sov.mp4'), color: '#3a86d6', accent: '#ffcf45',
       },
       jackals: {
-        name: 'АЛЫЕ ШАКАЛЫ', sub: 'Краснокрылая стая · Барон фон Клык',
+        name: 'АЛЫЕ ШАКАЛЫ', sub: 'Краснокрылая стая',
         tagline: '«Небо — сильным. Остальные потеснятся.»',
         desc: 'Шакалы не воруют по мелочи — они хотят само небо. Под алыми знамёнами Барона собрались те, кто уверовал, будто рождён править: один вид, один флаг, один порядок, а Содружество — «стая дворняг». Налетают с маршами и пафосом, забирают своё силой и зовут это «новым небом».',
+        pilot: 'Барон Рудольф фон Клык',
+        pilotBio: 'Говорит красиво и громко — про порядок, про величие. Кланяется перед атакой, извиняется после. Откуда взялся — никто так и не выяснил.',
         pocherk: 'Почерк: тонкая броня, мощный калибр, скорость. Берут числом и наглостью, бьют первыми — рой «Ведомых».',
         video: assetUrl('assets/factions/faction_jackals.mp4'), color: '#c0392b', accent: '#e8b04a',
       },
@@ -1783,9 +1787,10 @@ export async function startGame(container: HTMLElement) {
       });
       const f = FACTIONS[selected];
       info.innerHTML = `<div style="font-size:clamp(15px,2.1vw,23px);font-weight:bold;color:${f.accent}">${f.name}</div>`
-        + `<div style="opacity:.75;font-size:clamp(10px,1.2vw,13px);margin:2px 0 6px">${f.sub}</div>`
+        + `<div style="opacity:.75;font-size:clamp(10px,1.2vw,13px);margin:2px 0 5px">${f.sub}</div>`
         + `<div style="font-style:italic;color:#fff;font-size:clamp(11px,1.3vw,15px);margin-bottom:6px">${f.tagline}</div>`
         + `<div style="font-size:clamp(11px,1.25vw,14px);line-height:1.4;margin-bottom:6px">${f.desc}</div>`
+        + `<div style="font-size:clamp(10px,1.2vw,13.5px);line-height:1.35;margin-bottom:5px"><span style="color:${f.accent};font-weight:bold">✈ Пилот — ${f.pilot}.</span> ${f.pilotBio}</div>`
         + `<div style="font-size:clamp(10px,1.15vw,13px);line-height:1.35;color:${f.accent};opacity:.92">${f.pocherk}</div>`;
       confirm.style.background = f.accent;
       confirm.style.boxShadow = `0 4px 0 ${f.color}`;
@@ -2749,14 +2754,19 @@ export async function startGame(container: HTMLElement) {
     if (frameErrorCount <= 3 || frameErrorCount % 120 === 0) {
       console.error('[biplanes] frame error:', err);
     }
-    const msg = err instanceof Error ? `${err.message}\n${(err.stack ?? '').split('\n').slice(0, 4).join('\n')}` : String(err);
+    const msg = err instanceof Error ? `${err.message}\n${(err.stack ?? '').split('\n').slice(0, 5).join('\n')}` : String(err);
     (window as unknown as { __biplanesFrameError?: string }).__biplanesFrameError = msg;
+    try { localStorage.setItem('biplanes.lastError', msg); } catch { /* ignore */ }
     if (!frameErrorBanner) {
+      // Top-CENTER, big and bright — the old bottom-left spot hid under the joystick.
+      // Tap to dismiss so the player can keep going if the game still renders.
       frameErrorBanner = document.createElement('div');
-      frameErrorBanner.style.cssText = 'position:fixed;left:6px;bottom:6px;max-width:60vw;z-index:99999;background:rgba(120,0,0,0.85);color:#fff;font:11px monospace;padding:6px 8px;border-radius:4px;white-space:pre-wrap;pointer-events:none';
+      frameErrorBanner.style.cssText = 'position:fixed;left:50%;top:8px;transform:translateX(-50%);max-width:92vw;z-index:99999;background:rgba(150,10,10,0.95);color:#fff;font:bold 13px monospace;padding:10px 14px;border:2px solid #ff6a6a;border-radius:8px;white-space:pre-wrap;box-shadow:0 4px 16px rgba(0,0,0,0.6);pointer-events:auto;cursor:pointer';
+      frameErrorBanner.addEventListener('click', () => { if (frameErrorBanner) frameErrorBanner.style.display = 'none'; });
       document.body.appendChild(frameErrorBanner);
     }
-    frameErrorBanner.textContent = `render error (#${frameErrorCount}):\n${msg}`;
+    frameErrorBanner.style.display = 'block';
+    frameErrorBanner.textContent = `⚠ ОШИБКА (#${frameErrorCount}) — пришли этот текст Claude:\n${msg}`;
   }
 
   app.ticker.add((ticker) => {
@@ -2770,7 +2780,12 @@ export async function startGame(container: HTMLElement) {
     if (container.clientWidth !== laidOutW || container.clientHeight !== laidOutH) {
       resyncLayout();
     }
-    const realDt = ticker.deltaMS / 1000;
+    // CLAMP the frame delta: finite + at most 100 ms. A mobile hitch / GC pause / tab
+    // resume can make ticker.deltaMS huge (or NaN), and per-frame accumulator loops like
+    // `while (flameTrailAcc >= 1/26)` would then spin thousands of times — or forever on
+    // a non-finite value — hard-freezing the tab. This is the #1 freeze guard.
+    const rawDt = ticker.deltaMS / 1000;
+    const realDt = Number.isFinite(rawDt) ? Math.min(0.1, Math.max(0, rawDt)) : 1 / 60;
     const dt = clock.tick(realDt);
     renderTimeSec += dt;
 
