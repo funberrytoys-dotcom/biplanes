@@ -206,6 +206,8 @@ const VISUAL_ASSET_URLS = [
   assetUrl('assets/biplanes/plane_chico_blue.png'),
   assetUrl('assets/biplanes/supply_balloon_chest.png'),
   assetUrl('assets/biplanes/supply_balloon_chest_red.png'),
+  assetUrl('assets/biplanes/hud/lever_knob.png'),
+  assetUrl('assets/hud/throttle_jackal.png'),
   // «Забег» branch emblems (shown on the run-summary screen).
   assetUrl('assets/run/emblem_assault.png'),
   assetUrl('assets/run/emblem_bombardier.png'),
@@ -1719,13 +1721,15 @@ export async function startGame(container: HTMLElement) {
       sov: {
         name: 'С.О.В.', sub: 'Содружество Объединённых Видов · Капитан Чико',
         tagline: '«Разные крылья — одно небо.»',
-        desc: 'Сотни видов под одним флагом — за всех своих. Крепкий корпус, верное звено, ведомые-дроны; прощают ошибку. Идеальны, чтобы освоиться.',
+        desc: 'Когда-то до Великого Раскола виды враждовали. Потом устали — так родилось С.О.В., сотни видов под одним флагом. На советах спорят до хрипоты, а в небе прикрывают друг друга без вопросов. Сражаются не за то, чтобы править, а за то, чтобы каждый мог летать свободно.',
+        pocherk: 'Почерк: крепкие машины, верное звено, дроны-помощники. Сила — в том, что их много и они вместе.',
         video: assetUrl('assets/factions/faction_sov.mp4'), color: '#3a86d6', accent: '#ffcf45',
       },
       jackals: {
         name: 'АЛЫЕ ШАКАЛЫ', sub: 'Краснокрылая стая · Барон фон Клык',
         tagline: '«Небо — сильным. Остальные потеснятся.»',
-        desc: 'Тонкая броня, злой калибр, скорость. Берут числом: «Ведомый» поднимает стаю зеркальных бортов, что бьёт вдвое. Для тех, кто атакует первым.',
+        desc: 'Шакалы не воруют по мелочи — они хотят само небо. Под алыми знамёнами Барона собрались те, кто уверовал, будто рождён править: один вид, один флаг, один порядок, а Содружество — «стая дворняг». Налетают с маршами и пафосом, забирают своё силой и зовут это «новым небом».',
+        pocherk: 'Почерк: тонкая броня, мощный калибр, скорость. Берут числом и наглостью, бьют первыми — рой «Ведомых».',
         video: assetUrl('assets/factions/faction_jackals.mp4'), color: '#c0392b', accent: '#e8b04a',
       },
     } as const;
@@ -1778,10 +1782,11 @@ export async function startGame(container: HTMLElement) {
         panelEls[key]!.style.transform = on ? 'translateY(-4px)' : 'none';
       });
       const f = FACTIONS[selected];
-      info.innerHTML = `<div style="font-size:clamp(16px,2.2vw,24px);font-weight:bold;color:${f.accent}">${f.name}</div>`
-        + `<div style="opacity:.75;font-size:clamp(11px,1.3vw,14px);margin:3px 0 8px">${f.sub}</div>`
-        + `<div style="font-style:italic;color:#fff;margin-bottom:8px">${f.tagline}</div>`
-        + `<div style="font-size:clamp(12px,1.45vw,15px);line-height:1.45">${f.desc}</div>`;
+      info.innerHTML = `<div style="font-size:clamp(15px,2.1vw,23px);font-weight:bold;color:${f.accent}">${f.name}</div>`
+        + `<div style="opacity:.75;font-size:clamp(10px,1.2vw,13px);margin:2px 0 6px">${f.sub}</div>`
+        + `<div style="font-style:italic;color:#fff;font-size:clamp(11px,1.3vw,15px);margin-bottom:6px">${f.tagline}</div>`
+        + `<div style="font-size:clamp(11px,1.25vw,14px);line-height:1.4;margin-bottom:6px">${f.desc}</div>`
+        + `<div style="font-size:clamp(10px,1.15vw,13px);line-height:1.35;color:${f.accent};opacity:.92">${f.pocherk}</div>`;
       confirm.style.background = f.accent;
       confirm.style.boxShadow = `0 4px 0 ${f.color}`;
     }
@@ -3717,6 +3722,9 @@ export async function startGame(container: HTMLElement) {
     layoutWorld();
     camera.setScreen(w, h);
     hud.resize(w, h);
+    // Keep «В МЕНЮ» clear of the cockpit panel — the panel scales with the HUD (scale 1,
+    // or 0.62 when compact: width<960||height<520), bottom ≈ 180×scale. Sit just below it.
+    exitButton.y = Math.round(180 * ((w < 960 || h < 520) ? 0.62 : 1)) + 8;
     arenaWeather.resize(w, h);
     fitBackdrop();
     buildSkyStrata();
