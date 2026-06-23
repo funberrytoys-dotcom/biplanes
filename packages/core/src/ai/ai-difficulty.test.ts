@@ -73,12 +73,12 @@ describe('ai difficulty params', () => {
     const ai = settled(99);
     const easy = DIFFICULTIES.easy;
     const enemy = makePlane(500, 500, 0);
-    const farTarget = makePlane(900, 500, 0); // 400 away — outside Easy 300
+    const farTarget = makePlane(1200, 500, 0); // 700 away — outside Easy 560
     const { cmd: cmdFar } = aiCommand(enemy, farTarget, easy, ai, 30, 1 / 60, 1.0, true);
     expect(cmdFar.fire).toBe(false);
 
     const ai2 = settled(99);
-    const nearTarget = makePlane(750, 500, 0); // 250 away — inside Easy 300
+    const nearTarget = makePlane(880, 500, 0); // 380 away — inside Easy 560
     const { cmd: cmdNear } = aiCommand(enemy, nearTarget, easy, ai2, 30, 1 / 60, 1.0, true);
     expect(cmdNear.fire).toBe(true);
   });

@@ -100,7 +100,11 @@ export const DIFFICULTIES: Record<Difficulty, AiParams> = {
     preferredAltitudeOffset: 0,
     energyManagement: false,
     fireConeRad: Math.PI / 5,        // ±36° — rookie, but no longer a screen-wide spray
-    fireRange: 260,
+    // 260 was far too short for the 3× «Забег»/arena world — rookies (rounds 1-3) just
+    // flew around and never closed to within range, so they "не атаковали". 560 lets them
+    // actually engage while staying shorter than hunters (740). They're still weak: low
+    // damage (0.55×), slow trigger (0.55×) and sloppy ±36° aim.
+    fireRange: 560,
     leadFactor: 0,
     turnDeadzoneRad: 0.25,
     reactionDelaySec: 0.38,
