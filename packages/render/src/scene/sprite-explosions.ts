@@ -1,4 +1,4 @@
-import { Container, Sprite, Texture, Rectangle } from 'pixi.js';
+import { Assets, Container, Sprite, Texture, Rectangle } from 'pixi.js';
 import { assetUrl } from '../asset-url.js';
 
 interface ActiveExplosion {
@@ -8,37 +8,47 @@ interface ActiveExplosion {
   dur: number;
 }
 
-/** Slice a grid sprite sheet into per-frame textures (shares the GPU source). */
-function sliceSheet(url: string, frame: number, cols: number, rows: number): Texture[] {
-  const sheet = Texture.from(url);
-  const out: Texture[] = [];
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      out.push(new Texture({ source: sheet.source, frame: new Rectangle(c * frame, r * frame, frame, frame) }));
-    }
-  }
-  return out;
-}
-
 /**
  * Plays the procedural explosion sprite sheets (assets/fx/explosion_{small,large}.png) as
- * one-shot animations at a world position. Small = planes/turrets, large = big objects
- * (airship sections, boss). Normal blend (the sheet has its own fire + smoke + alpha).
+ * one-shot animations at a world position. Small = planes/turrets, large = big objects.
+ *
+ * Sheets are loaded ASYNC via Assets.load with a try/catch + guards — slicing a not-yet-
+ * loaded Texture.from() crashed the whole game at startup ('undefined is not an object,
+ * n.source'). This class must NEVER throw: if a sheet is missing/slow, explosions simply
+ * don't show and the game keeps running; spawns before load are skipped.
  */
 export class SpriteExplosions {
   private active: ActiveExplosion[] = [];
-  private small: Texture[];
-  private large: Texture[];
+  private small: Texture[] = [];
+  private large: Texture[] = [];
 
   constructor(private container: Container) {
-    this.small = sliceSheet(assetUrl('assets/fx/explosion_small.png'), 128, 4, 2); // 8 frames
-    this.large = sliceSheet(assetUrl('assets/fx/explosion_large.png'), 256, 4, 4); // 16 frames
+    void this.loadSheet(assetUrl('assets/fx/explosion_small.png'), 128, 4, 2, 'small'); // 8 frames
+    void this.loadSheet(assetUrl('assets/fx/explosion_large.png'), 256, 4, 4, 'large'); // 16 frames
+  }
+
+  private async loadSheet(url: string, frame: number, cols: number, rows: number, which: 'small' | 'large'): Promise<void> {
+    try {
+      const base = await Assets.load<Texture>(url);
+      const source = base?.source;
+      if (!source) return;
+      const frames: Texture[] = [];
+      for (let r = 0; r < rows; r++) {
+        for (let c = 0; c < cols; c++) {
+          frames.push(new Texture({ source, frame: new Rectangle(c * frame, r * frame, frame, frame) }));
+        }
+      }
+      if (which === 'small') this.small = frames;
+      else this.large = frames;
+    } catch {
+      /* asset missing/slow — explosions just don't show; the game keeps running */
+    }
   }
 
   spawn(x: number, y: number, big = false, scale = 1): void {
     const frames = big ? this.large : this.small;
     const first = frames[0];
-    if (!first) return;
+    if (!first) return; // not loaded yet / failed — skip safely
     const s = new Sprite(first);
     s.anchor.set(0.5);
     s.x = x;

@@ -197,6 +197,8 @@ const SKY_CLOUD_URLS = [
 ];
 
 const VISUAL_ASSET_URLS = [
+  assetUrl('assets/fx/explosion_small.png'),
+  assetUrl('assets/fx/explosion_large.png'),
   SKY_TEST_IMAGE_URL,
   ...Object.values(ARENA_BACKGROUND_URLS),
   ...Object.values(HUD_ICON_URLS),
