@@ -27,10 +27,14 @@ export class BulletTracers {
     const duration = options.duration ?? 0.1;
     const color = bullet.ownerFaction === 'player' ? 0xffe88c : 0xff5a22;
     const heavy = bullet.isHeavy === true;
-    g.rect(-38, -3.1, 56, 6.2).fill({ color: 0x2a1208, alpha: heavy ? 0.52 : 0.44 });
-    g.rect(-34, -2.0, 48, 4.0).fill({ color, alpha: heavy ? 0.9 : 0.78 });
-    g.rect(-16, -0.9, 34, 1.8).fill({ color: 0xffffff, alpha: heavy ? 0.76 : 0.62 });
-    g.circle(9, 0, heavy ? 4.6 : 3.4).fill({ color: 0xffffff, alpha: 0.86 });
+    // Filter-free glow: additive blend + layered soft halo (wide-faint → narrow-bright)
+    // fakes the bloom the BlurFilter used to give, but can't crash the GPU (see glow-layer.ts).
+    g.blendMode = 'add';
+    g.rect(-46, -8.5, 66, 17).fill({ color, alpha: heavy ? 0.10 : 0.07 });   // wide soft halo
+    g.rect(-40, -4.6, 56, 9.2).fill({ color, alpha: heavy ? 0.22 : 0.16 });  // mid halo
+    g.rect(-34, -2.3, 48, 4.6).fill({ color, alpha: heavy ? 0.58 : 0.46 });  // core glow
+    g.rect(-16, -1.0, 34, 2.0).fill({ color: 0xfff4d0, alpha: heavy ? 0.85 : 0.7 }); // bright streak
+    g.circle(9, 0, heavy ? 5.0 : 3.6).fill({ color: 0xffffff, alpha: 0.95 }); // hot head
     g.x = bullet.position.x;
     g.y = bullet.position.y;
     g.rotation = Math.atan2(bullet.velocity.y, bullet.velocity.x);
