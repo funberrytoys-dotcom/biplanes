@@ -27,6 +27,14 @@ export class BulletTracers {
     const duration = options.duration ?? 0.1;
     const color = bullet.ownerFaction === 'player' ? 0xffe88c : 0xff5a22;
     const heavy = bullet.isHeavy === true;
+    // Soft glow halo BEHIND the streak — concentric ellipses (wide-faint → narrow-bright),
+    // normal blend so it reads on ANY sky. Restores the bloom the old BlurFilter gave, but
+    // filter-free so it can't crash the GPU (the BlurFilter froze the game on round 4 twice).
+    const gw = heavy ? 40 : 34, gh = heavy ? 11 : 8;
+    for (let k = 0; k < 6; k++) {
+      const f = k / 5;
+      g.ellipse(-10, 0, gw - f * (gw - 7), gh - f * (gh - 2.4)).fill({ color, alpha: 0.05 + f * 0.10 });
+    }
     g.rect(-38, -3.1, 56, 6.2).fill({ color: 0x2a1208, alpha: heavy ? 0.52 : 0.44 });
     g.rect(-34, -2.0, 48, 4.0).fill({ color, alpha: heavy ? 0.9 : 0.78 });
     g.rect(-16, -0.9, 34, 1.8).fill({ color: 0xffffff, alpha: heavy ? 0.76 : 0.62 });
