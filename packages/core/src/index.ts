@@ -32,3 +32,4 @@ export * from './run/run-flow.js';
 export * from './run/pick-offer.js';
 export * from './run/run-summary.js';
 export * from './run/faction.js';
+export * from './run/wolf-comet.js';
