@@ -1,24 +1,19 @@
-import { Container } from 'pixi.js';
+import { Container, BlurFilter } from 'pixi.js';
 
 export interface GlowLayerHandle {
   container: Container;
 }
 
 /**
- * Container for additive bloom-style FX (fire/spark/shockwave particles, muzzle
- * flashes, bullet tracers). Children set their own `blendMode = 'add'` on their
- * Graphics to get the additive glow contribution.
- *
- * NOTE (freeze fix, 2026-06-23): a `BlurFilter` used to sit on this container to
- * soften the halo. It was REMOVED. A filter on a full-screen, heavily-animated
- * container forces an offscreen render-target re-tessellated every frame, which
- * is the same mobile-GPU crash class that already froze the game once (the masked
- * emblem BlurFilter, commit a6aa08a). A throw in the render pass freezes the
- * visible game while rAF keeps re-arming ("engines spin, everything else frozen").
- * The additive blend alone still reads as a glow; if a softer bloom is wanted
- * later, do it with a PRE-blurred sprite/texture, not a runtime BlurFilter.
+ * Container that gets bloom-style soft glow via BlurFilter + additive blend on children.
+ * Children rendered into this layer should set their own blendMode = 'add' on Graphics
+ * to get the additive contribution; the BlurFilter provides the soft halo.
  */
 export function createGlowLayer(): GlowLayerHandle {
   const c = new Container();
+  // strength: how soft the halo is. quality: number of blur passes.
+  // quality=2 is the sweet spot — quality=4 doubles GPU cost for marginal softness gain.
+  const blur = new BlurFilter({ strength: 5, quality: 2 });
+  c.filters = [blur];
   return { container: c };
 }
