@@ -9,6 +9,7 @@ export * from './scene/hud.js';
 export * from './scene/damage-fx.js';
 export * from './scene/muzzle-flash.js';
 export * from './scene/bullet-tracer.js';
+export * from './scene/sprite-explosions.js';
 export * from './scene/gunfeel-math.js';
 export * from './scene/screen-effects.js';
 export * from './scene/floating-numbers.js';

@@ -75,6 +75,7 @@ import {
   DamageFx,
   MuzzleFlashes,
   BulletTracers,
+  SpriteExplosions,
   FloatingNumbers,
   createScreenEffects,
   createLightning,
@@ -1130,6 +1131,9 @@ export async function startGame(container: HTMLElement) {
   const supplyLayer = new Container(); // balloons + dropped pickups (behind planes)
   const groundShadowLayer = new Container(); // plane ground shadows (below the planes)
   worldLayer.addChild(bulletLayer, fxLayer, glowLayer.container, groundFxLayer, supplyLayer, groundShadowLayer, planeLayer);
+  const explosionLayer = new Container(); // sprite-sheet explosions render ON TOP of planes
+  worldLayer.addChild(explosionLayer);
+  const spriteExplosions = new SpriteExplosions(explosionLayer);
   const groundFx = new GroundFx(groundFxLayer);
 
   // Foreground clouds — ABOVE the planes, so the hero/enemy can fly into cover
@@ -2327,6 +2331,8 @@ export async function startGame(container: HTMLElement) {
     prevEnemyRocketCount = 0;
     flameTrailAcc = 0;
     enemyHpForFx.clear();
+    enemyExploded.clear();
+    spriteExplosions.clear();
     bullets.sync([]);
     bombSprites.sync([]);
     rocketSprites.sync([]);
@@ -2725,6 +2731,7 @@ export async function startGame(container: HTMLElement) {
   let prevSpecialCooldown = 0;
   let prevReloading = false;
   const enemyHpForFx = new Map<number, number>();
+  const enemyExploded = new Set<number>(); // ids that already played a death explosion (once each)
   let gunfeelLabShotWasActive = false;
   let flightLabWasStalling = false;
   let flightLabRecoveredFromStall = false;
@@ -3201,6 +3208,7 @@ export async function startGame(container: HTMLElement) {
     // re-trigger shake + hit-pause every frame — the screen "shakes forever".
     if (state.tickCount !== prevTickCount) {
       for (const pos of frameExplosions) {
+        spriteExplosions.spawn(pos.x, pos.y, true); // big sprite-sheet fireball on bomb/rocket blasts
         damageFx.addExplosion(pos);
         damageFx.addShockwave(pos);
         audio.playExplosion();
@@ -3522,6 +3530,11 @@ export async function startGame(container: HTMLElement) {
     const seenEnemy = new Set<number>();
     for (const e of state.enemies) {
       seenEnemy.add(e.id);
+      // Sprite-sheet death explosion at the kill moment (once per enemy).
+      if (!enemyExploded.has(e.id) && (e.state === 'dying' || e.state === 'crashed' || !e.alive)) {
+        spriteExplosions.spawn(e.kinematic.position.x, e.kinematic.position.y, false);
+        enemyExploded.add(e.id);
+      }
       let s = enemySprites.get(e.id);
       if (!s) {
         s = createPlaneSprite('enemy', enemyVisual());
@@ -3535,6 +3548,7 @@ export async function startGame(container: HTMLElement) {
       if (!seenEnemy.has(id)) {
         s.destroy(); // detaches from layers + frees Graphics/geometry (keeps shared spritesheet)
         enemySprites.delete(id);
+        enemyExploded.delete(id);
       }
     }
 
@@ -3623,6 +3637,7 @@ export async function startGame(container: HTMLElement) {
       });
     }
     tracers.update(dt);
+    spriteExplosions.update(dt);
     damageFx.update(dt);
     groundFx.update(dt, (x, y) => damageFx.addSmokeTrail({ x, y }, 1));
     muzzleFlashes.update(dt);
