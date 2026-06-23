@@ -42,10 +42,11 @@ export const JACKAL_RELOAD_SEC = 6;          // owner-tuned reload time
 // the heavy look while staying just as aim-able as the light gun.
 export const JACKAL_BULLET_SPEED_MULT = 0.85;
 export const JACKAL_BULLET_GRAVITY_MULT = 0.85 * 0.85;   // = speed² → same parabola SHAPE (aim the same)
-// Owner: Jackal slugs fly ~20% SHORTER than С.О.В. (heavy slow balls don't reach as far).
-// Range ∝ speed×lifetime, so lifetime = 0.80 / speedMult gives ~0.80× the С.О.В. range,
-// same arc, just stops sooner.
-export const JACKAL_BULLET_LIFETIME_MULT = 0.80 / JACKAL_BULLET_SPEED_MULT; // ≈0.94 → ~80% of С.О.В. range
+// Owner reversal (was ~20% shorter, felt too small): Jackal slugs must reach AT LEAST as
+// far as С.О.В. Range ∝ speed×lifetime, so lifetime = 1.05 / speedMult gives ~1.05× the
+// С.О.В. flight time at 0.85× muzzle speed → ~103% of С.О.В. RANGE (matched, a hair longer),
+// same matched parabola (gravity = speed²). Still a slow heavy ball, just no longer short.
+export const JACKAL_BULLET_LIFETIME_MULT = 1.05 / JACKAL_BULLET_SPEED_MULT; // ≈1.235 → ~103% of С.О.В. range
 export const JACKAL_RECOIL_MULT = 2.4;       // the cannon really brakes the plane
 export const JACKAL_BOOST_HEAT_MULT = 0.77;  // overheats ~30% LATER → dogfight edge
 export const JACKAL_ROCKET_DMG_MULT = 1.36;  // rockets hit harder

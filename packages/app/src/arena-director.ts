@@ -62,7 +62,7 @@ export function arenaRunRequiresFinalBoss(playerScore: number, finalBossScore: n
 export function arenaEnemyRoleForRound(round: number, lane: number, isBoss = false): ArenaEnemyRole {
   if (isBoss) return 'boss';
   if (round <= 1) return 'rookie';
-  if (round <= 3) return lane === 0 ? 'hunter' : 'rookie';
+  if (round <= 3) return lane <= 1 ? 'hunter' : 'rookie';
   if (round <= 6) return lane % 2 === 1 ? 'ace' : 'hunter';
   return 'ace';
 }

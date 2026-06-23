@@ -490,8 +490,10 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     return pp;
   });
 
-  // Bullets step
-  const newBulletList = stepBullets(state.bullets);
+  // Bullets step — pass the weather wind so rounds drift with the same air mass as the
+  // planes (otherwise the plane drifts -x with the wind while bullets hang in still air,
+  // which reads as the shots being dragged toward the tail/right when flying left).
+  const newBulletList = stepBullets(state.bullets, state.wind);
   const enemyRockets: Rocket[] = []; // homing rockets launched by rocket-capable enemies this tick
 
   // Player weapon (with magazine + reload). Алые Шакалы fly a heavy-brawler gun: smaller

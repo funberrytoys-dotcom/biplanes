@@ -1218,22 +1218,35 @@ export async function startGame(container: HTMLElement) {
     groundShadowLayer.addChild(playerSprite.shadow);
   }
 
-  // Wingman drone sprites — small brass dieselpunk drones that trail the plane.
-  const droneSprites: { c: Container; prop: Graphics }[] = [];
-  for (let i = 0; i < 5; i++) { // up to 5 for the Jackal «Ведомый» swarm (wingman ×4 + base)
+  // Wingman «Ведомый» sprites — a small AI escort craft that trails the plane.
+  // Faction-aware: a RED Jackal airframe for Алые Шакалы, a blue С.О.В. ally for С.О.В.
+  // Drawn as a compact biplane silhouette (not the full painted sheet) so it reads as an
+  // ally craft without a new asset. Colour is (re)applied per-frame because these sprites
+  // are built once at startup, before the faction is chosen, and the faction can change
+  // later via the select screen. `lastVisual` guards against redrawing every frame.
+  const drawWingmanBody = (body: Graphics, visual: 'player' | 'enemy') => {
+    // Match the established faction body colours (plane-sprite: 0x4f86c6 blue / 0xc0392b crimson).
+    const hull = visual === 'enemy' ? 0xc0392b : 0x4f86c6;
+    const accent = visual === 'enemy' ? 0xf0a89a : 0x9fd0ff;
+    const ink = visual === 'enemy' ? 0x3a0e08 : 0x10243d;
+    body.clear();
+    body.rect(-10, 5, 22, 2.6).fill({ color: hull, alpha: 0.85 }).stroke({ color: ink, width: 1 });   // lower wing
+    body.rect(-10, -7.5, 22, 2.6).fill({ color: hull }).stroke({ color: ink, width: 1 });             // upper wing
+    body.ellipse(0, 0, 13, 5).fill({ color: hull }).stroke({ color: ink, width: 1.6 });               // fuselage
+    body.ellipse(2, -1.5, 5, 2.4).fill({ color: accent, alpha: 0.6 });                                 // cockpit glint
+    body.circle(11, 0, 2.4).fill({ color: ink });                                                      // nose
+  };
+  const droneSprites: { c: Container; prop: Graphics; body: Graphics; lastVisual: 'player' | 'enemy' | null }[] = [];
+  for (let i = 0; i < 5; i++) { // up to 5 wingman slots
     const c = new Container();
     const body = new Graphics();
-    body.ellipse(0, 0, 12, 7).fill({ color: 0xc8922e }).stroke({ color: 0x2a1a0e, width: 1.6 });
-    body.ellipse(2, -1.5, 6, 3).fill({ color: 0xffe9b0, alpha: 0.5 });
-    body.circle(6, 0, 2.6).fill({ color: 0x9fe8ff }).stroke({ color: 0x2a1a0e, width: 1 }); // sensor eye
-    body.rect(-15, -1.6, 7, 3.2).fill({ color: 0x6b7790 }).stroke({ color: 0x2a1a0e, width: 1 }); // rear gun
     const prop = new Graphics();
-    prop.rect(-1.4, -9, 2.8, 18).fill({ color: 0xdfe6ee, alpha: 0.7 });
+    prop.rect(-1.2, -7, 2.4, 14).fill({ color: 0xdfe6ee, alpha: 0.7 });
     prop.x = 12;
     c.addChild(body, prop);
     c.visible = false;
     planeLayer.addChild(c);
-    droneSprites.push({ c, prop });
+    droneSprites.push({ c, prop, body, lastVisual: null });
   }
 
   const enemySprites = new Map<number, ReturnType<typeof createPlaneSprite>>();
@@ -3485,11 +3498,18 @@ export async function startGame(container: HTMLElement) {
       const dn = state.droneCount > 0 ? state.droneCount : (state.hasDrone ? 1 : 0);
       const pk = state.player.kinematic;
       const back = pk.heading + Math.PI;
+      const wantVisual: 'player' | 'enemy' = playerVisual();
       for (let i = 0; i < droneSprites.length; i++) {
         const ds = droneSprites[i]!;
         const show = i < dn && state.player.alive && state.player.state !== 'crashed';
         ds.c.visible = show;
         if (show) {
+          // Recolour the wingman to match the chosen faction (red Jackal / blue С.О.В.).
+          // Only redraws when the scheme actually changed — cheap.
+          if (ds.lastVisual !== wantVisual) {
+            drawWingmanBody(ds.body, wantVisual);
+            ds.lastVisual = wantVisual;
+          }
           const phase = renderTimeSec * 3 + (i * Math.PI * 2) / Math.max(1, dn);
           ds.c.x = pk.position.x + Math.cos(back) * 38 + Math.cos(phase) * 30;
           ds.c.y = pk.position.y + Math.sin(back) * 38 + Math.sin(phase) * 30;
