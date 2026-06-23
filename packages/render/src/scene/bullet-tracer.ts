@@ -23,28 +23,19 @@ export class BulletTracers {
     let g = this.pool.pop();
     if (!g) g = new Graphics();
     g.clear();
-    const scale = options.scale ?? 1;
     const duration = options.duration ?? 0.1;
     const color = bullet.ownerFaction === 'player' ? 0xffe88c : 0xff5a22;
-    const heavy = bullet.isHeavy === true;
-    // Soft glow halo BEHIND the streak — concentric ellipses (wide-faint → narrow-bright),
-    // normal blend so it reads on ANY sky. Restores the bloom the old BlurFilter gave, but
-    // filter-free so it can't crash the GPU (the BlurFilter froze the game on round 4 twice).
-    const gw = heavy ? 40 : 34, gh = heavy ? 11 : 8;
-    for (let k = 0; k < 6; k++) {
-      const f = k / 5;
-      g.ellipse(-10, 0, gw - f * (gw - 7), gh - f * (gh - 2.4)).fill({ color, alpha: 0.05 + f * 0.10 });
-    }
-    g.rect(-38, -3.1, 56, 6.2).fill({ color: 0x2a1208, alpha: heavy ? 0.52 : 0.44 });
-    g.rect(-34, -2.0, 48, 4.0).fill({ color, alpha: heavy ? 0.9 : 0.78 });
-    g.rect(-16, -0.9, 34, 1.8).fill({ color: 0xffffff, alpha: heavy ? 0.76 : 0.62 });
-    g.circle(9, 0, heavy ? 4.6 : 3.4).fill({ color: 0xffffff, alpha: 0.86 });
+    // A small, faint motion smear so fast rounds don't strobe — deliberately NOT a long
+    // tracer and with NO glow bloom. The owner's brief: «small bullets, no tracers, no
+    // glow». The visible projectile itself is BulletPool's sprite (С.О.В. = small bullet,
+    // Алые Шакалы = fat slow ball); this just softens the gap between frames. Faction COLOR
+    // only — no white-hot core, no halos, no additive blend (those read as «свечение»).
+    g.rect(-8, -0.8, 11, 1.6).fill({ color, alpha: 0.5 });
     g.x = bullet.position.x;
     g.y = bullet.position.y;
     g.rotation = Math.atan2(bullet.velocity.y, bullet.velocity.x);
-    g.scale.set(scale);
     this.container.addChild(g);
-    this.active.push({ g, life: duration, maxLife: duration, scale });
+    this.active.push({ g, life: duration, maxLife: duration, scale: 1 });
   }
 
   update(dt: number) {

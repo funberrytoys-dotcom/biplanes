@@ -101,10 +101,11 @@ export const DIFFICULTIES: Record<Difficulty, AiParams> = {
     energyManagement: false,
     fireConeRad: Math.PI / 5,        // ±36° — rookie, but no longer a screen-wide spray
     // 260 was far too short for the 3× «Забег»/arena world — rookies (rounds 1-3) just
-    // flew around and never closed to within range, so they "не атаковали". 560 lets them
-    // actually engage while staying shorter than hunters (740). They're still weak: low
-    // damage (0.55×), slow trigger (0.55×) and sloppy ±36° aim.
-    fireRange: 560,
+    // flew around and never closed to within range, so they "не атаковали". Even 560 left
+    // them out of range most of a Run engagement (spawns at player.x±1350); 760 lets them
+    // actually press in while staying shorter than hunters' setup. Still the weak tier:
+    // modest damage (0.7×), slow trigger (0.7×) and sloppy ±36° aim.
+    fireRange: 760,
     leadFactor: 0,
     turnDeadzoneRad: 0.25,
     reactionDelaySec: 0.38,
@@ -122,11 +123,11 @@ export const DIFFICULTIES: Record<Difficulty, AiParams> = {
     cruiseThrottle: 1.0,
     diveThrottle: 1.0,
     climbThrottle: 1.0,
-    rookieMistakeChancePerSec: 0.3,   // less goofy — comes after you more
+    rookieMistakeChancePerSec: 0.12,  // far less goofy — stops wandering off the player every ~3s
     ejectChancePerSec: 0.3,           // rarely bails, dies in plane
     hpMultiplier: 0.7,                 // fragile — goes down quickly
-    damageMultiplier: 0.55,            // weak bullets
-    fireRateMultiplier: 0.55,          // slow trigger finger
+    damageMultiplier: 0.7,             // weak bullets, but now a real (if mild) threat when they connect
+    fireRateMultiplier: 0.7,           // slow trigger finger, eased so they actually shoot back
   },
   medium: {
     stallAvoidEnabled: true,

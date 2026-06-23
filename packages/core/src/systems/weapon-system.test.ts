@@ -82,6 +82,25 @@ describe('weapon-system', () => {
     // Drag bleeds horizontal speed → vx shrinks.
     expect(stepped!.velocity.x).toBeLessThan(b.velocity.x);
   });
+
+  it('bullets ride the weather wind so leftward flight does not lag the shots', () => {
+    // Wind drifts the plane each tick; before the fix bullets hung in still air, so in any
+    // weather (wind blows -x) rounds appeared to trail toward the tail/right — worst when
+    // flying left. Bullets must now drift by the same wind: a purely positional wind*dt per
+    // tick, identical otherwise (velocity untouched, determinism preserved with no wind).
+    const wind = { x: -120, y: 0 };
+    let calm = [makeBulletFromPlane(makePlayer(), 999)];
+    let windy = [makeBulletFromPlane(makePlayer(), 999)];
+    const N = 30;
+    for (let i = 0; i < N; i++) {
+      calm = stepBullets(calm);          // no wind arg → unchanged legacy behavior
+      windy = stepBullets(windy, wind);
+    }
+    // The ONLY difference is the accumulated wind drift (wind.x * dt per tick).
+    expect(windy[0]!.position.x - calm[0]!.position.x).toBeCloseTo(wind.x * TICK_DT * N, 4);
+    // Wind is positional only — it must not change the bullet's velocity.
+    expect(windy[0]!.velocity.x).toBeCloseTo(calm[0]!.velocity.x, 6);
+  });
 });
 
 describe('weapon-system: multishot fan & heavy cannon', () => {

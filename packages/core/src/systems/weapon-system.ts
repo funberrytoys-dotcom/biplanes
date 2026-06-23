@@ -89,9 +89,19 @@ export function firePlayerWeapon(
   };
 }
 
-export function stepBullets(bullets: readonly Bullet[]): Bullet[] {
+export function stepBullets(
+  bullets: readonly Bullet[],
+  wind?: { x: number; y: number },
+): Bullet[] {
   const out: Bullet[] = [];
   const drag = Math.max(0, 1 - BULLET_DRAG * TICK_DT);
+  // Bullets ride the same moving air mass as the planes. Wind is added to the plane
+  // position each tick (tick.ts) but was NOT applied to bullets, so in any weather (wind
+  // always blows -x) the plane drifted left while rounds hung in still air → they appeared
+  // to lag toward the tail (+x / world-right), worst when flying left. Drifting bullets by
+  // the same wind removes that relative drift so shots track the nose.
+  const wdx = wind ? wind.x * TICK_DT : 0;
+  const wdy = wind ? wind.y * TICK_DT : 0;
   for (const b of bullets) {
     const newLifetime = b.lifetime - TICK_DT;
     if (newLifetime <= 0) continue;
@@ -101,8 +111,8 @@ export function stepBullets(bullets: readonly Bullet[]): Bullet[] {
     out.push({
       ...b,
       position: {
-        x: b.position.x + vx * TICK_DT,
-        y: b.position.y + vy * TICK_DT,
+        x: b.position.x + vx * TICK_DT + wdx,
+        y: b.position.y + vy * TICK_DT + wdy,
       },
       velocity: { x: vx, y: vy },
       lifetime: newLifetime,
