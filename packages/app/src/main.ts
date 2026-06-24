@@ -1166,8 +1166,9 @@ export async function startGame(container: HTMLElement) {
   const WC_REACH_DIST = 1700;                      // how close to the bridge counts as "arrived"
   // «Вечная ночь» под облаками: the bottom of the map is a dense cloud floor; punch below it and
   // the dark swallows the plane unless you climb out in time (replaces lethal ground in air missions).
-  const WC_CLOUD_FLOOR_FRAC = 0.72;                // dense cloud-floor band Y, as a fraction of the demo world height
-  const WC_DARK_FRAC = 0.76;                       // below this Y-fraction = eternal night (the death zone)
+  const WC_WORLD_HEIGHT_MULT = 1.5;                // demo world height = ARENA_WORLD_HEIGHT × this (tall: action high, floor far below)
+  const WC_CLOUD_FLOOR_FRAC = 0.82;                // dense cloud-floor band Y, as a fraction of the demo world height (LOW)
+  const WC_DARK_FRAC = 0.86;                       // below this Y-fraction = eternal night (the death zone)
   const WC_DARK_DEATH_SEC = 6;                     // seconds in the dark before the light fails → boom
   // С.О.В. звено: two AI-flown ALLY fighters (full planes, not drones) escort the player and
   // hunt the airship's turrets + the enemy Shakals.
@@ -1327,7 +1328,7 @@ export async function startGame(container: HTMLElement) {
   // «Вечная ночь» dense cloud FLOOR for air missions (wolf-comet demo) — a thick, near-opaque
   // band at the bottom of the play area. Below it = darkness (the death zone). Demo-only.
   const wcCloudFloor = createCloudSea({
-    count: 52, yTop: Math.round(ARENA_WORLD_HEIGHT * 1.25 * WC_CLOUD_FLOOR_FRAC),
+    count: 52, yTop: Math.round(ARENA_WORLD_HEIGHT * WC_WORLD_HEIGHT_MULT * WC_CLOUD_FLOOR_FRAC),
     span: 2900, widthMin: 660, widthMax: 1220, alphaMin: 0.78, alphaMax: 0.98, driftSpeed: 5,
   });
   wcCloudFloor.container.visible = false;
@@ -2674,15 +2675,15 @@ export async function startGame(container: HTMLElement) {
     // Comet sits on the RIGHT of the big map and drifts LEFT (bow-first) toward our island.
     wolfCometGroup.scale.set(0.95);
     wolfCometGroup.x = ww * 0.74;
-    wolfCometGroup.y = wh * 0.42;
+    wolfCometGroup.y = wh * 0.26; // HIGH — the action sits well above the distant cloud floor
   }
   function startWolfCometDemo() {
     chosenFaction = 'sov'; // dirigible mission: player is С.О.В. (blue); the deck Shakals are the red Jackals
     startArena();
     // BIG air mission, NO ground: take off FROM our island (LEFT), fly RIGHT toward the Wolf
     // Comet, and shoot it down before it drifts back across the map to the island.
-    const ww = Math.round(ARENA_WORLD_WIDTH * 1.9), wh = Math.round(ARENA_WORLD_HEIGHT * 1.25);
-    const sx = ww * 0.12, sy = wh * 0.52; // launch from our island, heading right toward the Comet
+    const ww = Math.round(ARENA_WORLD_WIDTH * 1.9), wh = Math.round(ARENA_WORLD_HEIGHT * WC_WORLD_HEIGHT_MULT);
+    const sx = ww * 0.12, sy = wh * 0.28; // launch from our island, HIGH up — cloud floor is far below
     state = {
       ...state,
       worldWidth: ww, worldHeight: wh, gameOver: false,
@@ -2718,7 +2719,7 @@ export async function startGame(container: HTMLElement) {
     wolfCometGroup.alpha = 1;
     resetWolfComet();
     wolfCometIsland.scale.set(0.8);
-    wolfCometIsland.position.set(ww * 0.05, wh * 0.6); // our base, on the LEFT
+    wolfCometIsland.position.set(ww * 0.05, wh * 0.33); // our base, on the LEFT (HIGH, near the action)
     wolfCometIsland.visible = true;
     fgClouds.container.alpha = 0.4; // thin the foreground clouds so the Comet reads clearly
     const focus = resolveArenaCameraFocus({ playerX: sx, playerY: sy, facing: 1 });
@@ -4071,7 +4072,7 @@ export async function startGame(container: HTMLElement) {
           showArenaToast('ТЬМА ПОГЛОТИЛА', 'Свет погас — ночь забрала нас! Держись выше облаков.', 3.6);
           const wwR = state.worldWidth ?? ARENA_WORLD_WIDTH, whR = state.worldHeight ?? WORLD_HEIGHT;
           state = { ...state, player: { ...state.player, hp: state.player.maxHp, alive: true, state: 'flying',
-            kinematic: { ...state.player.kinematic, position: { x: wwR * 0.14, y: whR * 0.5 }, velocity: { x: G_MAX_LEVEL, y: 0 }, heading: 0, g: G_MAX_LEVEL, throttleLevel: 1, facing: 1 } } };
+            kinematic: { ...state.player.kinematic, position: { x: wwR * 0.14, y: whR * 0.30 }, velocity: { x: G_MAX_LEVEL, y: 0 }, heading: 0, g: G_MAX_LEVEL, throttleLevel: 1, facing: 1 } } };
           wcDarkOverlay.visible = false; wcDarkWarning.visible = false; wcDarkTimer = 0;
         }
       } else if (wcDarkTimer > 0) {
