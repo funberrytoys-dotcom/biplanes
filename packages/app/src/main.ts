@@ -133,6 +133,7 @@ import {
   shouldStartArenaDuelAfterTakeoff,
 } from './arena-camera.js';
 import { getGunfeelLabShotAt } from './gunfeel-lab.js';
+import { resolveWolfCometLaunch } from './wolf-comet-launch.js';
 import { resolveFlightLabCue, resolveFlightLabSpawn } from './flight-lab.js';
 import { createGameAudio } from './audio/game-audio.js';
 import { shouldShowTouchGuide } from './mobile-touch-guide.js';
@@ -260,6 +261,7 @@ const VISUAL_ASSET_URLS = [
   assetUrl('assets/airships/wolfcomet/turret_mg_wreck.png'),
   assetUrl('assets/airships/wolfcomet/bridge_damaged.png'),
   assetUrl('assets/airships/wolfcomet/bridge_destroyed.png'),
+  assetUrl('assets/airships/wolfcomet/island_sov.png'),
   ...ISLAND_BRYNN_FRAME_URLS,
 ];
 
@@ -1155,20 +1157,21 @@ export async function startGame(container: HTMLElement) {
   // bullets) shown only in the campaign demo; the player flies along it without colliding.
   // Design units: balloon ~2000 wide; positionWolfComet() scales+places it in the world.
   // === «Волчья комета» destructible sections (turrets / engines / bridge-core) ===
-  const WC_TURRET_HP = 80, WC_ENGINE_HP = 150, WC_CORE_HP = 700;
+  const WC_TURRET_HP = 80, WC_ENGINE_HP = 150, WC_CORE_HP = 700, WC_PROP_HP = 130;
   const WC_MG_DMG = 5, WC_MG_SPEED = 880;          // twin-barrel light burst (like С.О.В.)
   const WC_CANNON_DMG = 16, WC_CANNON_SPEED = 620; // one big heavy shell (like the cannon perk)
+  const WC_REACH_DIST = 1700;                      // how close to the bridge counts as "arrived"
   type WCSection = {
-    kind: 'turret' | 'engine' | 'core'; weapon?: 'mg' | 'cannon'; sprite: Sprite; targetW: number; intactFile: string;
+    kind: 'turret' | 'engine' | 'core' | 'prop'; weapon?: 'mg' | 'cannon'; sprite: Sprite; targetW: number; intactFile: string;
     hp: number; maxHp: number; alive: boolean; fireCooldown: number; fireInterval: number;
     fireBase: number; wreckFile?: string; stages?: { hp: number; file: string }[]; stageIdx: number; bar: Graphics;
   };
   const wcSections: WCSection[] = [];
   const wcHud = new Container(); // section HP bars (world space)
   let wcBulletId = -100000;  // unique negative ids for turret bullets (no clash with core ids)
-  let wcDeckTimer = 4;       // sec until next deck Shakal wave
-  let wcWave = 0;            // wave index — count escalates, interval shrinks (difficulty grows)
-  let wcDeckLaunched = 0;    // how many deck fighters have taken off (cap 5)
+  // Scripted deck-launch beats (NOT a timer): approach → 50% turrets → bridge+prop (boss).
+  let wcFiredApproach = false, wcFiredHalfTurrets = false, wcFiredBoss = false;
+  let wcBossId: number | null = null; // «Шрам» — the boss launched on the final beat
   let wcDefeated = false, wcFinaleTimer = 0; // victory explosion cascade
   let wcSmokeTick = 0;       // throttles the wreck-smoke emission
   const wolfCometGroup = new Container();
@@ -1195,7 +1198,7 @@ export async function startGame(container: HTMLElement) {
       return sp;
     };
     type SecOpts = { rot?: number; flipX?: boolean; fireInterval?: number; fireCooldown?: number; wreckFile?: string; stages?: { hp: number; file: string }[] };
-    const addSection = (group: Container, file: string, srcW: number, targetW: number, x: number, y: number, kind: 'turret' | 'engine' | 'core', hp: number, opts: SecOpts = {}): Sprite => {
+    const addSection = (group: Container, file: string, srcW: number, targetW: number, x: number, y: number, kind: 'turret' | 'engine' | 'core' | 'prop', hp: number, opts: SecOpts = {}): Sprite => {
       const sp = addTo(group, file, srcW, targetW, x, y, opts.rot ?? 0, opts.flipX ?? false);
       const bar = new Graphics(); wcHud.addChild(bar);
       const weapon = file.includes('cannon') ? 'cannon' : file.includes('mg') ? 'mg' : undefined;
@@ -1204,7 +1207,8 @@ export async function startGame(container: HTMLElement) {
     };
     // balloon block
     addTo(wcBalloon, 'balloon.png', 1536, 4211, 93, -482);
-    wcProps.push(addTo(wcBalloon, 'propeller.png', 768, 700, 2152, -470)); // balloon stern prop — spins in code
+    // Stern propeller — DESTROYABLE section (the «винт») AND spun in code while alive.
+    wcProps.push(addSection(wcBalloon, 'propeller.png', 768, 700, 2152, -470, 'prop', WC_PROP_HP));
     wcFlags.push(addTo(wcBalloon, 'pennant_horizontal.png', 768, 294, 197, -1132)); // straight on the pole (no tilt)
     addSection(wcBalloon, 'turret_mg_intact.png', 1024, 156, -101, -1018, 'turret', WC_TURRET_HP, { flipX: true, wreckFile: 'turret_mg_wreck.png', fireInterval: 1.3, fireCooldown: 0.5 });
     // gondola block
@@ -1222,6 +1226,21 @@ export async function startGame(container: HTMLElement) {
     addSection(wcGondola, 'turret_mg_intact.png', 1024, 156, -397, 203, 'turret', WC_TURRET_HP, { wreckFile: 'turret_mg_wreck.png', fireInterval: 1.2, fireCooldown: 0.4 });
     addSection(wcGondola, 'turret_mg_intact.png', 1024, 166, -1030, 209, 'turret', WC_TURRET_HP, { flipX: true, wreckFile: 'turret_mg_wreck.png', fireInterval: 1.2, fireCooldown: 0.8 });
   }
+  // Parked Jackal fighters sitting ON the gondola deck — visible when the player arrives, then
+  // launched one beat at a time (resolveWolfCometLaunch). Children of wcGondola so they ride the
+  // deck's sway. The 4th is the boss («Шрам»). Positions are gondola design-units; tuned to the deck.
+  type WCDeckPlane = { handle: ReturnType<typeof createPlaneSprite>; launched: boolean };
+  const wcDeckPlanes: WCDeckPlane[] = [];
+  {
+    const deckSpots: Array<[number, number]> = [[-780, 150], [-230, 140], [330, 140], [880, 150]];
+    for (const [x, y] of deckSpots) {
+      const handle = createPlaneSprite('enemy', 'enemy'); // red Jackal airframe
+      handle.container.position.set(x, y);
+      handle.container.scale.x = -1; // face left — the launch direction (toward the incoming player)
+      wcGondola.addChild(handle.container);
+      wcDeckPlanes.push({ handle, launched: false });
+    }
+  }
   // Rigging fan from gondola deck to balloon underside, redrawn each frame so it tracks the
   // sway (by/gy = the two blocks' current vertical offsets). Drawn behind the gondola.
   const drawWolfCometCables = (by = 0, gy = 0) => {
@@ -1233,7 +1252,7 @@ export async function startGame(container: HTMLElement) {
   worldLayer.addChild(wolfCometGroup);
   worldLayer.addChild(wcHud); // HP bars above the airship sections
   // Our С.О.В. island/base — the Comet drifts toward it; destroy it before the Comet arrives.
-  const wolfCometIsland = new Sprite(Texture.from(assetUrl('assets/biplanes/island_player.png')));
+  const wolfCometIsland = new Sprite(Texture.from(assetUrl('assets/airships/wolfcomet/island_sov.png')));
   wolfCometIsland.anchor.set(0.5);
   wolfCometIsland.visible = false;
   worldLayer.addChild(wolfCometIsland);
@@ -1244,7 +1263,9 @@ export async function startGame(container: HTMLElement) {
       s.sprite.texture = Texture.from(assetUrl('assets/airships/wolfcomet/' + s.intactFile));
       s.sprite.alpha = 1; s.bar.clear();
     }
-    wcDeckTimer = 4; wcDeckLaunched = 0; wcWave = 0; wcDefeated = false; wcFinaleTimer = 0;
+    for (const dp of wcDeckPlanes) { dp.launched = false; dp.handle.container.visible = true; }
+    wcFiredApproach = false; wcFiredHalfTurrets = false; wcFiredBoss = false; wcBossId = null;
+    wcDefeated = false; wcFinaleTimer = 0;
   };
 
   worldLayer.addChild(bulletLayer, fxLayer, glowLayer.container, groundFxLayer, supplyLayer, groundShadowLayer, planeLayer);
@@ -1485,6 +1506,15 @@ export async function startGame(container: HTMLElement) {
     applyFactionForMode();
   }
   void setFaction; // wired to the faction-select screen (next)
+
+  // Campaign + training have NO faction-select — they always run as С.О.В. (Chico's side).
+  // Reset the sticky faction here so a previous «Забег» played as Алые Шакалы can't leak a
+  // red Jackal airframe (and its heavy gun) into Кампания / Учебный полёт. Fixes the
+  // "I picked Jackals once and now every mode flies red" bug.
+  function forceSovForCampaign() {
+    chosenFaction = 'sov';
+    applyFactionForMode(); // recolour the player sprite back to С.О.В. blue + brass grip
+  }
 
   function layoutAmmoHud(w: number, h: number) {
     // Bottom-right corner, just left of the far-right throttle lever.
@@ -2135,6 +2165,10 @@ export async function startGame(container: HTMLElement) {
       : Array.from({ length: nextEnemyCount }, (_, lane) =>
         makeArenaRoundEnemy(state.nextEntityId + lane, state.player, arenaRound, lane, isRun)
       );
+    // Every red Jackal plane fires the heavy "ball" gun (player OR AI, any mode). A combatant
+    // is a Jackal when it wears the red scheme: enemies are red when the player flies С.О.В.
+    // (chosenFaction === 'sov'); when the player flies Jackals, the enemies are blue С.О.В.
+    for (const e of enemies) e.heavyGun = chosenFaction === 'sov';
     arenaDuelEnemyId = enemies[0]?.id ?? null;
     state.nextEntityId += enemies.length;
     state.enemies = enemies;
@@ -2510,6 +2544,8 @@ export async function startGame(container: HTMLElement) {
   function startArena() {
     runMode = 'arena';
     wolfCometGroup.visible = false; // airship shows only in the wolf-comet demo
+    wolfCometIsland.visible = false; // our island base shows only in the wolf-comet demo
+    wcHud.visible = false;           // section HP bars belong to the wolf-comet demo only
     fgClouds.container.alpha = 1;   // full foreground clouds for normal modes
     applyFactionForMode(); // player flies the chosen faction's colour; show/hide the grip
     arenaShownStage = 0;
@@ -2524,6 +2560,9 @@ export async function startGame(container: HTMLElement) {
     missionOne.reset();
     storyScene.reset();
     resetRunState(arenaDifficultyForRound(arenaRound) as Difficulty, makeArenaRunwayPlayer());
+    // Алые Шакалы always fly the heavy "ball" gun — in EVERY mode, not just «Забег».
+    // The core reads state.playerFaction for the player's heavy cannon (tick.ts). С.О.В. = light.
+    state.playerFaction = chosenFaction === 'jackals' ? 'jackals' : 'sov';
     touch.resetThrottle(); // start the run sitting still — the player gives gas
     state.worldWidth = ARENA_WORLD_WIDTH;
     state.worldHeight = ARENA_WORLD_HEIGHT;
@@ -2580,6 +2619,7 @@ export async function startGame(container: HTMLElement) {
     wolfCometGroup.y = wh * 0.42;
   }
   function startWolfCometDemo() {
+    chosenFaction = 'sov'; // dirigible mission: player is С.О.В. (blue); the deck Shakals are the red Jackals
     startArena();
     // BIG air mission, NO ground: take off FROM our island (LEFT), fly RIGHT toward the Wolf
     // Comet, and shoot it down before it drifts back across the map to the island.
@@ -2721,6 +2761,7 @@ export async function startGame(container: HTMLElement) {
     missionOne.reset();
     storyScene.reset();
     resetRunState('easy' as Difficulty, makeFlightLabPlayer());
+    forceSovForCampaign(); // training flies С.О.В. (never inherit a Jackal pick from «Забег»)
     state.worldWidth = SKY_TEST_WORLD_WIDTH;
     state.worldHeight = SKY_TEST_WORLD_HEIGHT;
     state.softFloor = true;
@@ -2798,6 +2839,7 @@ export async function startGame(container: HTMLElement) {
     missionOne.reset();
     storyScene.reset();
     resetRunState('medium' as Difficulty, makeCarrierLaunchPlayer());
+    forceSovForCampaign(); // story = С.О.В. (never inherit a Jackal pick from «Забег»)
 
     // Setup scrolling world width and scaling
     state.worldWidth = MISSION_ONE_WORLD_WIDTH;
@@ -2889,6 +2931,7 @@ export async function startGame(container: HTMLElement) {
         : WORLD_HEIGHT * (0.18 + 0.1 * (i % 3)) + Math.sin(missionOne.timeSec + i) * 24;
       const enemy = makeScriptedEnemy(nextId, spawnX, y, boss ? hpMultiplier : 1.0, Math.PI + lane * 0.08);
       enemy.aiRole = role;
+      enemy.heavyGun = chosenFaction === 'sov'; // story pirates are red Jackals → heavy ball gun
       scriptedEnemyIds.add(enemy.id);
       if (boss) missionOne.registerBoss(enemy.id);
       spawned.push(enemy);
@@ -3716,7 +3759,8 @@ export async function startGame(container: HTMLElement) {
       wcGondola.y = Math.sin(t * 0.8 - 0.5) * 16;
       wcGondola.rotation = Math.sin(t * 0.55 - 0.6) * 0.016;
       for (const f of wcFlags) f.skew.x = Math.sin(t * 3.5 + f.position.x * 0.01) * 0.16;
-      for (const p of wcProps) p.rotation += dt * 16; // spinning propellers
+      const propAlive = wcSections.find(s => s.kind === 'prop')?.alive ?? false;
+      if (propAlive) for (const p of wcProps) p.rotation += dt * 16; // spin while the «винт» lives
       drawWolfCometCables(wcBalloon.y, wcGondola.y);
 
       wcHud.visible = true;
@@ -3796,36 +3840,56 @@ export async function startGame(container: HTMLElement) {
           damageFx.addSmokeTrail({ x: wp.x + Math.sin(t * 6 + s.targetW) * 16, y: wp.y - 10 }, 1);
         }
       }
-      // deck Shakals take off, one every few seconds (up to 5) — real AI enemies
-      const aliveEnemies = state.enemies.filter(en => en.alive).length;
-      if (!wcDefeated && state.player.alive && aliveEnemies < 6) {
-        wcDeckTimer -= dt;
-        if (wcDeckTimer <= 0) {
-          // Waves escalate: 1, then 2, then 1, then 2, 3… and the gap shrinks → harder over time.
-          const counts = [1, 2, 1, 2, 3, 2, 3];
-          const count = counts[Math.min(wcWave, counts.length - 1)]!;
-          wcDeckTimer = Math.max(3.5, 7 - wcWave * 0.6);
-          for (let n = 0; n < count; n++) {
-            const lane = (wcDeckLaunched + n) % 6;
-            const e = makeArenaRoundEnemy(state.nextEntityId, state.player, 3, lane, false);
-            const dx0 = wolfCometGroup.x + (-260 + lane * 200) * gscale, dy0 = wolfCometGroup.y + 175 * gscale;
-            e.kinematic = { ...e.kinematic, position: { x: dx0, y: dy0 } };
-            e.heavyGun = true; // deck Shakals fire the heavy Jackal gun
-            state = { ...state, nextEntityId: state.nextEntityId + 1, enemies: [...state.enemies, e] };
-            spriteExplosions.spawn(dx0, dy0, false);
-          }
-          wcDeckLaunched += count; wcWave++;
-          showArenaToast('ВЗЛЁТ С ПАЛУБЫ', count > 1 ? `${count} Шакала в воздух!` : 'Шакал в воздух!', 1.2);
-        }
+      // === Scripted deck-launch beats (NOT a timer) — the parked Shakals take off one beat at a
+      // time as the player tears the airship apart: approach → 50% turrets → bridge+prop = boss. ===
+      const bridge = wcSections.find(s => s.kind === 'core');
+      const prop = wcSections.find(s => s.kind === 'prop');
+      const turrets = wcSections.filter(s => s.kind === 'turret');
+      const reachedBridge = !!bridge && state.player.alive &&
+        Math.hypot(pk.position.x - wpos(bridge).x, pk.position.y - wpos(bridge).y) < WC_REACH_DIST;
+      const launchDeck = (idx: number, asBoss: boolean) => {
+        const dp = wcDeckPlanes[idx];
+        if (!dp || dp.launched) return;
+        const wp = worldLayer.toLocal(dp.handle.container.getGlobalPosition()); // its deck world pos
+        dp.launched = true;
+        dp.handle.container.visible = false; // airborne now — the live AI enemy takes over
+        const e = asBoss
+          ? makeArenaScarBoss(state.nextEntityId, state.player, 4, false, 'sov') // «Шрам», the red Baron (~950 HP, tunable)
+          : makeArenaRoundEnemy(state.nextEntityId, state.player, 4, idx, false);
+        e.kinematic = { ...e.kinematic, position: { x: wp.x, y: wp.y }, velocity: { x: -G_MAX_LEVEL * 0.9, y: 0 }, heading: Math.PI, facing: -1 };
+        e.heavyGun = true; // every Jackal off the deck (incl. the Baron) fires the heavy ball gun
+        if (asBoss) wcBossId = e.id;
+        state = { ...state, nextEntityId: state.nextEntityId + 1, enemies: [...state.enemies, e] };
+        spriteExplosions.spawn(wp.x, wp.y, false);
+      };
+      if (!wcDefeated && state.player.alive) {
+        const beats = resolveWolfCometLaunch({
+          reachedBridge,
+          turretsTotal: turrets.length,
+          turretsDead: turrets.filter(s => !s.alive).length,
+          bridgeDestroyed: !!bridge && !bridge.alive,
+          propellerDestroyed: !!prop && !prop.alive,
+          firedApproach: wcFiredApproach,
+          firedHalfTurrets: wcFiredHalfTurrets,
+          firedBoss: wcFiredBoss,
+        });
+        if (beats.approach) { wcFiredApproach = true; launchDeck(0, false); showArenaToast('ВЗЛЁТ С ПАЛУБЫ', 'Первый Шакал в воздухе!', 1.6); }
+        if (beats.halfTurrets) { wcFiredHalfTurrets = true; launchDeck(1, false); launchDeck(2, false); showArenaToast('ВЗЛЁТ С ПАЛУБЫ', 'Ещё два Шакала в небе!', 1.6); }
+        if (beats.boss) { wcFiredBoss = true; launchDeck(3, true); showArenaToast('ВЗЛЕТЕЛ БАРОН', '«Шрам» поднялся — добей его!', 2.6); }
       }
-      // The Comet slowly drifts toward our island; win = core destroyed, lose = it arrives.
+      // Win = the Baron is dead. Lose = the Comet reaches the island — but only WHILE the bridge
+      // stands; once the bridge is down the Comet is crippled and just hangs there for the duel.
+      const bridgeDown = !!bridge && !bridge.alive;
       if (!wcDefeated) {
-        wolfCometGroup.x -= 46 * dt; // drift LEFT (bow-first) toward our island
-        const core = wcSections.find(s => s.kind === 'core');
-        if (core && !core.alive) {
-          wcDefeated = true; wcFinaleTimer = 0;
-          showArenaToast('РУБКА УНИЧТОЖЕНА', 'Комета падает!', 2.2);
-        } else if (wolfCometGroup.x < wolfCometIsland.x + 2800) {
+        if (!bridgeDown) wolfCometGroup.x -= 46 * dt; // drift LEFT (bow-first) toward our island
+        if (wcFiredBoss && wcBossId !== null) {
+          const boss = state.enemies.find(en => en.id === wcBossId);
+          if (!boss || !boss.alive) {
+            wcDefeated = true; wcFinaleTimer = 0;
+            showArenaToast('БАРОН ПОВЕРЖЕН', '«Волчья комета» падает!', 2.4);
+          }
+        }
+        if (!bridgeDown && wolfCometGroup.x < wolfCometIsland.x + 2800) {
           showArenaToast('ОСТРОВ ПАЛ', 'Комета дошла до базы…', 3);
           state = { ...state, gameOver: true };
           wolfCometGroup.visible = false; wolfCometIsland.visible = false; wcHud.visible = false; fgClouds.container.alpha = 1;
