@@ -1164,7 +1164,14 @@ export async function startGame(container: HTMLElement) {
   const WC_MG_DMG = 5, WC_MG_SPEED = 880;          // twin-barrel light burst (like С.О.В.)
   const WC_CANNON_DMG = 16, WC_CANNON_SPEED = 620; // one big heavy shell (like the cannon perk)
   const WC_REACH_DIST = 1700;                      // how close to the bridge counts as "arrived"
-  const WC_WINGMAN_FIRE_INTERVAL = 0.5;            // how often each С.О.В. wingman chips the airship
+  // С.О.В. звено: two AI-flown ALLY fighters (full planes, not drones) escort the player and
+  // hunt the airship's turrets + the enemy Shakals.
+  const WC_ALLY_COUNT = 2;
+  const WC_ALLY_SPEED = G_MAX_LEVEL * 0.98;        // keep pace with the player
+  const WC_ALLY_TURN_RATE = 2.6;                   // rad/s steering toward the target / formation
+  const WC_ALLY_ENGAGE_RANGE = 2600;              // only chase targets this close to the PLAYER (stay an escort)
+  const WC_ALLY_FIRE_RANGE = 1550;                 // open fire within this of the chosen target
+  const WC_ALLY_FIRE_INTERVAL = 0.34;              // С.О.В. light cadence
   type WCSection = {
     kind: 'turret' | 'engine' | 'core' | 'prop'; weapon?: 'mg' | 'cannon'; sprite: Sprite; targetW: number; intactFile: string;
     hp: number; maxHp: number; alive: boolean; fireCooldown: number; fireInterval: number;
@@ -1176,7 +1183,8 @@ export async function startGame(container: HTMLElement) {
   // Scripted deck-launch beats (NOT a timer): approach → 50% turrets → bridge+prop (boss).
   let wcFiredApproach = false, wcFiredHalfTurrets = false, wcFiredBoss = false;
   let wcBossId: number | null = null; // «Шрам» — the boss launched on the final beat
-  let wcWingmanTimer = 0;   // throttles the С.О.В. wingmen's fire at the airship sections
+  // The two С.О.В. ally fighters (built after planeLayer exists, below). app-side AI flies them.
+  const wcAllies: { plane: Plane; sprite: ReturnType<typeof createPlaneSprite>; fireCd: number }[] = [];
   let wcDefeated = false, wcFinaleTimer = 0; // victory explosion cascade
   let wcSmokeTick = 0;       // throttles the wreck-smoke emission
   const wolfCometGroup = new Container();
@@ -1270,7 +1278,6 @@ export async function startGame(container: HTMLElement) {
     }
     for (const dp of wcDeckPlanes) { dp.launched = false; dp.handle.container.visible = true; }
     wcFiredApproach = false; wcFiredHalfTurrets = false; wcFiredBoss = false; wcBossId = null;
-    wcWingmanTimer = 0;
     wcDefeated = false; wcFinaleTimer = 0;
   };
 
@@ -1389,6 +1396,16 @@ export async function startGame(container: HTMLElement) {
     c.visible = false;
     planeLayer.addChild(c);
     droneSprites.push({ c, prop, body, lastVisual: null });
+  }
+
+  // Build the two С.О.В. ally fighters (blue full planes). They're driven by app-side AI in the
+  // «Волчья комета» demo only; hidden otherwise. No HP bar (they're escort helpers, not killable).
+  for (let i = 0; i < WC_ALLY_COUNT; i++) {
+    const sprite = createPlaneSprite('player', 'player'); // blue С.О.В. airframe, same as the hero
+    sprite.container.visible = false;
+    planeLayer.addChild(sprite.container);
+    const plane: Plane = { ...makePlayer(), id: -300 - i, state: 'flying' };
+    wcAllies.push({ plane, sprite, fireCd: 0.3 + i * 0.2 });
   }
 
   const enemySprites = new Map<number, ReturnType<typeof createPlaneSprite>>();
@@ -2553,6 +2570,7 @@ export async function startGame(container: HTMLElement) {
     wolfCometGroup.visible = false; // airship shows only in the wolf-comet demo
     wolfCometIsland.visible = false; // our island base shows only in the wolf-comet demo
     wcHud.visible = false;           // section HP bars belong to the wolf-comet demo only
+    for (const a of wcAllies) a.sprite.container.visible = false; // ally fighters: demo only
     fgClouds.container.alpha = 1;   // full foreground clouds for normal modes
     applyFactionForMode(); // player flies the chosen faction's colour; show/hide the grip
     arenaShownStage = 0;
@@ -2647,7 +2665,16 @@ export async function startGame(container: HTMLElement) {
         },
       },
     };
-    state.droneCount = 2;   // С.О.В. flight: two wingmen escort the player and attack targets
+    // Two С.О.В. ally fighters take off alongside the player, in a loose vee just behind.
+    for (let i = 0; i < wcAllies.length; i++) {
+      const a = wcAllies[i]!;
+      a.plane = {
+        ...a.plane, state: 'flying', alive: true, hp: a.plane.maxHp,
+        kinematic: { ...a.plane.kinematic, position: { x: sx - 200 - i * 70, y: sy + (i === 0 ? -150 : 150) }, velocity: { x: G_MAX_LEVEL, y: 0 }, heading: 0, g: G_MAX_LEVEL, facing: 1, throttleLevel: 1 },
+      };
+      a.fireCd = 0.3 + i * 0.2;
+      a.sprite.container.visible = true;
+    }
     wolfCometDemo = true;   // clean no-ground sky — kill the floating runway/hangars from arena
     setArenaStageTheme(currentArenaStage()); // rebuild the sky WITHOUT ground at the demo size
     camera.setWorldSize(ww, wh);
@@ -3887,36 +3914,62 @@ export async function startGame(container: HTMLElement) {
         if (beats.halfTurrets) { wcFiredHalfTurrets = true; launchDeck(1, false); launchDeck(2, false); showArenaToast('ВЗЛЁТ С ПАЛУБЫ', 'Ещё два Шакала в небе!', 1.6); }
         if (beats.boss) { wcFiredBoss = true; launchDeck(3, true); showArenaToast('ВЗЛЕТЕЛ БАРОН', '«Шрам» поднялся — добей его!', 2.6); }
       }
-      // С.О.В. звено: the wingmen don't just hit fighters (core drone fire) — they also chip the
-      // airship. Each fires at the nearest live, unshielded section on a slow cadence (app-side
-      // player bullets, handled by the section-hit loop next frame). Makes the demo soloable.
-      const wmCount = state.droneCount;
-      if (wmCount > 0 && !wcDefeated && state.player.alive && state.player.state === 'flying') {
-        wcWingmanTimer -= dt;
-        if (wcWingmanTimer <= 0) {
-          wcWingmanTimer = WC_WINGMAN_FIRE_INTERVAL;
-          const back = pk.heading + Math.PI;
-          const wmBullets: Bullet[] = [];
-          for (let d = 0; d < wmCount; d++) {
-            const phase = renderTimeSec * 3 + (d * Math.PI * 2) / Math.max(1, wmCount);
-            const wx = pk.position.x + Math.cos(back) * 38 + Math.cos(phase) * 30;
-            const wy = pk.position.y + Math.sin(back) * 38 + Math.sin(phase) * 30;
-            let best: WCSection | null = null, bestD = Infinity;
-            for (const s of wcSections) {
-              if (!s.alive || (s.kind === 'core' && !stripDead)) continue;
-              const wp = wpos(s);
-              const dd = Math.hypot(wp.x - wx, wp.y - wy);
-              if (dd < bestD) { bestD = dd; best = s; }
-            }
-            if (best) {
-              const wp = wpos(best);
-              const dx = wp.x - wx, dy = wp.y - wy, dl = Math.hypot(dx, dy) || 1;
-              wmBullets.push({ id: wcBulletId--, ownerId: state.player.id, ownerFaction: 'player', position: { x: wx, y: wy }, velocity: { x: (dx / dl) * 900, y: (dy / dl) * 900 }, lifetime: 2.6, damage: 12, alive: true });
-              muzzleFlashes.spawn(wx, wy, Math.atan2(dy, dx), { scale: 0.7, duration: 0.07 });
-            }
+      // === С.О.В. звено: two AI ally fighters fly the player's wing and hunt the airship's
+      // turrets + the enemy Shakals (player-faction bullets damage both). They stay an escort:
+      // only engage targets near the player, otherwise tuck back into a vee behind him. ===
+      if (!wcDefeated) {
+        const allyBullets: Bullet[] = [];
+        for (let i = 0; i < wcAllies.length; i++) {
+          const a = wcAllies[i]!;
+          a.sprite.container.visible = true;
+          const ak = a.plane.kinematic;
+          // Pick the nearest worthwhile target near the player: an enemy plane or a live section.
+          let tx = 0, ty = 0, tDist = Infinity, hasTarget = false;
+          const consider = (x: number, y: number) => {
+            if (Math.hypot(x - pk.position.x, y - pk.position.y) > WC_ALLY_ENGAGE_RANGE) return;
+            const d = Math.hypot(x - ak.position.x, y - ak.position.y);
+            if (d < tDist) { tDist = d; tx = x; ty = y; hasTarget = true; }
+          };
+          for (const e of state.enemies) if (e.alive && e.state === 'flying') consider(e.kinematic.position.x, e.kinematic.position.y);
+          for (const s of wcSections) { if (!s.alive || (s.kind === 'core' && !stripDead)) continue; const wp = wpos(s); consider(wp.x, wp.y); }
+          // Desired heading: toward the target, else toward a formation slot just behind the player.
+          let desired: number;
+          if (hasTarget) {
+            desired = Math.atan2(ty - ak.position.y, tx - ak.position.x);
+          } else {
+            const side = i === 0 ? 1 : -1;
+            const fxp = pk.position.x - Math.cos(pk.heading) * 230 - Math.sin(pk.heading) * 150 * side;
+            const fyp = pk.position.y - Math.sin(pk.heading) * 230 + Math.cos(pk.heading) * 150 * side;
+            desired = Math.hypot(fxp - ak.position.x, fyp - ak.position.y) < 70 ? pk.heading : Math.atan2(fyp - ak.position.y, fxp - ak.position.x);
           }
-          if (wmBullets.length) state = { ...state, bullets: [...state.bullets, ...wmBullets] };
+          let dh = desired - ak.heading;
+          while (dh > Math.PI) dh -= 2 * Math.PI;
+          while (dh < -Math.PI) dh += 2 * Math.PI;
+          const turn = WC_ALLY_TURN_RATE * dt;
+          ak.heading += Math.max(-turn, Math.min(turn, dh));
+          if (ak.heading > Math.PI) ak.heading -= 2 * Math.PI;       // keep heading bounded
+          else if (ak.heading < -Math.PI) ak.heading += 2 * Math.PI; // (cheap normalize each frame)
+          const distP = Math.hypot(pk.position.x - ak.position.x, pk.position.y - ak.position.y);
+          const spd = WC_ALLY_SPEED * (distP > 950 ? 1.3 : 1); // catch up if it falls behind
+          ak.position.x += Math.cos(ak.heading) * spd * dt;
+          ak.position.y += Math.sin(ak.heading) * spd * dt;
+          ak.velocity = { x: Math.cos(ak.heading) * spd, y: Math.sin(ak.heading) * spd };
+          ak.g = spd;
+          ak.facing = Math.cos(ak.heading) >= 0 ? 1 : -1;
+          // Fire when lined up on a target in range.
+          a.fireCd -= dt;
+          if (hasTarget && a.fireCd <= 0 && tDist < WC_ALLY_FIRE_RANGE && Math.abs(dh) < 0.45) {
+            a.fireCd = WC_ALLY_FIRE_INTERVAL;
+            const aim = Math.atan2(ty - ak.position.y, tx - ak.position.x);
+            const nx = ak.position.x + Math.cos(ak.heading) * 26, ny = ak.position.y + Math.sin(ak.heading) * 26;
+            allyBullets.push({ id: wcBulletId--, ownerId: state.player.id, ownerFaction: 'player', position: { x: nx, y: ny }, velocity: { x: Math.cos(aim) * 980, y: Math.sin(aim) * 980 }, lifetime: 2.6, damage: 14, alive: true });
+            muzzleFlashes.spawn(nx, ny, aim, { scale: 0.9, duration: 0.08 });
+          }
+          // Light visual update only (no damageFx/groundFx) — allies are immortal escorts and
+          // don't need wind streaks / contrails, which at max speed ×2 planes flood the FX layer.
+          a.sprite.update(a.plane, dt, undefined, clock, camera);
         }
+        if (allyBullets.length) state = { ...state, bullets: [...state.bullets, ...allyBullets] };
       }
       // Win = the Baron is dead. Lose = the Comet reaches the island — but only WHILE the bridge
       // stands; once the bridge is down the Comet is crippled and just hangs there for the duel.
@@ -3934,6 +3987,7 @@ export async function startGame(container: HTMLElement) {
           showArenaToast('ОСТРОВ ПАЛ', 'Комета дошла до базы…', 3);
           state = { ...state, gameOver: true };
           wolfCometGroup.visible = false; wolfCometIsland.visible = false; wcHud.visible = false; fgClouds.container.alpha = 1;
+          for (const a of wcAllies) a.sprite.container.visible = false;
         }
       } else {
         // victory cascade — explosions all over the hull, then it sinks + fades out
@@ -3948,6 +4002,7 @@ export async function startGame(container: HTMLElement) {
         wolfCometGroup.alpha = Math.max(0, 1 - Math.max(0, wcFinaleTimer - 1.4) / 1.6);
         if (wcFinaleTimer > 3.2) {
           wolfCometGroup.visible = false; wolfCometGroup.alpha = 1; wolfCometIsland.visible = false; wcHud.visible = false; fgClouds.container.alpha = 1;
+          for (const a of wcAllies) a.sprite.container.visible = false;
           showArenaToast('ПОБЕДА', '«Волчья комета» повержена — остров спасён!', 4);
         }
       }
