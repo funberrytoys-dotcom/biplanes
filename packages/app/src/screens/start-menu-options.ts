@@ -1,4 +1,4 @@
-export type MenuAction = 'flightLab' | 'story' | 'arena' | 'run' | 'multiplayer' | 'settings' | 'exit';
+export type MenuAction = 'flightLab' | 'campaign' | 'arena' | 'run' | 'multiplayer' | 'settings' | 'exit';
 
 export interface StartMenuOption {
   action: MenuAction;
@@ -10,9 +10,9 @@ export interface StartMenuOption {
 export function getStartMenuOptions(): StartMenuOption[] {
   return [
     {
-      action: 'story',
-      label: 'ПЕРВЫЙ ВЫЛЕТ',
-      note: 'Сюжетный старт полноценной игры: взлет, первый бой, первый апгрейд и защита каравана у маяка.',
+      action: 'campaign',
+      label: 'КАМПАНИЯ',
+      note: 'Сюжетные миссии: Уровень 1 (первый вылет) и демо-бой с дирижаблем «Волчья комета». Сюда добавляем новые уровни.',
       enabled: true,
     },
     {

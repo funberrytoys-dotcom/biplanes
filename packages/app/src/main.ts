@@ -1,4 +1,5 @@
 import { Assets, Container, Graphics, Sprite, Text, TextStyle, Texture } from 'pixi.js';
+import type { Bullet } from '@biplanes/core';
 import { assetUrl } from './asset-url.js';
 import {
   TICK_DT,
@@ -94,6 +95,7 @@ import {
   createTouchController,
 } from '@biplanes/input';
 import { createStartScreen } from './screens/start-screen.js';
+import { createCampaignSelect } from './screens/campaign-select.js';
 import { createLevelUpScreen } from './screens/level-up-screen.js';
 import { createDeathScreen } from './screens/death-screen.js';
 import { createRunSummaryScreen } from './screens/run-summary-screen.js';
@@ -243,6 +245,21 @@ const VISUAL_ASSET_URLS = [
   assetUrl('assets/campaign/airship_sov_large.png'),
   assetUrl('assets/campaign/airship_sov_variant_1.png'),
   assetUrl('assets/campaign/airship_sov_variant_2.png'),
+  // «Волчья комета» airship modules (campaign demo). Pixi v8 only renders PRELOADED
+  // textures, so the boss is invisible without these.
+  assetUrl('assets/airships/wolfcomet/balloon.png'),
+  assetUrl('assets/airships/wolfcomet/gondola.png'),
+  assetUrl('assets/airships/wolfcomet/bridge_intact.png'),
+  assetUrl('assets/airships/wolfcomet/propeller.png'),
+  assetUrl('assets/airships/wolfcomet/engine.png'),
+  assetUrl('assets/airships/wolfcomet/banner_vertical.png'),
+  assetUrl('assets/airships/wolfcomet/pennant_horizontal.png'),
+  assetUrl('assets/airships/wolfcomet/turret_cannon_intact.png'),
+  assetUrl('assets/airships/wolfcomet/turret_cannon_wreck.png'),
+  assetUrl('assets/airships/wolfcomet/turret_mg_intact.png'),
+  assetUrl('assets/airships/wolfcomet/turret_mg_wreck.png'),
+  assetUrl('assets/airships/wolfcomet/bridge_damaged.png'),
+  assetUrl('assets/airships/wolfcomet/bridge_destroyed.png'),
   ...ISLAND_BRYNN_FRAME_URLS,
 ];
 
@@ -866,6 +883,7 @@ const URL_PARAMS = typeof window !== 'undefined'
   : new URLSearchParams();
 const AUTO_STORY = URL_PARAMS.has('story');
 const AUTO_ARENA = URL_PARAMS.has('arena');
+const AUTO_WOLFCOMET = URL_PARAMS.has('wolfcomet');
 const AUTO_RUN = URL_PARAMS.has('run');
 const AUTO_SKY_TEST = URL_PARAMS.has('skytest');
 const AUTO_GUNFEEL_LAB = URL_PARAMS.has('gunfeelLab');
@@ -1132,6 +1150,101 @@ export async function startGame(container: HTMLElement) {
   const groundFxLayer = new Container();
   const supplyLayer = new Container(); // balloons + dropped pickups (behind planes)
   const groundShadowLayer = new Container(); // plane ground shadows (below the planes)
+  // «Волчья комета» — the Jackal sky-carrier boss, composited from the wolfcomet/ module
+  // sprites at the wolf-comet.ts section layout. A BACKGROUND centerpiece (behind planes /
+  // bullets) shown only in the campaign demo; the player flies along it without colliding.
+  // Design units: balloon ~2000 wide; positionWolfComet() scales+places it in the world.
+  // === «Волчья комета» destructible sections (turrets / engines / bridge-core) ===
+  const WC_TURRET_HP = 80, WC_ENGINE_HP = 150, WC_CORE_HP = 700;
+  const WC_MG_DMG = 5, WC_MG_SPEED = 880;          // twin-barrel light burst (like С.О.В.)
+  const WC_CANNON_DMG = 16, WC_CANNON_SPEED = 620; // one big heavy shell (like the cannon perk)
+  type WCSection = {
+    kind: 'turret' | 'engine' | 'core'; weapon?: 'mg' | 'cannon'; sprite: Sprite; targetW: number; intactFile: string;
+    hp: number; maxHp: number; alive: boolean; fireCooldown: number; fireInterval: number;
+    fireBase: number; wreckFile?: string; stages?: { hp: number; file: string }[]; stageIdx: number; bar: Graphics;
+  };
+  const wcSections: WCSection[] = [];
+  const wcHud = new Container(); // section HP bars (world space)
+  let wcBulletId = -100000;  // unique negative ids for turret bullets (no clash with core ids)
+  let wcDeckTimer = 4;       // sec until next deck Shakal launches
+  let wcDeckLaunched = 0;    // how many deck fighters have taken off (cap 5)
+  let wcDefeated = false, wcFinaleTimer = 0; // victory explosion cascade
+  let wcSmokeTick = 0;       // throttles the wreck-smoke emission
+  const wolfCometGroup = new Container();
+  wolfCometGroup.visible = false;
+  // Two independently-swaying blocks: the balloon bobs gently, the gondola hangs and swings
+  // under it; flags wave; the cables are redrawn each frame to track the sway. Built from the
+  // owner's editor layout (relative design units; positionWolfComet scales it to the world).
+  const wcBalloon = new Container();
+  const wcGondola = new Container();
+  const wcCables = new Graphics();
+  const wcFlags: Sprite[] = [];
+  wolfCometGroup.addChild(wcCables, wcBalloon, wcGondola); // cables FIRST → hidden behind balloon+gondola, only the gap shows
+  {
+    const A = 'assets/airships/wolfcomet/';
+    const addTo = (group: Container, file: string, srcW: number, targetW: number, x: number, y: number, rot = 0, flipX = false): Sprite => {
+      const sp = new Sprite(Texture.from(assetUrl(A + file)));
+      sp.anchor.set(0.5);
+      const s = targetW / srcW;
+      sp.scale.set(flipX ? -s : s, s);
+      sp.rotation = rot;
+      sp.position.set(x, y);
+      group.addChild(sp);
+      return sp;
+    };
+    type SecOpts = { rot?: number; flipX?: boolean; fireInterval?: number; fireCooldown?: number; wreckFile?: string; stages?: { hp: number; file: string }[] };
+    const addSection = (group: Container, file: string, srcW: number, targetW: number, x: number, y: number, kind: 'turret' | 'engine' | 'core', hp: number, opts: SecOpts = {}): Sprite => {
+      const sp = addTo(group, file, srcW, targetW, x, y, opts.rot ?? 0, opts.flipX ?? false);
+      const bar = new Graphics(); wcHud.addChild(bar);
+      const weapon = file.includes('cannon') ? 'cannon' : file.includes('mg') ? 'mg' : undefined;
+      wcSections.push({ kind, weapon, sprite: sp, targetW, intactFile: file, hp, maxHp: hp, alive: true, fireCooldown: opts.fireCooldown ?? 0, fireBase: opts.fireCooldown ?? 0, fireInterval: opts.fireInterval ?? 999, wreckFile: opts.wreckFile, stages: opts.stages, stageIdx: 0, bar });
+      return sp;
+    };
+    // balloon block
+    addTo(wcBalloon, 'balloon.png', 1536, 4211, 93, -482);
+    addTo(wcBalloon, 'propeller.png', 768, 700, 2152, -470); // balloon stern prop — on the tail boss
+    wcFlags.push(addTo(wcBalloon, 'pennant_horizontal.png', 768, 294, 197, -1132)); // straight on the pole (no tilt)
+    addSection(wcBalloon, 'turret_mg_intact.png', 1024, 156, -101, -1018, 'turret', WC_TURRET_HP, { flipX: true, wreckFile: 'turret_mg_wreck.png', fireInterval: 1.3, fireCooldown: 0.5 });
+    // gondola block
+    addSection(wcGondola, 'engine.png', 1024, 401, 1769, 641, 'engine', WC_ENGINE_HP, {});
+    addTo(wcGondola, 'gondola.png', 1536, 3847, 25, 620);
+    addSection(wcGondola, 'bridge_intact.png', 1024, 813, -710, 70, 'core', WC_CORE_HP, { stages: [{ hp: Math.round(WC_CORE_HP * 0.66), file: 'bridge_damaged.png' }, { hp: Math.round(WC_CORE_HP * 0.33), file: 'bridge_destroyed.png' }] });
+    wcFlags.push(addTo(wcGondola, 'banner_vertical.png', 768, 377, -725, 462));
+    addSection(wcGondola, 'turret_cannon_intact.png', 1024, 191, 1512, 268, 'turret', WC_TURRET_HP, { wreckFile: 'turret_cannon_wreck.png', fireInterval: 2.0, fireCooldown: 0.3 });
+    addSection(wcGondola, 'turret_cannon_intact.png', 1024, 191, -1186, 252, 'turret', WC_TURRET_HP, { flipX: true, wreckFile: 'turret_cannon_wreck.png', fireInterval: 2.0, fireCooldown: 0.9 });
+    addSection(wcGondola, 'turret_cannon_intact.png', 1024, 191, 1308, 509, 'turret', WC_TURRET_HP, { wreckFile: 'turret_cannon_wreck.png', fireInterval: 2.0, fireCooldown: 1.4 });
+    addSection(wcGondola, 'turret_mg_intact.png', 1024, 156, 1595, 537, 'turret', WC_TURRET_HP, { wreckFile: 'turret_mg_wreck.png', fireInterval: 1.2, fireCooldown: 0.2 });
+    addSection(wcGondola, 'turret_mg_intact.png', 1024, 166, 1001, 272, 'turret', WC_TURRET_HP, { wreckFile: 'turret_mg_wreck.png', fireInterval: 1.2, fireCooldown: 0.6 });
+    addSection(wcGondola, 'turret_mg_intact.png', 1024, 166, 43, 277, 'turret', WC_TURRET_HP, { flipX: true, wreckFile: 'turret_mg_wreck.png', fireInterval: 1.2, fireCooldown: 1.0 });
+    addSection(wcGondola, 'turret_mg_intact.png', 1024, 156, 473, 273, 'turret', WC_TURRET_HP, { flipX: true, wreckFile: 'turret_mg_wreck.png', fireInterval: 1.2, fireCooldown: 1.5 });
+    addSection(wcGondola, 'turret_mg_intact.png', 1024, 156, -397, 203, 'turret', WC_TURRET_HP, { wreckFile: 'turret_mg_wreck.png', fireInterval: 1.2, fireCooldown: 0.4 });
+    addSection(wcGondola, 'turret_mg_intact.png', 1024, 166, -1030, 209, 'turret', WC_TURRET_HP, { flipX: true, wreckFile: 'turret_mg_wreck.png', fireInterval: 1.2, fireCooldown: 0.8 });
+  }
+  // Rigging fan from gondola deck to balloon underside, redrawn each frame so it tracks the
+  // sway (by/gy = the two blocks' current vertical offsets). Drawn behind the gondola.
+  const drawWolfCometCables = (by = 0, gy = 0) => {
+    wcCables.clear();
+    for (let i = 0; i < 13; i++) { const f = i / 12; const bx = -1500 + 3000 * f, gx = -900 + 1800 * f; wcCables.moveTo(gx, 300 + gy); wcCables.quadraticCurveTo((gx + bx) / 2, 110 + (by + gy) / 2, bx, -120 + by); }
+    wcCables.stroke({ color: 0x1c140c, width: 6, alpha: 0.85 });
+  };
+  drawWolfCometCables();
+  worldLayer.addChild(wolfCometGroup);
+  worldLayer.addChild(wcHud); // HP bars above the airship sections
+  // Our С.О.В. island/base — the Comet drifts toward it; destroy it before the Comet arrives.
+  const wolfCometIsland = new Sprite(Texture.from(assetUrl('assets/biplanes/island_player.png')));
+  wolfCometIsland.anchor.set(0.5);
+  wolfCometIsland.visible = false;
+  worldLayer.addChild(wolfCometIsland);
+  // Reset destructible sections + mission state (replays / re-entry).
+  const resetWolfComet = () => {
+    for (const s of wcSections) {
+      s.hp = s.maxHp; s.alive = true; s.stageIdx = 0; s.fireCooldown = s.fireBase;
+      s.sprite.texture = Texture.from(assetUrl('assets/airships/wolfcomet/' + s.intactFile));
+      s.sprite.alpha = 1; s.bar.clear();
+    }
+    wcDeckTimer = 4; wcDeckLaunched = 0; wcDefeated = false; wcFinaleTimer = 0;
+  };
+
   worldLayer.addChild(bulletLayer, fxLayer, glowLayer.container, groundFxLayer, supplyLayer, groundShadowLayer, planeLayer);
   const explosionLayer = new Container(); // sprite-sheet explosions render ON TOP of planes
   worldLayer.addChild(explosionLayer);
@@ -1850,8 +1963,9 @@ export async function startGame(container: HTMLElement) {
         factionSelect.show(() => undefined);
         return;
       }
-      if (action === 'story') {
-        startStoryMissionOne();
+      if (action === 'campaign') {
+        startScreen.hide();
+        campaignSelect.show();
         return;
       }
       if (action === 'exit') {
@@ -1870,6 +1984,26 @@ export async function startGame(container: HTMLElement) {
   );
   uiLayer.addChild(startScreen.container);
   startScreen.show();
+
+  // «Кампания» level-select (opened from the КАМПАНИЯ menu button). The hub we drop
+  // future campaign levels into. Уровень 1 = the existing first-sortie mission; «Демо»
+  // launches the Wolf Comet airship demo.
+  const campaignSelect = createCampaignSelect(
+    app.screen.width,
+    app.screen.height,
+    [
+      { id: 'mission1', label: 'УРОВЕНЬ 1 · ПЕРВЫЙ ВЫЛЕТ', note: 'Взлёт, первый бой, первый апгрейд и защита каравана у маяка.', enabled: true },
+      { id: 'wolfcomet', label: 'ДЕМО · ДИРИЖАБЛЬ «ВОЛЧЬЯ КОМЕТА»', note: 'Огромный носитель Алых Шакалов. Демо-сборка — пушки, рубка и палубные истребители.', enabled: true },
+    ],
+    (id) => {
+      audio.playUiSelect();
+      campaignSelect.hide();
+      if (id === 'mission1') startStoryMissionOne();
+      else if (id === 'wolfcomet') startWolfCometDemo();
+    },
+    () => { campaignSelect.hide(); startScreen.show(); },
+  );
+  uiLayer.addChild(campaignSelect.container);
 
   const levelUpScreen = createLevelUpScreen(
     app.screen.width,
@@ -2112,7 +2246,8 @@ export async function startGame(container: HTMLElement) {
   }
 
   function updateArenaDirector(elapsedSec = TICK_DT) {
-    if (runMode !== 'arena') {
+    if (runMode !== 'arena' || wolfCometGroup.visible) {
+      // Wolf Comet boss demo reuses the arena world but NOT its round/wave/upgrade flow.
       arenaStatus.visible = false;
       return;
     }
@@ -2372,6 +2507,8 @@ export async function startGame(container: HTMLElement) {
 
   function startArena() {
     runMode = 'arena';
+    wolfCometGroup.visible = false; // airship shows only in the wolf-comet demo
+    fgClouds.container.alpha = 1;   // full foreground clouds for normal modes
     applyFactionForMode(); // player flies the chosen faction's colour; show/hide the grip
     arenaShownStage = 0;
     arenaRound = Math.max(1, DEBUG_ARENA_SCORE + 1);
@@ -2426,6 +2563,57 @@ export async function startGame(container: HTMLElement) {
     } else {
       showArenaToast(`ВОЛНА ${arenaRound}`, 'Разгоняйся и набирай высоту', 2.0);
     }
+  }
+
+  // «Волчья комета» campaign demo. Reuses the arena pipeline (so flight/HUD/camera all
+  // work) and reveals the airship as a background centerpiece you fly along. Stage 1:
+  // the airship is visible + flyable-past; making its sections damageable + launching the
+  // deck Shakals is the next stage.
+  function positionWolfComet() {
+    const ww = state.worldWidth ?? ARENA_WORLD_WIDTH;
+    const wh = state.worldHeight ?? ARENA_WORLD_HEIGHT;
+    // Float it in the combat band just ahead of the runway so it's in view soon after
+    // takeoff and the gondola sits above the ground. Scale 0.9 → ~1800px wide, plane tiny.
+    // Owner's editor layout is ~2800 design units tall; scale to fit the world height with
+    // margin, place it in the combat band ahead of the runway (player flies along it).
+    wolfCometGroup.scale.set(0.95);
+    wolfCometGroup.x = ww * 0.32;
+    wolfCometGroup.y = wh * 0.46;
+  }
+  function startWolfCometDemo() {
+    startArena();
+    // Air mission — NO runway/ground: the player starts already FLYING in the clouds, off to
+    // the side of (and level with) the Wolf Comet, cruising toward it. The ground stays far
+    // below, off-screen. Later this becomes: takeoff → defend our airship → attack the Comet.
+    const ww = ARENA_WORLD_WIDTH, wh = ARENA_WORLD_HEIGHT;
+    const sx = ww * 0.20, sy = wh * 0.52; // start to the side of the Comet, level with its gondola/turrets
+    state = {
+      ...state,
+      disableAutoEnemySpawn: true,
+      enemies: [],
+      bullets: [],
+      player: {
+        ...state.player,
+        state: 'flying',
+        kinematic: {
+          ...state.player.kinematic,
+          position: { x: sx, y: sy },
+          velocity: { x: G_MAX_LEVEL, y: 0 },
+          heading: 0, g: G_MAX_LEVEL, throttleLevel: 1, facing: 1,
+        },
+      },
+    };
+    positionWolfComet();
+    wolfCometGroup.visible = true;
+    resetWolfComet();
+    wolfCometIsland.scale.set(0.55);
+    wolfCometIsland.position.set(ww * 0.96, wh * 0.56);
+    wolfCometIsland.visible = true;
+    fgClouds.container.alpha = 0.4; // thin the foreground clouds so the Comet reads clearly
+    const focus = resolveArenaCameraFocus({ playerX: sx, playerY: sy, facing: 1 });
+    camera.setFocus(focus.x, focus.y, cameraZoom(focus.zoom));
+    camera.snap();
+    showArenaToast('«ВОЛЧЬЯ КОМЕТА»', 'Сбей дирижабль, пока он не дошёл до острова!', 3.4);
   }
 
   // «Забег»: a fresh run on the arena pipeline, gated by runSession.
@@ -3520,6 +3708,140 @@ export async function startGame(container: HTMLElement) {
       }
     }
 
+    // «Волчья комета» idle sway + combat (demo-only, app-side — NOT in the deterministic core).
+    if (wolfCometGroup.visible) {
+      const t = renderTimeSec;
+      wcBalloon.y = Math.sin(t * 0.8) * 8;
+      wcBalloon.rotation = Math.sin(t * 0.55) * 0.008;
+      wcGondola.y = Math.sin(t * 0.8 - 0.5) * 16;
+      wcGondola.rotation = Math.sin(t * 0.55 - 0.6) * 0.016;
+      for (const f of wcFlags) f.skew.x = Math.sin(t * 3.5 + f.position.x * 0.01) * 0.16;
+      drawWolfCometCables(wcBalloon.y, wcGondola.y);
+
+      wcHud.visible = true;
+      const gscale = wolfCometGroup.scale.x || 1;
+      const pk = state.player.kinematic;
+      const stripDead = wcSections.filter(s => s.kind !== 'core').every(s => !s.alive);
+      const wpos = (s: WCSection) => worldLayer.toLocal(s.sprite.getGlobalPosition());
+      // turrets fire at the player
+      const turretBullets: Bullet[] = [];
+      if (state.player.alive && state.player.state === 'flying') {
+        for (const s of wcSections) {
+          if (!s.alive || s.kind !== 'turret') continue;
+          s.fireCooldown -= dt;
+          if (s.fireCooldown > 0) continue;
+          s.fireCooldown = s.fireInterval;
+          const wp = wpos(s);
+          const dx = pk.position.x - wp.x, dy = pk.position.y - wp.y;
+          const d = Math.hypot(dx, dy) || 1;
+          const ux = dx / d, uy = dy / d, ang = Math.atan2(dy, dx);
+          if (s.weapon === 'cannon') {
+            // ОДИН большой мощный снаряд — как перк-пушка (тяжёлый огненный шар)
+            turretBullets.push({ id: wcBulletId--, ownerId: 0, ownerFaction: 'enemy', position: { x: wp.x, y: wp.y }, velocity: { x: ux * WC_CANNON_SPEED, y: uy * WC_CANNON_SPEED }, lifetime: 2.8, damage: WC_CANNON_DMG, alive: true, isHeavy: true, heavyRound: true });
+            muzzleFlashes.spawn(wp.x, wp.y, ang, { scale: 1.9, duration: 0.18 });
+          } else {
+            // ДВА ствола, лёгкая очередь — как пулемёт С.О.В.
+            const px = -uy, py = ux;
+            for (const o of [-9, 9]) turretBullets.push({ id: wcBulletId--, ownerId: 0, ownerFaction: 'enemy', position: { x: wp.x + px * o, y: wp.y + py * o }, velocity: { x: ux * WC_MG_SPEED, y: uy * WC_MG_SPEED }, lifetime: 2.4, damage: WC_MG_DMG, alive: true });
+            muzzleFlashes.spawn(wp.x, wp.y, ang, { scale: 1.1, duration: 0.1 });
+          }
+        }
+      }
+      // player shots damage sections (the bridge-core is shielded until all turrets+engines die)
+      const keep: Bullet[] = [];
+      for (const b of state.bullets) {
+        if (b.ownerFaction !== 'player') { keep.push(b); continue; }
+        let hit = false;
+        for (const s of wcSections) {
+          if (!s.alive || (s.kind === 'core' && !stripDead)) continue;
+          const wp = wpos(s);
+          if (Math.hypot(b.position.x - wp.x, b.position.y - wp.y) < s.targetW * gscale * 0.45) {
+            s.hp -= b.damage; hit = true;
+            if (s.stages && s.stageIdx < s.stages.length && s.hp <= s.stages[s.stageIdx]!.hp) {
+              s.sprite.texture = Texture.from(assetUrl('assets/airships/wolfcomet/' + s.stages[s.stageIdx]!.file));
+              s.stageIdx++;
+              spriteExplosions.spawn(wp.x, wp.y, true); damageFx.addExplosion(wp); audio.playExplosion();
+            }
+            if (s.hp <= 0) {
+              s.alive = false;
+              for (let k = 0; k < 5; k++) spriteExplosions.spawn(wp.x + (k - 2) * 26, wp.y + ((k % 2) - 0.5) * 26, true);
+              damageFx.addExplosion(wp); audio.playExplosion();
+              if (s.wreckFile) s.sprite.texture = Texture.from(assetUrl('assets/airships/wolfcomet/' + s.wreckFile));
+              else s.sprite.alpha = 0.35; // engine has no wreck art yet → darken
+            }
+            break;
+          }
+        }
+        if (!hit) keep.push(b);
+      }
+      state = { ...state, bullets: [...keep, ...turretBullets] };
+      // HP bar above each living section
+      for (const s of wcSections) {
+        s.bar.clear();
+        if (!s.alive || (s.kind === 'core' && !stripDead)) continue;
+        const wp = wpos(s);
+        const w = Math.max(34, s.targetW * gscale * 0.7), top = wp.y - s.targetW * gscale * 0.5 - 18;
+        const frac = Math.max(0, s.hp / s.maxHp);
+        s.bar.rect(wp.x - w / 2, top, w, 7).fill({ color: 0x10151f, alpha: 0.72 });
+        s.bar.rect(wp.x - w / 2, top, w * frac, 7).fill({ color: frac > 0.5 ? 0x6ee07a : frac > 0.22 ? 0xffcc44 : 0xff4a3a });
+      }
+      // persistent smoke on dead sections (hides the rough wreck edges)
+      wcSmokeTick += dt;
+      if (wcSmokeTick >= 0.07) {
+        wcSmokeTick = 0;
+        for (const s of wcSections) {
+          if (s.alive) continue;
+          const wp = wpos(s);
+          damageFx.addSmokeTrail({ x: wp.x + Math.sin(t * 6 + s.targetW) * 16, y: wp.y - 10 }, 1);
+        }
+      }
+      // deck Shakals take off, one every few seconds (up to 5) — real AI enemies
+      if (!wcDefeated && wcDeckLaunched < 5 && state.player.alive) {
+        wcDeckTimer -= dt;
+        if (wcDeckTimer <= 0) {
+          wcDeckTimer = 5.5;
+          const lane = wcDeckLaunched;
+          const e = makeArenaRoundEnemy(state.nextEntityId, state.player, 3, lane, false);
+          const dx0 = wolfCometGroup.x + (-260 + lane * 200) * gscale, dy0 = wolfCometGroup.y + 175 * gscale;
+          e.kinematic = { ...e.kinematic, position: { x: dx0, y: dy0 } };
+          state = { ...state, nextEntityId: state.nextEntityId + 1, enemies: [...state.enemies, e] };
+          wcDeckLaunched++;
+          spriteExplosions.spawn(dx0, dy0, false);
+          showArenaToast('ВЗЛЁТ', 'Шакал поднялся с палубы!', 1.2);
+        }
+      }
+      // The Comet slowly drifts toward our island; win = core destroyed, lose = it arrives.
+      if (!wcDefeated) {
+        wolfCometGroup.x += 38 * dt;
+        const core = wcSections.find(s => s.kind === 'core');
+        if (core && !core.alive) {
+          wcDefeated = true; wcFinaleTimer = 0;
+          showArenaToast('РУБКА УНИЧТОЖЕНА', 'Комета падает!', 2.2);
+        } else if (wolfCometGroup.x > wolfCometIsland.x - 2800) {
+          showArenaToast('ОСТРОВ ПАЛ', 'Комета дошла до базы…', 3);
+          state = { ...state, gameOver: true };
+          wolfCometGroup.visible = false; wolfCometIsland.visible = false; wcHud.visible = false; fgClouds.container.alpha = 1;
+        }
+      } else {
+        // victory cascade — explosions all over the hull, then it sinks + fades out
+        wcFinaleTimer += dt;
+        for (let k = 0; k < 3; k++) {
+          const ex = wolfCometGroup.x + (Math.random() * 4800 - 2400) * gscale;
+          const ey = wolfCometGroup.y + (Math.random() * 2800 - 1400) * gscale;
+          spriteExplosions.spawn(ex, ey, true);
+        }
+        if (Math.random() < dt * 5) audio.playExplosion();
+        wolfCometGroup.y += 70 * dt;
+        wolfCometGroup.alpha = Math.max(0, 1 - Math.max(0, wcFinaleTimer - 1.4) / 1.6);
+        if (wcFinaleTimer > 3.2) {
+          wolfCometGroup.visible = false; wolfCometGroup.alpha = 1; wolfCometIsland.visible = false; wcHud.visible = false; fgClouds.container.alpha = 1;
+          showArenaToast('ПОБЕДА', '«Волчья комета» повержена — остров спасён!', 4);
+        }
+      }
+    } else {
+      wcHud.visible = false;
+    }
+
     const worldGroundY = (state.worldHeight ?? WORLD_HEIGHT) - 90;
     playerSprite.update(state.player, dt, damageFx, clock, camera, undefined, groundFx, { screenFx, groundY: worldGroundY });
     // Airframe recoil buck: decay fast, then nudge the plane sprite by the leftover.
@@ -3790,6 +4112,8 @@ export async function startGame(container: HTMLElement) {
     requestAnimationFrame(() => startRun());
   } else if (AUTO_ARENA) {
     requestAnimationFrame(() => startArena());
+  } else if (AUTO_WOLFCOMET) {
+    requestAnimationFrame(() => startWolfCometDemo());
   }
 
   const onResize = () => {
@@ -3810,6 +4134,7 @@ export async function startGame(container: HTMLElement) {
     touch.updateZones(w, h);
     touchGuide.layout(w, h);
     startScreen.resize(w, h);
+    campaignSelect.resize(w, h);
     levelUpScreen.resize(w, h);
     deathScreen.resize(w, h);
     runSummaryScreen.resize(w, h);

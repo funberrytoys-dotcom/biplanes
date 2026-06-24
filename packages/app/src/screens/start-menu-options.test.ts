@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { getStartMenuOptions } from './start-menu-options.js';
 
 describe('start menu options', () => {
-  it('opens the standalone game through the first combat sortie', () => {
+  it('opens the standalone game through the Campaign hub', () => {
     const options = getStartMenuOptions();
 
     expect(options[0]).toMatchObject({
-      action: 'story',
+      action: 'campaign',
       enabled: true,
-      label: 'ПЕРВЫЙ ВЫЛЕТ',
+      label: 'КАМПАНИЯ',
     });
   });
 
@@ -23,11 +23,11 @@ describe('start menu options', () => {
 
   it('keeps tuning labs behind the main sortie', () => {
     const options = getStartMenuOptions();
-    const storyIndex = options.findIndex((option) => option.action === 'story');
+    const campaignIndex = options.findIndex((option) => option.action === 'campaign');
     const flightLabIndex = options.findIndex((option) => option.action === 'flightLab');
 
-    expect(storyIndex).toBeGreaterThanOrEqual(0);
-    expect(flightLabIndex).toBeGreaterThan(storyIndex);
+    expect(campaignIndex).toBeGreaterThanOrEqual(0);
+    expect(flightLabIndex).toBeGreaterThan(campaignIndex);
     expect(options[flightLabIndex]!.note).toContain('внутренний');
   });
 });

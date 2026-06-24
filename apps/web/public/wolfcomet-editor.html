@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Редактор дирижабля «Волчья комета»</title>
+<style>
+  :root { --bg:#0f1622; --panel:#16202e; --line:#2a3a4f; --txt:#e7eefb; --accent:#ffb44a; --good:#6ee0a0; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--txt); font-family:system-ui,Segoe UI,sans-serif; }
+  #wrap { display:flex; height:100vh; }
+  #stage { flex:1; position:relative; overflow:hidden; }
+  canvas { display:block; width:100%; height:100%; background:
+      linear-gradient(180deg,#2b2547 0%,#7a4f55 55%,#d99a5a 100%); cursor:default; }
+  #side { width:340px; background:var(--panel); border-left:1px solid var(--line); padding:14px; overflow:auto; }
+  h1 { font-size:16px; margin:0 0 4px; color:var(--accent); }
+  p.hint { font-size:12px; color:#a9b7cc; margin:4px 0 12px; line-height:1.45; }
+  .grp { border:1px solid var(--line); border-radius:8px; padding:10px; margin-bottom:12px; }
+  .grp h2 { font-size:12px; text-transform:uppercase; letter-spacing:.5px; color:#9fb0c8; margin:0 0 8px; }
+  button { background:#0e1a2a; color:var(--txt); border:1px solid var(--line); border-radius:6px; padding:7px 10px; font-size:13px; cursor:pointer; }
+  button:hover { border-color:var(--accent); }
+  button.primary { background:var(--accent); color:#1b0d05; border-color:var(--accent); font-weight:700; }
+  button.plane { background:#16324f; border-color:#3f86c6; color:#cfe6ff; width:100%; }
+  .palette { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+  .palette .cell { border:1px solid var(--line); border-radius:6px; padding:4px; text-align:center; cursor:pointer; background:#0c1622; }
+  .palette .cell:hover { border-color:var(--accent); }
+  .palette img { width:100%; height:46px; object-fit:contain; background:
+      repeating-conic-gradient(#1b2737 0% 25%, #131d2b 0% 50%) 50%/14px 14px; }
+  .palette .cell span { display:block; font-size:9px; color:#9fb0c8; margin-top:3px; word-break:break-all; }
+  .row { display:flex; gap:6px; align-items:center; margin:6px 0; font-size:12px; }
+  .row label { flex:0 0 70px; color:#a9b7cc; }
+  select, input[type=range] { flex:1; min-width:0; }
+  #sel { font-size:12px; color:#cdd6e6; min-height:16px; }
+  textarea { width:100%; height:150px; background:#0a121e; color:#cfe; border:1px solid var(--line); border-radius:6px; font:11px/1.4 monospace; padding:8px; }
+  .small { font-size:11px; color:#8a96a8; line-height:1.4; }
+  kbd { background:#0c1622; border:1px solid var(--line); border-radius:4px; padding:1px 5px; font-size:11px; }
+  #ztools button { padding:3px 8px; font-size:12px; }
+  .vnum { flex:0 0 40px; text-align:right; color:#9fb0c8; }
+</style>
+</head>
+<body>
+<div id="wrap">
+  <div id="stage"><canvas id="c"></canvas></div>
+  <div id="side">
+    <h1>Дирижабль «Волчья комета» — сборка</h1>
+    <p class="hint">Клик по модулю → он в центре. <b>Тащи</b> мышью, <b>колесо</b> — размер,
+      <kbd>Q</kbd>/<kbd>E</kbd> — наклон, <kbd>[</kbd>/<kbd>]</kbd> — слой, <kbd>Del</kbd> — удалить.
+      Поставь <b>самолёт-эталон</b> и сверяй по нему размер дирижабля (самолёт не масштабируем). Тросы рисую я.</p>
+
+    <div class="grp">
+      <h2>Модули</h2>
+      <div class="palette" id="palette"></div>
+      <div class="row" style="margin-top:8px"><button class="plane" id="planeBtn">✈ Поставить самолёт-эталон (С.О.В.)</button></div>
+      <div class="row"><button id="loadBtn">Загрузить свои PNG…</button>
+        <input id="file" type="file" accept="image/png,image/*" multiple hidden></div>
+    </div>
+
+    <div class="grp">
+      <h2>Выбранный кусок</h2>
+      <div id="sel">— ничего не выбрано —</div>
+      <div class="row"><label>Размер</label><input id="scale" type="range" min="0.05" max="3" step="0.01" value="1"></div>
+      <div class="row"><label>Наклон</label><input id="rot" type="range" min="-180" max="180" step="1" value="0"><span id="rotv" class="vnum">0°</span></div>
+      <div class="row" id="ztools"><label>Слой</label>
+        <button data-z="back">вниз</button><button data-z="down">−</button>
+        <button data-z="up">+</button><button data-z="front">наверх</button></div>
+      <div class="row"><button id="flipXBtn">Зеркало ↔ (F)</button><button id="flipYBtn">Зеркало ↕</button></div>
+      <div class="row"><button id="copyPieceBtn">Копировать (Ctrl+C)</button><button id="pastePieceBtn">Вставить (Ctrl+V)</button></div>
+      <div class="row"><button id="delBtn">Удалить</button><button id="dupBtn">Дублировать</button></div>
+    </div>
+
+    <div class="grp">
+      <h2>Тросы (рисую я)</h2>
+      <div class="row"><label>Баллон =</label><select id="balloonSel"></select></div>
+      <div class="row"><label>Гондола =</label><select id="gondolaSel"></select></div>
+      <div class="row"><label>Тросов</label><input id="cableN" type="range" min="0" max="22" step="1" value="12"></div>
+      <div class="small">Тросы идут веером под углом от палубы к баллону + лёгкий провис, как на референсе.</div>
+    </div>
+
+    <div class="grp">
+      <h2>Готово</h2>
+      <div class="row"><button class="primary" id="exportBtn">Сохранить раскладку</button>
+        <button id="copyBtn">Копировать</button></div>
+      <p class="hint">Нажми «Сохранить раскладку» → «Копировать» и пришли текст мне в чат — я вставлю координаты в игру 1-в-1 и оживлю тросы.</p>
+      <textarea id="out" readonly placeholder="здесь появятся координаты для игры…"></textarea>
+    </div>
+  </div>
+</div>
+<script>
+const MODULES = ['balloon','gondola','bridge_intact','bridge_damaged','bridge_destroyed','engine','propeller',
+  'banner_vertical','pennant_horizontal','turret_cannon_intact','turret_cannon_wreck','turret_mg_intact','turret_mg_wreck'];
+const ASSET_DIR = 'assets/airships/wolfcomet/';
+
+const cv = document.getElementById('c'), ctx = cv.getContext('2d');
+const lib = {};
+let pieces = [];
+let sel = null, nextId = 1, dragging = null, dragDX = 0, dragDY = 0;
+let cam = { x: 0, y: 0, zoom: 0.5 };
+let panStart = null;
+
+function resize() { cv.width = cv.clientWidth; cv.height = cv.clientHeight; }
+window.addEventListener('resize', resize); resize();
+
+function addToLib(name, img) { lib[name] = { img, w: img.naturalWidth || img.width, h: img.naturalHeight || img.height }; refreshPalette(); refreshSelects(); }
+function tryPreload() { MODULES.forEach(name => { const img = new Image(); img.onload = () => addToLib(name, img); img.onerror = () => {}; img.src = ASSET_DIR + name + '.png'; }); }
+
+const palette = document.getElementById('palette');
+function refreshPalette() {
+  palette.innerHTML = '';
+  Object.keys(lib).forEach(name => {
+    const cell = document.createElement('div'); cell.className = 'cell';
+    cell.innerHTML = `<img src="${lib[name].img.src}"><span>${name}</span>`;
+    cell.onclick = () => addPiece(name);
+    palette.appendChild(cell);
+  });
+}
+function addPiece(name) {
+  const L = lib[name]; if (!L) return;
+  pieces.push({ id: nextId++, name, img: L.img, natW: L.w, natH: L.h, x: 0, y: 0, rot: 0, flipX: false, flipY: false, scale: Math.min(1, 700 / L.w) });
+  select(pieces[pieces.length - 1]);
+}
+// fixed-size С.О.В. plane drawn as a yardstick — scale locked (we don't rescale planes)
+function addPlane() { pieces.push({ id: nextId++, name: '_plane', kind: 'plane', natW: 96, natH: 40, x: 0, y: 120, rot: 0, flipX: false, flipY: false, scale: 1, locked: true }); select(pieces[pieces.length - 1]); }
+document.getElementById('planeBtn').onclick = addPlane;
+
+function select(p) {
+  sel = p;
+  document.getElementById('sel').textContent = !p ? '— ничего не выбрано —'
+    : p.kind === 'plane' ? 'САМОЛЁТ-ЭТАЛОН (масштаб не меняем)'
+    : `${p.name}  (${Math.round(p.natW * p.scale)}px, ${Math.round(p.rot * 180 / Math.PI)}°)`;
+  if (p) { document.getElementById('scale').value = p.scale; document.getElementById('rot').value = p.rot * 180 / Math.PI; document.getElementById('rotv').textContent = Math.round(p.rot * 180 / Math.PI) + '°'; }
+}
+
+document.getElementById('loadBtn').onclick = () => document.getElementById('file').click();
+document.getElementById('file').onchange = (e) => { for (const f of e.target.files) { const img = new Image(); const name = f.name.replace(/\.[^.]+$/, ''); img.onload = () => addToLib(name, img); img.src = URL.createObjectURL(f); } };
+
+function toScreen(wx, wy) { return [cv.width/2 + (wx - cam.x)*cam.zoom, cv.height/2 + (wy - cam.y)*cam.zoom]; }
+function toWorld(sx, sy) { return [(sx - cv.width/2)/cam.zoom + cam.x, (sy - cv.height/2)/cam.zoom + cam.y]; }
+function bbox(p) { const hw = p.natW*p.scale/2, hh = p.natH*p.scale/2; return { l:p.x-hw, r:p.x+hw, t:p.y-hh, b:p.y+hh, cx:p.x, cy:p.y }; }
+function hit(wx, wy) { for (let i = pieces.length-1; i >= 0; i--) { const p = pieces[i], hw = p.natW*p.scale/2, hh = p.natH*p.scale/2; if (wx >= p.x-hw && wx <= p.x+hw && wy >= p.y-hh && wy <= p.y+hh) return p; } return null; }
+
+cv.addEventListener('mousedown', (e) => {
+  const r = cv.getBoundingClientRect(); const [wx, wy] = toWorld(e.clientX-r.left, e.clientY-r.top);
+  const p = hit(wx, wy);
+  if (p) { select(p); dragging = p; dragDX = p.x - wx; dragDY = p.y - wy; }
+  else { select(null); panStart = [e.clientX, e.clientY, cam.x, cam.y]; }
+});
+window.addEventListener('mousemove', (e) => {
+  const r = cv.getBoundingClientRect();
+  if (dragging) { const [wx, wy] = toWorld(e.clientX-r.left, e.clientY-r.top); dragging.x = Math.round(wx+dragDX); dragging.y = Math.round(wy+dragDY); }
+  else if (panStart) { cam.x = panStart[2] - (e.clientX-panStart[0])/cam.zoom; cam.y = panStart[3] - (e.clientY-panStart[1])/cam.zoom; }
+});
+window.addEventListener('mouseup', () => { dragging = null; panStart = null; });
+cv.addEventListener('wheel', (e) => {
+  e.preventDefault();
+  if (sel && !sel.locked) { sel.scale = Math.max(0.03, Math.min(3, sel.scale * (e.deltaY < 0 ? 1.06 : 0.94))); document.getElementById('scale').value = sel.scale; select(sel); }
+  else { cam.zoom = Math.max(0.12, Math.min(2, cam.zoom * (e.deltaY < 0 ? 1.08 : 0.92))); }
+}, { passive: false });
+
+document.getElementById('scale').oninput = (e) => { if (sel && !sel.locked) { sel.scale = parseFloat(e.target.value); select(sel); } };
+document.getElementById('rot').oninput = (e) => { if (sel) { sel.rot = parseFloat(e.target.value)*Math.PI/180; document.getElementById('rotv').textContent = Math.round(parseFloat(e.target.value)) + '°'; } };
+document.getElementById('delBtn').onclick = () => { if (sel) { pieces = pieces.filter(p => p !== sel); select(null); } };
+document.getElementById('dupBtn').onclick = () => { if (sel) { const c = { ...sel, id: nextId++, x: sel.x+40, y: sel.y+40 }; pieces.push(c); select(c); } };
+let clipboard = null;
+function copyPiece() { if (sel) clipboard = { ...sel }; }
+function pastePiece() { if (clipboard) { const c = { ...clipboard, id: nextId++, x: clipboard.x+40, y: clipboard.y+40 }; pieces.push(c); select(c); } }
+document.getElementById('copyPieceBtn').onclick = copyPiece;
+document.getElementById('pastePieceBtn').onclick = pastePiece;
+document.getElementById('flipXBtn').onclick = () => { if (sel) sel.flipX = !sel.flipX; };
+document.getElementById('flipYBtn').onclick = () => { if (sel) sel.flipY = !sel.flipY; };
+document.querySelectorAll('#ztools button').forEach(b => b.onclick = () => {
+  if (!sel) return; const i = pieces.indexOf(sel); pieces.splice(i, 1); const z = b.dataset.z;
+  if (z === 'back') pieces.unshift(sel); else if (z === 'front') pieces.push(sel);
+  else if (z === 'down') pieces.splice(Math.max(0, i-1), 0, sel); else pieces.splice(Math.min(pieces.length, i+1), 0, sel);
+});
+window.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C')) { copyPiece(); return; }
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V')) { pastePiece(); return; }
+  if (!sel) return;
+  if (e.key === 'f' || e.key === 'F') sel.flipX = !sel.flipX;
+  if (e.key === 'Delete' || e.key === 'Backspace') document.getElementById('delBtn').onclick();
+  if (e.key === '[') { const i = pieces.indexOf(sel); if (i>0){ pieces.splice(i,1); pieces.splice(i-1,0,sel);} }
+  if (e.key === ']') { const i = pieces.indexOf(sel); if (i<pieces.length-1){ pieces.splice(i,1); pieces.splice(i+1,0,sel);} }
+  if (e.key === 'q' || e.key === 'Q') { sel.rot -= (e.shiftKey?0.0873:0.0175); select(sel); document.getElementById('rot').value = sel.rot*180/Math.PI; }
+  if (e.key === 'e' || e.key === 'E') { sel.rot += (e.shiftKey?0.0873:0.0175); select(sel); document.getElementById('rot').value = sel.rot*180/Math.PI; }
+  const step = e.shiftKey ? 10 : 1;
+  if (e.key === 'ArrowLeft') sel.x -= step; if (e.key === 'ArrowRight') sel.x += step;
+  if (e.key === 'ArrowUp') sel.y -= step; if (e.key === 'ArrowDown') sel.y += step;
+});
+
+function refreshSelects() {
+  for (const id of ['balloonSel','gondolaSel']) {
+    const s = document.getElementById(id), cur = s.value;
+    s.innerHTML = '<option value="">—</option>' + Object.keys(lib).map(n => `<option>${n}</option>`).join('');
+    if (cur && [...s.options].some(o => o.value === cur)) s.value = cur;
+    else if (id === 'balloonSel' && lib['balloon']) s.value = 'balloon';
+    else if (id === 'gondolaSel' && lib['gondola']) s.value = 'gondola';
+  }
+}
+function pieceByName(n) { return pieces.find(p => p.name === n); }
+
+function drawPlane(c) {
+  c.fillStyle = '#2f6aa6'; c.fillRect(-22,-19,48,6); c.fillRect(-18,13,44,6);
+  c.fillStyle = '#274f78'; c.fillRect(-8,-13,2.4,26); c.fillRect(14,-13,2.4,26);
+  c.fillStyle = '#3f86c8'; c.beginPath(); c.moveTo(-40,-3); c.lineTo(8,-9); c.lineTo(30,-6); c.lineTo(40,0); c.lineTo(30,6); c.lineTo(8,9); c.lineTo(-40,3); c.closePath(); c.fill();
+  c.fillStyle = '#9fd0f5'; c.beginPath(); c.ellipse(2,-6,4.2,4.2,0,0,Math.PI*2); c.fill();
+  c.fillStyle = '#2f6aa6'; c.beginPath(); c.moveTo(-40,-2); c.lineTo(-54,-15); c.lineTo(-36,-3); c.closePath(); c.fill();
+  c.fillStyle = 'rgba(31,58,82,0.5)'; c.beginPath(); c.ellipse(42,0,2.4,15,0,0,Math.PI*2); c.fill();
+}
+
+function draw() {
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.save();
+  ctx.translate(cv.width/2, cv.height/2); ctx.scale(cam.zoom, cam.zoom); ctx.translate(-cam.x, -cam.y);
+
+  // rigging — a fan of angled, slightly-sagging cables from the deck up to the balloon
+  const bal = pieceByName(document.getElementById('balloonSel').value);
+  const gon = pieceByName(document.getElementById('gondolaSel').value);
+  const n = +document.getElementById('cableN').value;
+  if (bal && gon && n > 0) {
+    const b = bbox(bal), g = bbox(gon);
+    // Tuck the cable ENDS inside the balloon underside and gondola deck so the bodies (drawn
+    // on top) cover the overshoot — only the span IN THE GAP shows, never sticking out past
+    // the airship. Inset 18% into each body to clear the transparent PNG padding.
+    const topY = b.b - (b.b - b.t) * 0.18;
+    const botY = g.t + (g.b - g.t) * 0.18;
+    const bl = b.l + 30, br = b.r - 30;                 // balloon attach = WIDE
+    const gw = (g.r - g.l) * 0.34;                       // deck attach = NARROWER → fan
+    const gl = g.cx - gw, gr = g.cx + gw;
+    ctx.strokeStyle = 'rgba(18,12,7,0.88)'; ctx.lineWidth = 3;
+    for (let i = 0; i < n; i++) {
+      const f = n === 1 ? 0.5 : i/(n-1);
+      const bx = bl + (br-bl)*f, gx = gl + (gr-gl)*f;
+      const midY = (topY + botY)/2 + 12;                 // slight sag
+      ctx.beginPath(); ctx.moveTo(gx, botY); ctx.quadraticCurveTo((gx+bx)/2, midY, bx, topY); ctx.stroke();
+    }
+  }
+  // pieces (with rotation)
+  for (const p of pieces) {
+    ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot || 0); ctx.scale(p.flipX ? -1 : 1, p.flipY ? -1 : 1);
+    if (p.kind === 'plane') drawPlane(ctx);
+    else { const w = p.natW*p.scale, h = p.natH*p.scale; ctx.drawImage(p.img, -w/2, -h/2, w, h); }
+    ctx.restore();
+  }
+  ctx.restore();
+
+  if (sel) { const b = bbox(sel); const [sl,st] = toScreen(b.l,b.t); const [sr,sb] = toScreen(b.r,b.b);
+    ctx.strokeStyle = sel.kind === 'plane' ? '#6ee0a0' : '#ffb44a'; ctx.lineWidth = 2; ctx.setLineDash([6,4]); ctx.strokeRect(sl,st,sr-sl,sb-st); ctx.setLineDash([]); }
+  const [ox, oy] = toScreen(0,0);
+  ctx.strokeStyle = 'rgba(255,255,255,0.22)'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(ox-14,oy); ctx.lineTo(ox+14,oy); ctx.moveTo(ox,oy-14); ctx.lineTo(ox,oy+14); ctx.stroke();
+  requestAnimationFrame(draw);
+}
+requestAnimationFrame(draw);
+
+function buildExport() {
+  const mods = pieces.filter(p => p.kind !== 'plane');
+  const lines = mods.map(p => `  add('${p.name}.png', ${p.natW}, ${Math.round(p.natW*p.scale)}, ${Math.round(p.x)}, ${Math.round(p.y)}${p.rot ? ', ' + p.rot.toFixed(3) : ''});`);
+  const plane = pieces.find(p => p.kind === 'plane');
+  const meta = {
+    balloon: document.getElementById('balloonSel').value || null,
+    gondola: document.getElementById('gondolaSel').value || null,
+    cables: +document.getElementById('cableN').value,
+    planeRefW: plane ? Math.round(plane.natW*plane.scale) : null,
+    planeRefXY: plane ? [Math.round(plane.x), Math.round(plane.y)] : null,
+    pieces: mods.map(p => ({ name: p.name, x: Math.round(p.x), y: Math.round(p.y), targetW: Math.round(p.natW*p.scale), rotDeg: Math.round((p.rot||0)*180/Math.PI), flipX: !!p.flipX, flipY: !!p.flipY })),
+  };
+  return `// WOLF COMET LAYOUT — координаты для игры\n${lines.join('\n')}\n\n/* META ${JSON.stringify(meta)} */`;
+}
+document.getElementById('exportBtn').onclick = () => { document.getElementById('out').value = buildExport(); };
+document.getElementById('copyBtn').onclick = async () => { const v = buildExport(); document.getElementById('out').value = v; try { await navigator.clipboard.writeText(v); const btn = document.getElementById('copyBtn'); btn.textContent = 'Скопировано ✓'; setTimeout(() => btn.textContent = 'Копировать', 1500); } catch {} };
+
+tryPreload();
+</script>
+</body>
+</html>
