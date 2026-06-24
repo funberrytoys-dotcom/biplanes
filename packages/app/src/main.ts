@@ -1050,6 +1050,9 @@ export async function startGame(container: HTMLElement) {
   // Distant silhouettes — re-created per theme so the silhouette tint matches the sky.
   let silhouettes: ReturnType<typeof createDistantSilhouettes> | null = null;
   let runMode: 'menu' | 'arena' | 'story' | 'skytest' | 'gunfeelLab' | 'flightLab' | 'oilshot' = 'menu';
+  // The «Волчья комета» demo rides the arena pipeline but is a NO-GROUND air mission, so it
+  // needs the story-style hidden-ground sky (no runway/hangars floating below). Tracked here.
+  let wolfCometDemo = false;
 
   let sky: SkyBackgroundHandle;
   function setSkyTheme(themeId: SkyThemeId, imageUrl?: string) {
@@ -1074,12 +1077,12 @@ export async function startGame(container: HTMLElement) {
     }
     // Arena: the scenic photo goes to the sharp screen-space backdrop, and the
     // world sky uses a transparent base + parallax decor (no giant stretched photo).
-    const isArena = runMode === 'arena';
+    const isArena = runMode === 'arena' && !wolfCometDemo;
     sky = createSkyBackground(
       worldW,
       worldH,
       themeId,
-      runMode === 'story' || runMode === 'skytest' || runMode === 'gunfeelLab' || runMode === 'flightLab' || runMode === 'oilshot',
+      runMode === 'story' || runMode === 'skytest' || runMode === 'gunfeelLab' || runMode === 'flightLab' || runMode === 'oilshot' || wolfCometDemo,
       isArena ? undefined : ((runMode === 'skytest' || runMode === 'gunfeelLab' || runMode === 'flightLab' || runMode === 'oilshot') ? SKY_TEST_IMAGE_URL : imageUrl),
       (runMode === 'skytest' || runMode === 'arena' || runMode === 'gunfeelLab' || runMode === 'flightLab' || runMode === 'oilshot')
         ? { mode: 'layeredArena', transparentBase: isArena }
@@ -1161,6 +1164,7 @@ export async function startGame(container: HTMLElement) {
   const WC_MG_DMG = 5, WC_MG_SPEED = 880;          // twin-barrel light burst (like С.О.В.)
   const WC_CANNON_DMG = 16, WC_CANNON_SPEED = 620; // one big heavy shell (like the cannon perk)
   const WC_REACH_DIST = 1700;                      // how close to the bridge counts as "arrived"
+  const WC_WINGMAN_FIRE_INTERVAL = 0.5;            // how often each С.О.В. wingman chips the airship
   type WCSection = {
     kind: 'turret' | 'engine' | 'core' | 'prop'; weapon?: 'mg' | 'cannon'; sprite: Sprite; targetW: number; intactFile: string;
     hp: number; maxHp: number; alive: boolean; fireCooldown: number; fireInterval: number;
@@ -1172,6 +1176,7 @@ export async function startGame(container: HTMLElement) {
   // Scripted deck-launch beats (NOT a timer): approach → 50% turrets → bridge+prop (boss).
   let wcFiredApproach = false, wcFiredHalfTurrets = false, wcFiredBoss = false;
   let wcBossId: number | null = null; // «Шрам» — the boss launched on the final beat
+  let wcWingmanTimer = 0;   // throttles the С.О.В. wingmen's fire at the airship sections
   let wcDefeated = false, wcFinaleTimer = 0; // victory explosion cascade
   let wcSmokeTick = 0;       // throttles the wreck-smoke emission
   const wolfCometGroup = new Container();
@@ -1265,6 +1270,7 @@ export async function startGame(container: HTMLElement) {
     }
     for (const dp of wcDeckPlanes) { dp.launched = false; dp.handle.container.visible = true; }
     wcFiredApproach = false; wcFiredHalfTurrets = false; wcFiredBoss = false; wcBossId = null;
+    wcWingmanTimer = 0;
     wcDefeated = false; wcFinaleTimer = 0;
   };
 
@@ -2543,6 +2549,7 @@ export async function startGame(container: HTMLElement) {
 
   function startArena() {
     runMode = 'arena';
+    wolfCometDemo = false; // normal arena/run keep the ground; the demo turns this on after
     wolfCometGroup.visible = false; // airship shows only in the wolf-comet demo
     wolfCometIsland.visible = false; // our island base shows only in the wolf-comet demo
     wcHud.visible = false;           // section HP bars belong to the wolf-comet demo only
@@ -2640,6 +2647,9 @@ export async function startGame(container: HTMLElement) {
         },
       },
     };
+    state.droneCount = 2;   // С.О.В. flight: two wingmen escort the player and attack targets
+    wolfCometDemo = true;   // clean no-ground sky — kill the floating runway/hangars from arena
+    setArenaStageTheme(currentArenaStage()); // rebuild the sky WITHOUT ground at the demo size
     camera.setWorldSize(ww, wh);
     layoutWorld();
     positionWolfComet();          // Comet on the right, drifts LEFT toward the island
@@ -3876,6 +3886,37 @@ export async function startGame(container: HTMLElement) {
         if (beats.approach) { wcFiredApproach = true; launchDeck(0, false); showArenaToast('ВЗЛЁТ С ПАЛУБЫ', 'Первый Шакал в воздухе!', 1.6); }
         if (beats.halfTurrets) { wcFiredHalfTurrets = true; launchDeck(1, false); launchDeck(2, false); showArenaToast('ВЗЛЁТ С ПАЛУБЫ', 'Ещё два Шакала в небе!', 1.6); }
         if (beats.boss) { wcFiredBoss = true; launchDeck(3, true); showArenaToast('ВЗЛЕТЕЛ БАРОН', '«Шрам» поднялся — добей его!', 2.6); }
+      }
+      // С.О.В. звено: the wingmen don't just hit fighters (core drone fire) — they also chip the
+      // airship. Each fires at the nearest live, unshielded section on a slow cadence (app-side
+      // player bullets, handled by the section-hit loop next frame). Makes the demo soloable.
+      const wmCount = state.droneCount;
+      if (wmCount > 0 && !wcDefeated && state.player.alive && state.player.state === 'flying') {
+        wcWingmanTimer -= dt;
+        if (wcWingmanTimer <= 0) {
+          wcWingmanTimer = WC_WINGMAN_FIRE_INTERVAL;
+          const back = pk.heading + Math.PI;
+          const wmBullets: Bullet[] = [];
+          for (let d = 0; d < wmCount; d++) {
+            const phase = renderTimeSec * 3 + (d * Math.PI * 2) / Math.max(1, wmCount);
+            const wx = pk.position.x + Math.cos(back) * 38 + Math.cos(phase) * 30;
+            const wy = pk.position.y + Math.sin(back) * 38 + Math.sin(phase) * 30;
+            let best: WCSection | null = null, bestD = Infinity;
+            for (const s of wcSections) {
+              if (!s.alive || (s.kind === 'core' && !stripDead)) continue;
+              const wp = wpos(s);
+              const dd = Math.hypot(wp.x - wx, wp.y - wy);
+              if (dd < bestD) { bestD = dd; best = s; }
+            }
+            if (best) {
+              const wp = wpos(best);
+              const dx = wp.x - wx, dy = wp.y - wy, dl = Math.hypot(dx, dy) || 1;
+              wmBullets.push({ id: wcBulletId--, ownerId: state.player.id, ownerFaction: 'player', position: { x: wx, y: wy }, velocity: { x: (dx / dl) * 900, y: (dy / dl) * 900 }, lifetime: 2.6, damage: 12, alive: true });
+              muzzleFlashes.spawn(wx, wy, Math.atan2(dy, dx), { scale: 0.7, duration: 0.07 });
+            }
+          }
+          if (wmBullets.length) state = { ...state, bullets: [...state.bullets, ...wmBullets] };
+        }
       }
       // Win = the Baron is dead. Lose = the Comet reaches the island — but only WHILE the bridge
       // stands; once the bridge is down the Comet is crippled and just hangs there for the duel.
