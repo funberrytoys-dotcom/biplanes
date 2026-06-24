@@ -47,4 +47,6 @@ export interface Plane {
   firesRockets?: boolean;
   /** Enemy only: seconds until the next rocket launch is allowed. */
   rocketCooldown?: number;
+  /** Enemy only: fires the heavy Jackal gun (slow fat glowing slugs) instead of light shots. */
+  heavyGun?: boolean;
 }

@@ -660,8 +660,9 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     let newCooldown = Math.max(0, stepped.weaponCooldown - TICK_DT);
 
     if (cmd.fire && newCooldown === 0 && stepped.state === 'flying' && stepped.alive) {
-      // Enemies always fire the normal fast light shots — the slow heavy "boom" balls are
-      // a property of the PLAYER's plane (Алые Шакалы), not of the opponents.
+      // Enemies normally fire light fast shots; a flagged few (the Wolf Comet's deck Shakals)
+      // carry the heavy Jackal gun → slow fat glowing slugs with the matched С.О.В. parabola
+      // (same as playing AS Алые Шакалы in «Забег»).
       const fakeForFire = { ...stepped, weaponCooldown: 0 };
       const result = firePlayerWeapon(
         fakeForFire, true, nextEntityId,
@@ -669,7 +670,18 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
         baseParams.fireRateMultiplier,
       );
       for (const b of result.bullets) {
-        newBulletList.push(b);
+        if (stepped.heavyGun) {
+          const spd = JACKAL_BULLET_SPEED_MULT;
+          newBulletList.push({
+            ...b,
+            velocity: { x: b.velocity.x * spd, y: b.velocity.y * spd },
+            lifetime: b.lifetime * JACKAL_BULLET_LIFETIME_MULT,
+            gravityScale: JACKAL_BULLET_GRAVITY_MULT,
+            heavyRound: true,
+          });
+        } else {
+          newBulletList.push(b);
+        }
         nextEntityId++;
       }
       if (result.bullets.length > 0) {

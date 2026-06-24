@@ -2572,26 +2572,21 @@ export async function startGame(container: HTMLElement) {
   function positionWolfComet() {
     const ww = state.worldWidth ?? ARENA_WORLD_WIDTH;
     const wh = state.worldHeight ?? ARENA_WORLD_HEIGHT;
-    // Float it in the combat band just ahead of the runway so it's in view soon after
-    // takeoff and the gondola sits above the ground. Scale 0.9 → ~1800px wide, plane tiny.
-    // Owner's editor layout is ~2800 design units tall; scale to fit the world height with
-    // margin, place it in the combat band ahead of the runway (player flies along it).
+    // Comet sits on the RIGHT of the big map and drifts LEFT (bow-first) toward our island.
     wolfCometGroup.scale.set(0.95);
-    wolfCometGroup.x = ww * 0.32;
-    wolfCometGroup.y = wh * 0.46;
+    wolfCometGroup.x = ww * 0.74;
+    wolfCometGroup.y = wh * 0.42;
   }
   function startWolfCometDemo() {
     startArena();
-    // Air mission — NO runway/ground: the player starts already FLYING in the clouds, off to
-    // the side of (and level with) the Wolf Comet, cruising toward it. The ground stays far
-    // below, off-screen. Later this becomes: takeoff → defend our airship → attack the Comet.
-    const ww = ARENA_WORLD_WIDTH, wh = ARENA_WORLD_HEIGHT;
-    const sx = ww * 0.20, sy = wh * 0.52; // start to the side of the Comet, level with its gondola/turrets
+    // BIG air mission, NO ground: take off FROM our island (LEFT), fly RIGHT toward the Wolf
+    // Comet, and shoot it down before it drifts back across the map to the island.
+    const ww = Math.round(ARENA_WORLD_WIDTH * 1.9), wh = Math.round(ARENA_WORLD_HEIGHT * 1.25);
+    const sx = ww * 0.12, sy = wh * 0.52; // launch from our island, heading right toward the Comet
     state = {
       ...state,
-      disableAutoEnemySpawn: true,
-      enemies: [],
-      bullets: [],
+      worldWidth: ww, worldHeight: wh, gameOver: false,
+      disableAutoEnemySpawn: true, enemies: [], bullets: [],
       player: {
         ...state.player,
         state: 'flying',
@@ -2603,17 +2598,20 @@ export async function startGame(container: HTMLElement) {
         },
       },
     };
-    positionWolfComet();
+    camera.setWorldSize(ww, wh);
+    layoutWorld();
+    positionWolfComet();          // Comet on the right, drifts LEFT toward the island
     wolfCometGroup.visible = true;
+    wolfCometGroup.alpha = 1;
     resetWolfComet();
-    wolfCometIsland.scale.set(0.55);
-    wolfCometIsland.position.set(ww * 0.96, wh * 0.56);
+    wolfCometIsland.scale.set(0.8);
+    wolfCometIsland.position.set(ww * 0.05, wh * 0.6); // our base, on the LEFT
     wolfCometIsland.visible = true;
     fgClouds.container.alpha = 0.4; // thin the foreground clouds so the Comet reads clearly
     const focus = resolveArenaCameraFocus({ playerX: sx, playerY: sy, facing: 1 });
     camera.setFocus(focus.x, focus.y, cameraZoom(focus.zoom));
     camera.snap();
-    showArenaToast('«ВОЛЧЬЯ КОМЕТА»', 'Сбей дирижабль, пока он не дошёл до острова!', 3.4);
+    showArenaToast('«ВОЛЧЬЯ КОМЕТА»', 'Вперёд от острова — сбей дирижабль, пока он не дошёл!', 3.4);
   }
 
   // «Забег»: a fresh run on the arena pipeline, gated by runSession.
@@ -3804,6 +3802,7 @@ export async function startGame(container: HTMLElement) {
           const e = makeArenaRoundEnemy(state.nextEntityId, state.player, 3, lane, false);
           const dx0 = wolfCometGroup.x + (-260 + lane * 200) * gscale, dy0 = wolfCometGroup.y + 175 * gscale;
           e.kinematic = { ...e.kinematic, position: { x: dx0, y: dy0 } };
+          e.heavyGun = true; // deck Shakals fire the heavy Jackal gun
           state = { ...state, nextEntityId: state.nextEntityId + 1, enemies: [...state.enemies, e] };
           wcDeckLaunched++;
           spriteExplosions.spawn(dx0, dy0, false);
@@ -3812,12 +3811,12 @@ export async function startGame(container: HTMLElement) {
       }
       // The Comet slowly drifts toward our island; win = core destroyed, lose = it arrives.
       if (!wcDefeated) {
-        wolfCometGroup.x += 38 * dt;
+        wolfCometGroup.x -= 46 * dt; // drift LEFT (bow-first) toward our island
         const core = wcSections.find(s => s.kind === 'core');
         if (core && !core.alive) {
           wcDefeated = true; wcFinaleTimer = 0;
           showArenaToast('РУБКА УНИЧТОЖЕНА', 'Комета падает!', 2.2);
-        } else if (wolfCometGroup.x > wolfCometIsland.x - 2800) {
+        } else if (wolfCometGroup.x < wolfCometIsland.x + 2800) {
           showArenaToast('ОСТРОВ ПАЛ', 'Комета дошла до базы…', 3);
           state = { ...state, gameOver: true };
           wolfCometGroup.visible = false; wolfCometIsland.visible = false; wcHud.visible = false; fgClouds.container.alpha = 1;
