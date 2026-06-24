@@ -1164,6 +1164,11 @@ export async function startGame(container: HTMLElement) {
   const WC_MG_DMG = 5, WC_MG_SPEED = 880;          // twin-barrel light burst (like С.О.В.)
   const WC_CANNON_DMG = 16, WC_CANNON_SPEED = 620; // one big heavy shell (like the cannon perk)
   const WC_REACH_DIST = 1700;                      // how close to the bridge counts as "arrived"
+  // «Вечная ночь» под облаками: the bottom of the map is a dense cloud floor; punch below it and
+  // the dark swallows the plane unless you climb out in time (replaces lethal ground in air missions).
+  const WC_CLOUD_FLOOR_FRAC = 0.72;                // dense cloud-floor band Y, as a fraction of the demo world height
+  const WC_DARK_FRAC = 0.76;                       // below this Y-fraction = eternal night (the death zone)
+  const WC_DARK_DEATH_SEC = 6;                     // seconds in the dark before the light fails → boom
   // С.О.В. звено: two AI-flown ALLY fighters (full planes, not drones) escort the player and
   // hunt the airship's turrets + the enemy Shakals.
   const WC_ALLY_COUNT = 2;
@@ -1185,6 +1190,7 @@ export async function startGame(container: HTMLElement) {
   let wcBossId: number | null = null; // «Шрам» — the boss launched on the final beat
   // The two С.О.В. ally fighters (built after planeLayer exists, below). app-side AI flies them.
   const wcAllies: { plane: Plane; sprite: ReturnType<typeof createPlaneSprite>; fireCd: number }[] = [];
+  let wcDarkTimer = 0;      // seconds spent below the cloud floor in the dark (6s = the night takes you)
   let wcDefeated = false, wcFinaleTimer = 0; // victory explosion cascade
   let wcSmokeTick = 0;       // throttles the wreck-smoke emission
   const wolfCometGroup = new Container();
@@ -1278,6 +1284,7 @@ export async function startGame(container: HTMLElement) {
     }
     for (const dp of wcDeckPlanes) { dp.launched = false; dp.handle.container.visible = true; }
     wcFiredApproach = false; wcFiredHalfTurrets = false; wcFiredBoss = false; wcBossId = null;
+    wcDarkTimer = 0; wcDarkOverlay.visible = false; wcDarkWarning.visible = false;
     wcDefeated = false; wcFinaleTimer = 0;
   };
 
@@ -1316,6 +1323,15 @@ export async function startGame(container: HTMLElement) {
     driftSpeed: 8,
   });
   worldLayer.addChild(cloudSea.container);
+
+  // «Вечная ночь» dense cloud FLOOR for air missions (wolf-comet demo) — a thick, near-opaque
+  // band at the bottom of the play area. Below it = darkness (the death zone). Demo-only.
+  const wcCloudFloor = createCloudSea({
+    count: 52, yTop: Math.round(ARENA_WORLD_HEIGHT * 1.25 * WC_CLOUD_FLOOR_FRAC),
+    span: 2900, widthMin: 660, widthMax: 1220, alphaMin: 0.78, alphaMax: 0.98, driftSpeed: 5,
+  });
+  wcCloudFloor.container.visible = false;
+  worldLayer.addChild(wcCloudFloor.container);
 
   function syncAtmosphereLayers() {
     const showAtmosphere = runMode !== 'menu' && runMode !== 'skytest';
@@ -1488,6 +1504,22 @@ export async function startGame(container: HTMLElement) {
   const hud = createHud(app.screen.width, app.screen.height);
   hud.container.visible = false;
   uiLayer.addChild(hud.container);
+
+  // «Вечная ночь»: a screen-space darkness that swallows the WORLD (added at the back of the UI,
+  // so the HUD + touch controls stay readable on top) + a flashing climb warning.
+  const wcDarkOverlay = new Graphics();
+  wcDarkOverlay.visible = false;
+  uiLayer.addChildAt(wcDarkOverlay, 0); // backmost UI element → dims the world, not the instruments
+  const wcDarkWarning = new Text({
+    text: 'НЕДОСТАТОЧНО ТЯГИ — ТЯНИ ВВЕРХ!',
+    style: new TextStyle({
+      fontFamily: 'monospace', fontSize: 30, fontWeight: 'bold', fill: 0xffe05a,
+      stroke: { color: 0x2a0a05, width: 6 }, align: 'center',
+    }),
+  });
+  wcDarkWarning.anchor.set(0.5);
+  wcDarkWarning.visible = false;
+  uiLayer.addChild(wcDarkWarning);
 
   // === Ammo counter — compact, bottom-right under the action icons ====
   const AMMO_PANEL_W = 104;
@@ -2571,6 +2603,7 @@ export async function startGame(container: HTMLElement) {
     wolfCometIsland.visible = false; // our island base shows only in the wolf-comet demo
     wcHud.visible = false;           // section HP bars belong to the wolf-comet demo only
     for (const a of wcAllies) a.sprite.container.visible = false; // ally fighters: demo only
+    wcCloudFloor.container.visible = false; wcDarkOverlay.visible = false; wcDarkWarning.visible = false;
     fgClouds.container.alpha = 1;   // full foreground clouds for normal modes
     applyFactionForMode(); // player flies the chosen faction's colour; show/hide the grip
     arenaShownStage = 0;
@@ -2653,6 +2686,7 @@ export async function startGame(container: HTMLElement) {
     state = {
       ...state,
       worldWidth: ww, worldHeight: wh, gameOver: false,
+      softFloor: true, // no lethal ground — the dense cloud floor + «вечная ночь» is the hazard
       disableAutoEnemySpawn: true, enemies: [], bullets: [],
       player: {
         ...state.player,
@@ -3107,6 +3141,9 @@ export async function startGame(container: HTMLElement) {
     if (fgClouds.container.visible) fgClouds.update(dt, cloudFocusX);
     if (cloudSea.container.visible) {
       cloudSea.update(dt, cloudFocusX);
+    }
+    if (wcCloudFloor.container.visible) {
+      wcCloudFloor.update(dt, cloudFocusX);
     }
     if ((runMode === 'skytest' || runMode === 'arena' || runMode === 'gunfeelLab' || runMode === 'flightLab' || runMode === 'oilshot') && skytestCloudVolume.backContainer.visible) {
       const cloudPlanes: CloudVolumePlane[] = [
@@ -3975,7 +4012,7 @@ export async function startGame(container: HTMLElement) {
       // stands; once the bridge is down the Comet is crippled and just hangs there for the duel.
       const bridgeDown = !!bridge && !bridge.alive;
       if (!wcDefeated) {
-        if (!bridgeDown) wolfCometGroup.x -= 46 * dt; // drift LEFT (bow-first) toward our island
+        if (!bridgeDown && state.player.alive) wolfCometGroup.x -= 46 * dt; // drift LEFT toward our island (stops if the player is down)
         if (wcFiredBoss && wcBossId !== null) {
           const boss = state.enemies.find(en => en.id === wcBossId);
           if (!boss || !boss.alive) {
@@ -4006,8 +4043,51 @@ export async function startGame(container: HTMLElement) {
           showArenaToast('ПОБЕДА', '«Волчья комета» повержена — остров спасён!', 4);
         }
       }
+      // === «Вечная ночь»: dense cloud FLOOR + the dark below it. Punch through and the night
+      // swallows the plane — climb above the floor within WC_DARK_DEATH_SEC or the light fails. ===
+      wcCloudFloor.container.visible = true;
+      const whDemo = state.worldHeight ?? WORLD_HEIGHT;
+      const darkY = whDemo * WC_DARK_FRAC;
+      const ppy = state.player.kinematic.position.y;
+      const inDark = !wcDefeated && state.player.alive && state.player.state === 'flying' && ppy > darkY;
+      if (inDark) {
+        wcDarkTimer += dt;
+        const depth = Math.min(1, (ppy - darkY) / (whDemo * 0.14));
+        const ramp = Math.min(1, wcDarkTimer / WC_DARK_DEATH_SEC);
+        wcDarkOverlay.visible = true;
+        wcDarkOverlay.clear().rect(0, 0, app.screen.width, app.screen.height).fill(0x02030a);
+        wcDarkOverlay.alpha = Math.min(0.92, 0.3 + depth * 0.3 + ramp * 0.55);
+        wcDarkWarning.visible = true;
+        wcDarkWarning.text = `НЕДОСТАТОЧНО ТЯГИ — ТЯНИ ВВЕРХ!   ${Math.max(1, Math.ceil(WC_DARK_DEATH_SEC - wcDarkTimer))}`;
+        wcDarkWarning.x = app.screen.width / 2; wcDarkWarning.y = app.screen.height * 0.4;
+        wcDarkWarning.scale.set(1 + Math.sin(renderTimeSec * 13) * 0.06);
+        if (wcDarkTimer >= WC_DARK_DEATH_SEC) {
+          // The light fails — the night DESTROYS the plane (big explosion), then a fresh plane
+          // drops back in ABOVE the clouds (no runway in the void; keeps the demo playable).
+          const ppx = state.player.kinematic.position.x;
+          for (let k = 0; k < 9; k++) spriteExplosions.spawn(ppx + (k - 4) * 32, ppy + ((k % 2) - 0.5) * 34, true);
+          damageFx.addExplosion({ x: ppx, y: ppy }); audio.playExplosion();
+          screenFx.flash(0xff5544, 0.85, 0.6); camera.shake(10);
+          showArenaToast('ТЬМА ПОГЛОТИЛА', 'Свет погас — ночь забрала нас! Держись выше облаков.', 3.6);
+          const wwR = state.worldWidth ?? ARENA_WORLD_WIDTH, whR = state.worldHeight ?? WORLD_HEIGHT;
+          state = { ...state, player: { ...state.player, hp: state.player.maxHp, alive: true, state: 'flying',
+            kinematic: { ...state.player.kinematic, position: { x: wwR * 0.14, y: whR * 0.5 }, velocity: { x: G_MAX_LEVEL, y: 0 }, heading: 0, g: G_MAX_LEVEL, throttleLevel: 1, facing: 1 } } };
+          wcDarkOverlay.visible = false; wcDarkWarning.visible = false; wcDarkTimer = 0;
+        }
+      } else if (wcDarkTimer > 0) {
+        // Climbed back into the light — fade the dark out fast.
+        wcDarkTimer = Math.max(0, wcDarkTimer - dt * 2.5);
+        if (wcDarkTimer <= 0.01) { wcDarkOverlay.visible = false; wcDarkWarning.visible = false; }
+        else {
+          wcDarkOverlay.visible = true;
+          wcDarkOverlay.clear().rect(0, 0, app.screen.width, app.screen.height).fill(0x02030a);
+          wcDarkOverlay.alpha = Math.min(0.92, (wcDarkTimer / WC_DARK_DEATH_SEC) * 0.55);
+          wcDarkWarning.visible = false;
+        }
+      }
     } else {
       wcHud.visible = false;
+      wcCloudFloor.container.visible = false; wcDarkOverlay.visible = false; wcDarkWarning.visible = false;
     }
 
     const worldGroundY = (state.worldHeight ?? WORLD_HEIGHT) - 90;
