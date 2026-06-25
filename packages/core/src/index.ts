@@ -1,6 +1,7 @@
 export * from './world/world-state.js';
 export * from './world/tick.js';
 export * from './entities/plane.js';
+export * from './entities/wingman.js';
 export * from './entities/bullet.js';
 export * from './entities/pilot.js';
 export * from './entities/bomb.js';

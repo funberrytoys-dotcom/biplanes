@@ -79,4 +79,41 @@ describe('collision-system', () => {
     expect(result.player.hp).toBe(100);
     expect(result.enemies[0]!.hp).toBe(30);
   });
+
+  describe('wingman allies', () => {
+    it('enemy bullet hits an ally wingman and deals damage', () => {
+      const player = makePlane(1, 500, 500, 'player', 100);
+      const enemy = makePlane(2, 900, 500, 'enemy');
+      const ally = makePlane(3, 600, 500, 'player', 60);
+      const bullet = makeBullet(99, 605, 500, 2, 15, 'enemy');
+
+      const result = resolveBulletPlaneHits([bullet], player, [enemy], [], [ally]);
+      expect(result.allies[0]!.hp).toBe(45);
+      expect(result.bullets).toHaveLength(0);
+    });
+
+    it('enemy bullet shoots a wingman down when hp reaches 0', () => {
+      const player = makePlane(1, 500, 500, 'player', 100);
+      const enemy = makePlane(2, 900, 500, 'enemy');
+      const ally = makePlane(3, 600, 500, 'player', 10);
+      const bullet = makeBullet(99, 605, 500, 2, 15, 'enemy');
+
+      const result = resolveBulletPlaneHits([bullet], player, [enemy], [], [ally]);
+      expect(result.allies[0]!.alive).toBe(false);
+      expect(result.allies[0]!.hp).toBe(0);
+      expect(result.allies[0]!.state).toBe('dying');
+    });
+
+    it('friendly fire: a player/ally bullet never damages a wingman', () => {
+      const player = makePlane(1, 500, 500, 'player', 100);
+      const enemy = makePlane(2, 900, 500, 'enemy');
+      const ally = makePlane(3, 600, 500, 'player', 60);
+      // ally bullets are emitted as owner=player so they hit enemies, not friends
+      const bullet = makeBullet(99, 600, 500, 1, 15, 'player');
+
+      const result = resolveBulletPlaneHits([bullet], player, [enemy], [], [ally]);
+      expect(result.allies[0]!.hp).toBe(60);
+      expect(result.bullets).toHaveLength(1); // passes through the friendly ally
+    });
+  });
 });

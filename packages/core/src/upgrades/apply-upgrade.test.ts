@@ -94,17 +94,31 @@ describe('applyUpgrade', () => {
 });
 
 describe('applyUpgrade — wingman (Алые Шакалы signature)', () => {
-  it('sets hasDrone true and droneCount 1 on first apply', () => {
+  it('spawns one real ally plane (NOT a drone) on first apply', () => {
     const after = applyUpgrade(createWorldState(42, makePlayer()), 'wingman');
-    expect(after.hasDrone).toBe(true);
-    expect(after.droneCount).toBe(1);
+    expect(after.wingmanCount).toBe(1);
+    expect(after.allies).toHaveLength(1);
+    expect(after.allies[0]!.faction).toBe('player');
+    expect(after.allies[0]!.alive).toBe(true);
+    expect(after.allies[0]!.maxHp).toBeGreaterThan(0);
+    // It must NOT fall back to the С.О.В. companion-drone path.
+    expect(after.droneCount).toBe(0);
+    expect(after.hasDrone).toBe(false);
   });
 
-  it('accumulates droneCount to 2 when applied twice (uncapped at apply layer)', () => {
+  it('stacks to a звено of two wingmen when applied twice', () => {
     let s = createWorldState(42, makePlayer());
     s = applyUpgrade(s, 'wingman');
     s = applyUpgrade(s, 'wingman');
-    expect(s.droneCount).toBe(2);
-    expect(s.hasDrone).toBe(true);
+    expect(s.wingmanCount).toBe(2);
+    expect(s.allies).toHaveLength(2);
+    // distinct entity ids
+    expect(s.allies[0]!.id).not.toBe(s.allies[1]!.id);
+  });
+
+  it('fires the heavy Jackal gun when the player flies Алые Шакалы', () => {
+    const s = { ...createWorldState(42, makePlayer()), playerFaction: 'jackals' as const };
+    const after = applyUpgrade(s, 'wingman');
+    expect(after.allies[0]!.heavyGun).toBe(true);
   });
 });

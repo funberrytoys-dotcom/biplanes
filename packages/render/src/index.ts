@@ -21,6 +21,7 @@ export * from './scene/lens-flare.js';
 export * from './scene/distant-silhouettes.js';
 export * from './scene/clouds.js';
 export * from './scene/cloud-volume.js';
+export * from './scene/cloud-assets.js';
 export * from './scene/arena-weather.js';
 export * from './scene/arena-weather-math.js';
 export * from './camera.js';

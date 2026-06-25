@@ -47,6 +47,11 @@ export interface WorldState {
 
   player: Plane;
   enemies: Plane[];
+  // «Ведомый» — AI-flown ally planes that fly the player's wing, pick their own
+  // targets, and are MORTAL (no in-round respawn). The host clears them between
+  // rounds; `wingmanCount` is how many to (re)launch each round. NOT companion
+  // drones — see [[feedback-wingmen-are-ai-planes]].
+  allies: Plane[];
   bullets: Bullet[];
   bombs: Bomb[];
   rockets: Rocket[];
@@ -87,7 +92,8 @@ export interface WorldState {
   xpMagnetRange: number;            // base XP_PICKUP_MAGNET_RANGE (legacy, unused)
   hpRegenPerSec: number;            // passive HP regen/sec while flying (field_repair upgrade)
   hasDrone: boolean;                // legacy flag — true when droneCount > 0
-  droneCount: number;               // number of wingman drones
+  droneCount: number;               // number of С.О.В. companion drones (orbit + auto-fire)
+  wingmanCount: number;             // number of Jackal «Ведомый» ally planes to keep launched per round
   hasHomingRockets: boolean;
   hasFlameTrail: boolean;
   hasHeavyCannon: boolean;
@@ -111,6 +117,7 @@ export interface WorldState {
   // for less allocation churn. If we ever want full determinism on AI, switch
   // to immutable Map.set() rebuild here.
   enemyAiStates: Map<number, AiState>;   // enemyId -> state
+  allyAiStates: Map<number, AiState>;    // allyId -> state (Jackal «Ведомый» wingmen)
   prevEnemyHp: Map<number, number>;      // for hit detection
 
   // === Plane-vs-plane collision (Phase 5) ===
@@ -134,6 +141,7 @@ export function createWorldState(seed: number, player: Plane): WorldState {
     rngState: seed,
     player,
     enemies: [],
+    allies: [],
     bullets: [],
     bombs: [],
     rockets: [],
@@ -165,6 +173,7 @@ export function createWorldState(seed: number, player: Plane): WorldState {
     hpRegenPerSec: 0,
     hasDrone: false,
     droneCount: 0,
+    wingmanCount: 0,
     hasHomingRockets: false,
     hasFlameTrail: false,
     hasHeavyCannon: false,
@@ -179,6 +188,7 @@ export function createWorldState(seed: number, player: Plane): WorldState {
 
     difficulty: 'medium',
     enemyAiStates: new Map(),
+    allyAiStates: new Map(),
     prevEnemyHp: new Map(),
     planeCollisionCooldowns: new Map(),
     planeCollisionEvents: [],

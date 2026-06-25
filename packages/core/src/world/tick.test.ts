@@ -329,6 +329,43 @@ describe('world tick', () => {
     expect(after.bullets[0]!.damage).toBe(5); // base drone damage
   });
 
+  it('wingman ally engages and damages the nearest enemy on its own', () => {
+    const player = { ...makePlayer(), hp: 99999, maxHp: 99999,
+      kinematic: { ...makePlayer().kinematic, position: { x: 200, y: 500 } } };
+    const ally = { ...makePlayer(), id: 50, hp: 60, maxHp: 60,
+      kinematic: { ...makePlayer().kinematic, position: { x: 1500, y: 500 } } };
+    const enemy = { ...makePlayer(), id: 2, faction: 'enemy' as const, hp: 300, maxHp: 300,
+      kinematic: { ...makePlayer().kinematic, position: { x: 1700, y: 500 } } };
+    let s: WorldState = { ...createWorldState(42, player), allies: [ally], enemies: [enemy],
+      disableAutoEnemySpawn: true };
+    let sawPlayerBullet = false;
+    for (let i = 0; i < 120; i++) {
+      s = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+      if (s.bullets.some(b => b.ownerFaction === 'player')) sawPlayerBullet = true;
+    }
+    expect(sawPlayerBullet).toBe(true);          // the wingman opened fire on its own
+    const enemyNow = s.enemies.find(e => e.id === 2);
+    // the enemy was either damaged or shot down by the wingman
+    expect(enemyNow === undefined || enemyNow.hp < 300).toBe(true);
+  });
+
+  it('wingman is mortal — enemy fire shoots it down (enters dying)', () => {
+    const player = makePlayer();
+    const ally = { ...makePlayer(), id: 50, hp: 60, maxHp: 60,
+      kinematic: { ...makePlayer().kinematic, position: { x: 900, y: 500 } } };
+    const enemyBullet = {
+      id: 77, ownerId: 2, ownerFaction: 'enemy' as const,
+      position: { x: 902, y: 500 }, velocity: { x: 0, y: 0 },
+      lifetime: 1, damage: 100, alive: true,
+    };
+    const s: WorldState = { ...createWorldState(42, player), allies: [ally], bullets: [enemyBullet],
+      disableAutoEnemySpawn: true };
+    const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+    const a = after.allies[0]!;
+    expect(a.alive).toBe(false);
+    expect(a.state).toBe('dying');
+  });
+
   it('enemy killed by bullet enters dying state, not crashed', () => {
     const player = makePlayer();
     const enemy = {

@@ -1,6 +1,6 @@
 import { Assets, Container, Sprite, Texture } from 'pixi.js';
 import { resolveCloudContact, resolveCloudReadabilityAlpha, smooth01 } from './cloud-volume-math.js';
-import { assetUrl } from '../asset-url.js';
+import { CLOUD_LIGHT_URLS, CLOUD_HERO_URLS, CLOUD_ALL_URLS } from './cloud-assets.js';
 
 export interface CloudVolumePlane {
   x: number;
@@ -57,22 +57,10 @@ interface CloudParticle {
   stretchY: number;
 }
 
-const CLEAN_CLOUD_URLS = [
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_01.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_02.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_04.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_05.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_08.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_11.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_13.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_14.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_18.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_20.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_22.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_23.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_25.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_27.png'),
-];
+// Background depth banks use the light cut-outs; the lush fly-behind FRONT banks
+// use the big detailed hero clouds (owner: «густые и крупные на первом плане»).
+const BACK_CLOUD_URLS = CLOUD_LIGHT_URLS;
+const FRONT_CLOUD_URLS = CLOUD_HERO_URLS;
 
 function makePuffTexture(): Texture {
   if (typeof document === 'undefined') return Texture.WHITE;
@@ -85,9 +73,9 @@ function makePuffTexture(): Texture {
 
   const gradient = ctx.createRadialGradient(48, 48, 5, 48, 48, 48);
   gradient.addColorStop(0, 'rgba(255,255,255,0.62)');
-  gradient.addColorStop(0.38, 'rgba(242,250,255,0.42)');
-  gradient.addColorStop(0.72, 'rgba(220,238,246,0.16)');
-  gradient.addColorStop(1, 'rgba(220,238,246,0)');
+  gradient.addColorStop(0.38, 'rgba(248,248,248,0.42)');
+  gradient.addColorStop(0.72, 'rgba(236,236,236,0.16)');
+  gradient.addColorStop(1, 'rgba(236,236,236,0)');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -104,12 +92,13 @@ function addBank(
   alpha: number,
   front: boolean,
   phase: number,
+  mirror: boolean,
 ) {
   const sprite = Sprite.from(url);
   sprite.anchor.set(0.5);
   sprite.width = width;
   sprite.scale.y = Math.abs(sprite.scale.x);
-  if (phase % 2 > 1) sprite.scale.x *= -1;
+  if (mirror) sprite.scale.x *= -1;
   sprite.alpha = alpha;
   sprite.x = x;
   sprite.y = y;
@@ -149,39 +138,47 @@ export function createCloudVolume(worldWidth: number, worldHeight: number): Clou
   let loaded = false;
   let particleCursor = 0;
 
-  Assets.load(CLEAN_CLOUD_URLS)
+  Assets.load(CLOUD_ALL_URLS)
     .then(() => {
       const backRows = [
-        { y: worldHeight * 0.44, width: 520, alpha: 0.22 },
-        { y: worldHeight * 0.51, width: 700, alpha: 0.27 },
-        { y: worldHeight * 0.60, width: 820, alpha: 0.31 },
+        { y: worldHeight * 0.44, width: 560, alpha: 0.36 },
+        { y: worldHeight * 0.51, width: 780, alpha: 0.42 },
+        { y: worldHeight * 0.60, width: 1000, alpha: 0.48 },
       ];
       for (let i = 0; i < 18; i++) {
         const row = backRows[i % backRows.length]!;
         addBank(
           backContainer,
           banks,
-          CLEAN_CLOUD_URLS[i % CLEAN_CLOUD_URLS.length]!,
-          worldWidth * (0.035 + i * 0.055),
+          // coprime stride decorrelates texture from X position; X jitter breaks the column grid
+          BACK_CLOUD_URLS[(i * 7) % BACK_CLOUD_URLS.length]!,
+          worldWidth * (0.035 + i * 0.055) + (Math.random() - 0.5) * worldWidth * 0.035,
           row.y + ((i % 4) - 1.5) * 34,
           row.width + (i % 5) * 70,
           row.alpha + (i % 3) * 0.025,
           false,
           i * 1.37,
+          i % 2 === 1,
         );
       }
 
-      for (let i = 0; i < 10; i++) {
+      // Soft foreground banks you can drift behind. Kept gentle (moderate size + alpha)
+      // so the "parting as the plane passes through" reads SMOOTH, not jerky.
+      for (let i = 0; i < 9; i++) {
         addBank(
           frontContainer,
           banks,
-          CLEAN_CLOUD_URLS[(i * 2 + 3) % CLEAN_CLOUD_URLS.length]!,
-          worldWidth * (0.06 + i * 0.098),
-          worldHeight * (0.46 + (i % 4) * 0.06),
-          620 + (i % 4) * 120,
-          0.34 + (i % 3) * 0.085,
+          FRONT_CLOUD_URLS[(i * 9 + 4) % FRONT_CLOUD_URLS.length]!,
+          worldWidth * (0.06 + i * 0.098) + (Math.random() - 0.5) * worldWidth * 0.06,
+          // spread vertically across 0.40..0.72 (deterministic) instead of a 4-level
+          // mid strip — removes the hard horizontal band edge (the mid-screen "seam")
+          worldHeight * (0.40 + (i / 8) * 0.32 + (((i * 2 + 1) % 3) - 1) * 0.02),
+          // every 3rd foreground cloud is a big "hero" (much larger) for size variety
+          Math.round((i % 3 === 0 ? 1.85 : 1) * (540 + (i % 4) * 130)),
+          0.52 + (i % 3) * 0.1,
           true,
           i * 1.91,
+          i % 2 === 1,
         );
       }
       loaded = true;
@@ -288,15 +285,16 @@ export function createCloudVolume(worldWidth: number, worldHeight: number): Clou
           bank.disturbance = Math.max(bank.disturbance, strength);
           readabilityContact = Math.max(readabilityContact, strength);
           bank.propPulse = Math.max(bank.propPulse, contact.propWash);
-          // Part the cloud WIDER as the plane shoulders through it.
-          bank.pushX -= plane.vx * strength * dt * (bank.front ? 0.22 : 0.10);
-          bank.pushY -= plane.vy * strength * dt * (bank.front ? 0.16 : 0.06);
-          bank.shearX += contact.sideX * contact.propWash * dt * (bank.front ? 290 : 130);
-          bank.shearY += contact.sideY * contact.propWash * dt * (bank.front ? 190 : 80);
-          bank.pushX = Math.max(-150, Math.min(150, bank.pushX));
-          bank.pushY = Math.max(-96, Math.min(96, bank.pushY));
-          bank.shearX = Math.max(-120, Math.min(120, bank.shearX));
-          bank.shearY = Math.max(-82, Math.min(82, bank.shearY));
+          // Part the cloud as the plane passes — GENTLE so it eases open/closed,
+          // not a sharp lurch (owner feedback: must read smooth like before).
+          bank.pushX -= plane.vx * strength * dt * (bank.front ? 0.11 : 0.06);
+          bank.pushY -= plane.vy * strength * dt * (bank.front ? 0.08 : 0.035);
+          bank.shearX += contact.sideX * contact.propWash * dt * (bank.front ? 130 : 70);
+          bank.shearY += contact.sideY * contact.propWash * dt * (bank.front ? 85 : 45);
+          bank.pushX = Math.max(-80, Math.min(80, bank.pushX));
+          bank.pushY = Math.max(-52, Math.min(52, bank.pushY));
+          bank.shearX = Math.max(-64, Math.min(64, bank.shearX));
+          bank.shearY = Math.max(-44, Math.min(44, bank.shearY));
 
           // Shed more, slower-swirling vapor — "disturbed air" trailing the plane.
           const puffChance = Math.min(1, dt * (20 + contact.speed / 30) * strength);
@@ -313,14 +311,16 @@ export function createCloudVolume(worldWidth: number, worldHeight: number): Clou
 
         // Slower decay → the parted hole lingers a beat instead of snapping shut.
         bank.disturbance *= Math.max(0, 1 - dt * 0.95);
-        bank.wobbleX += (Math.sin(timeSec * 7.2 + bank.phase * 1.7) * bank.disturbance * (bank.front ? 34 : 16) - bank.wobbleX) * Math.min(1, dt * 5.4);
-        bank.wobbleY += (Math.cos(timeSec * 6.4 + bank.phase * 1.3) * bank.disturbance * (bank.front ? 24 : 11) - bank.wobbleY) * Math.min(1, dt * 5.4);
+        // Slower, smaller sway (lower freq + amplitude + softer lerp) so the cloud
+        // breathes instead of vibrating when the plane brushes it.
+        bank.wobbleX += (Math.sin(timeSec * 4.4 + bank.phase * 1.7) * bank.disturbance * (bank.front ? 16 : 9) - bank.wobbleX) * Math.min(1, dt * 3.4);
+        bank.wobbleY += (Math.cos(timeSec * 3.9 + bank.phase * 1.3) * bank.disturbance * (bank.front ? 11 : 6) - bank.wobbleY) * Math.min(1, dt * 3.4);
         const bob = Math.sin(timeSec * bank.bobSpeed + bank.phase) * bank.bobAmp;
         const slowDrift = Math.sin(timeSec * 0.08 + bank.phase) * (bank.front ? 18 : 8);
         const slowRise = Math.cos(timeSec * 0.06 + bank.phase * 0.7) * (bank.front ? 8 : 4);
         bank.sprite.x = bank.baseX + slowDrift + bank.pushX + bank.wobbleX + bank.shearX;
         bank.sprite.y = bank.baseY + slowRise + bob + bank.pushY + bank.wobbleY + bank.shearY;
-        bank.sprite.rotation = Math.sin(timeSec * 3.2 + bank.phase) * bank.disturbance * (bank.front ? 0.04 : 0.018);
+        bank.sprite.rotation = Math.sin(timeSec * 1.8 + bank.phase) * bank.disturbance * (bank.front ? 0.02 : 0.01);
         bank.sprite.alpha = resolveCloudReadabilityAlpha({
           baseAlpha: bank.alpha,
           contactStrength: readabilityContact,
