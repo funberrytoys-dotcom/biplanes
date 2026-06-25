@@ -4,6 +4,28 @@ import {
   initializeTelegramMiniApp,
 } from './telegram-mini-app.js';
 
+// === Auto-update ============================================================
+// An iOS home-screen PWA caches the HTML+bundle very hard, so deployed fixes don't
+// reach the device until the cache is manually cleared. On boot, ask the server for
+// the live version (cache-busted, no-store) and, if it's newer than this bundle,
+// reload ONCE to it. Guarded against reload loops via sessionStorage. Bump in BOTH
+// this constant AND apps/web/public/version.json (and BUILD_TAG in the app) per deploy.
+const THIS_VERSION = 'v13';
+void (async () => {
+  try {
+    const res = await fetch(`version.json?t=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) return;
+    const data = (await res.json().catch(() => null)) as { v?: string } | null;
+    const live = data && typeof data.v === 'string' ? data.v : null;
+    if (!live || live === THIS_VERSION) return;
+    if (sessionStorage.getItem('biplanes.updTried') === live) return; // already tried — never loop
+    sessionStorage.setItem('biplanes.updTried', live);
+    const u = new URL(window.location.href);
+    u.searchParams.set('v', live);
+    window.location.replace(u.toString());
+  } catch { /* offline / missing version.json — ignore */ }
+})();
+
 function syncAppHeight() {
   const viewportHeight = window.visualViewport?.height ?? window.innerHeight;
   document.documentElement.style.setProperty('--app-height', `${getTelegramViewportHeight() ?? viewportHeight}px`);

@@ -15,7 +15,7 @@ export async function createPixiApp(container: HTMLElement): Promise<Application
     // the framerate); desktop/Steam keep up to 3× for crispness.
     resolution: Math.min(
       window.devicePixelRatio || 1,
-      (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0) ? 2 : 3,
+      (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0) ? 1.5 : 3,
     ),
   });
   app.canvas.style.position = 'absolute';
