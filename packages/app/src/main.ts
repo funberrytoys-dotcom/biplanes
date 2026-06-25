@@ -875,12 +875,12 @@ const SKIP_BRIEFING = URL_PARAMS.has('skipBriefing');
 const DEBUG_HUD_ON_BOOT = URL_PARAMS.has('debug');
 // Bump every deploy. Shown always-on bottom-left so a home-screen iPhone app (no
 // address bar for ?debug) can confirm WHICH build is live + read FPS/counts on a freeze.
-const BUILD_TAG = 'v12';
+const BUILD_TAG = 'v13';
 // Phones are fill-rate bound (many big semi-transparent clouds + explosions = overdraw).
 // Lighten those on touch devices only; PC/Steam keep full quality.
 const IS_MOBILE = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
-const CLOUD_MULT = IS_MOBILE ? 0.55 : 1;   // fewer cloud sprites on phones
-const EXPLOSION_CAP = IS_MOBILE ? 20 : 40; // fewer concurrent explosion sprites on phones
+const CLOUD_MULT = IS_MOBILE ? 0.4 : 1;    // far fewer cloud sprites on phones
+const EXPLOSION_CAP = IS_MOBILE ? 18 : 40; // fewer concurrent explosion sprites on phones
 const TIME_SKIP_SEC = Math.max(0, parseFloat(URL_PARAMS.get('t') ?? '0') || 0);
 const DEBUG_ARENA_SCORE = DEBUG_HUD_ON_BOOT
   ? Math.max(0, Math.min(ARENA_FINAL_BOSS_SCORE, Math.floor(parseFloat(URL_PARAMS.get('arenaScore') ?? '0') || 0)))
@@ -2658,6 +2658,7 @@ export async function startGame(container: HTMLElement) {
     state.worldWidth = ARENA_WORLD_WIDTH;
     state.worldHeight = ARENA_WORLD_HEIGHT;
     state.disableAutoEnemySpawn = true;
+    state.suppressCoreLevelUps = true;
     if (DEBUG_ARENA_SCORE > 0) {
       state = {
         ...state,
@@ -3101,6 +3102,11 @@ export async function startGame(container: HTMLElement) {
       level: state.level,
       pendingLevelUp: state.pendingLevelUp,
       gameOver: state.gameOver,
+      tickCount: state.tickCount,
+      playerState: state.player.state,
+      playerAlive: state.player.alive,
+      playerSpeed: Math.round(state.player.kinematic.g),
+      playerThrottle: Number(state.player.kinematic.throttleLevel.toFixed(2)),
       enemyCount: state.enemies.filter(e => e.alive && e.state !== 'crashed').length,
       arenaRound,
       arenaRoundPhase,
@@ -4343,7 +4349,7 @@ export async function startGame(container: HTMLElement) {
     {
       const fe = (window as unknown as { __biplanesFrameError?: string }).__biplanesFrameError;
       const errPart = fe ? `  ERR:${(String(fe).split('\n')[0] ?? '').slice(0, 46)}` : '';
-      diagText.text = `${BUILD_TAG}  fps:${diagFps.toFixed(0)} lo:${diagLo.toFixed(0)}  pl:${state.enemies.length + state.allies.length + 1}  bu:${state.bullets.length}  fx:${spriteExplosions.activeCount}  res:${app.renderer.resolution} dpr:${(window.devicePixelRatio || 1).toFixed(1)}${errPart}`;
+      diagText.text = `${BUILD_TAG}  fps:${diagFps.toFixed(0)} lo:${diagLo.toFixed(0)}  tc:${state.tickCount} st:${state.player.state.slice(0, 3)} g:${state.player.kinematic.g.toFixed(0)}  pl:${state.enemies.length + state.allies.length + 1} bu:${state.bullets.length} fx:${spriteExplosions.activeCount}${errPart}`;
       diagText.style.fill = fe ? 0xff7a7a : 0xffe08a; // turn RED if a frame error is captured
     }
 
