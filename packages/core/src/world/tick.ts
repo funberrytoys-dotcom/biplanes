@@ -755,6 +755,89 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
   // Add any newly-ejected enemy pilots to the list.
   pilots = [...pilots, ...ejectedThisTick];
 
+  // === Player «Ведомый» wingmen — AI-flown ALLY planes (the Jackal signature) ===
+  // Real planes, not drones: each flies the player's wing, hunts the NEAREST enemy on
+  // its own, and fires "as the player" (ownerId = player.id) so its rounds hit enemies
+  // and never friendly-fire the player or other wingmen. They are MORTAL — enemy fire
+  // shoots them down in the collision pass below, and they do NOT respawn mid-round.
+  const allyParams = aiParamsForRole(state.difficulty, 'chase-player');
+  let allies = state.allies.map(a => {
+    if (a.state !== 'flying') {
+      // Dead/animating-out wingmen just finish their death spin (removed after collision).
+      return stepPlaneByState(a, { rotate: 0 }, TICK_DT, worldWidth, softFloor, worldHeight);
+    }
+
+    // Each wingman picks the nearest living enemy as its own target.
+    let target: Plane | null = null;
+    let closest = Infinity;
+    for (const e of enemies) {
+      if (!e.alive || e.state !== 'flying') continue;
+      const d = distance(a.kinematic.position, e.kinematic.position);
+      if (d < closest) { closest = d; target = e; }
+    }
+
+    let aiState = state.allyAiStates.get(a.id);
+    if (!aiState) { aiState = createAiState(a.id); state.allyAiStates.set(a.id, aiState); }
+
+    let cmd: PlayerCommand;
+    if (target) {
+      const result = aiCommand(a, target, allyParams, aiState, a.hp, TICK_DT, state.timeSec, true, worldHeight);
+      cmd = result.cmd;
+      state.allyAiStates.set(a.id, result.aiState);
+    } else {
+      // No enemies in play → tuck into a formation slot behind the player; hold fire.
+      const back = player.kinematic.heading + Math.PI;
+      const slot: Plane = {
+        ...player, id: -1,
+        kinematic: {
+          ...player.kinematic,
+          position: {
+            x: player.kinematic.position.x + Math.cos(back) * 160,
+            y: player.kinematic.position.y + Math.sin(back) * 160,
+          },
+        },
+      };
+      const result = aiCommand(a, slot, allyParams, aiState, a.hp, TICK_DT, state.timeSec, true, worldHeight);
+      cmd = { ...result.cmd, fire: false };
+      state.allyAiStates.set(a.id, result.aiState);
+    }
+
+    // Throttle → physics → fire-burn (mirrors the enemy path).
+    let aWithThrottle = a;
+    if (cmd.throttleDelta !== 0) {
+      const newThrottle = Math.max(0, Math.min(1,
+        a.kinematic.throttleLevel + cmd.throttleDelta * THROTTLE_CHANGE_RATE * TICK_DT));
+      aWithThrottle = { ...a, kinematic: { ...a.kinematic, throttleLevel: newThrottle } };
+    }
+    let stepped = stepPlaneByState(aWithThrottle, { rotate: cmd.rotate }, TICK_DT, worldWidth, softFloor, worldHeight);
+    stepped = applyFireBurn(stepped, TICK_DT);
+
+    let newCooldown = Math.max(0, stepped.weaponCooldown - TICK_DT);
+    if (cmd.fire && newCooldown === 0 && stepped.state === 'flying' && stepped.alive) {
+      const fakeForFire = { ...stepped, weaponCooldown: 0 };
+      const result = firePlayerWeapon(fakeForFire, true, nextEntityId, state.damageMultiplier);
+      for (const b of result.bullets) {
+        // Emit as the player so the round hits enemies and never friendly-fires a friend.
+        const owned: Bullet = { ...b, ownerId: player.id, ownerFaction: 'player' };
+        if (stepped.heavyGun) {
+          newBulletList.push({
+            ...owned,
+            velocity: { x: owned.velocity.x * JACKAL_BULLET_SPEED_MULT, y: owned.velocity.y * JACKAL_BULLET_SPEED_MULT },
+            lifetime: owned.lifetime * JACKAL_BULLET_LIFETIME_MULT,
+            gravityScale: JACKAL_BULLET_GRAVITY_MULT,
+            heavyRound: true,
+          });
+        } else {
+          newBulletList.push(owned);
+        }
+        nextEntityId++;
+      }
+      if (result.bullets.length > 0) newCooldown = result.newCooldown;
+    }
+
+    return { ...stepped, weaponCooldown: newCooldown };
+  });
+
   // === Player Special Weapon: straight wing rockets ===
   // The special button fires ONE rocket off an under-wing hardpoint. They fly flat
   // (no homing, no gravity) and hit hard; the rack holds WING_ROCKET_CAPACITY and
@@ -1139,7 +1222,10 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
   // Collisions — dying planes are no longer valid bullet targets (they're already dead, just animating out).
   const flyingEnemies = enemies.filter(e => e.alive && e.state !== 'crashed' && e.state !== 'dying');
   const crashedOrDeadEnemies = enemies.filter(e => !(e.alive && e.state !== 'crashed' && e.state !== 'dying'));
-  const collision = resolveBulletPlaneHits(newBulletList, player, flyingEnemies, pilots);
+  // Wingmen that can still be hit by enemy fire this tick; the rest (dying/crashed) ride along.
+  const flyingAllies = allies.filter(a => a.alive && a.state === 'flying');
+  const otherAllies = allies.filter(a => !(a.alive && a.state === 'flying'));
+  const collision = resolveBulletPlaneHits(newBulletList, player, flyingEnemies, pilots, flyingAllies);
 
   // ---- Score plane kills as well as pilot kills ----
   // Count enemies that transitioned alive→dead this tick (regardless of cause: bullets,
@@ -1177,6 +1263,17 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
   if (!player.alive && player.state !== 'crashed' && player.state !== 'dying') {
     player = { ...player, state: 'crashed', respawnTimer: RESPAWN_DELAY_SEC };
   }
+
+  // Recombine wingmen; send fresh kills into the death spin. They do NOT respawn
+  // mid-round, so once the spin finishes (crashed) the wingman is dropped for good.
+  allies = [...collision.allies, ...otherAllies].map(a => {
+    if (!a.alive && a.state !== 'crashed' && a.state !== 'dying') {
+      return { ...a, state: 'dying' as const, dyingTimer: DYING_DURATION_SEC, alive: false };
+    }
+    return a;
+  });
+  for (const a of allies) if (a.state === 'crashed') state.allyAiStates.delete(a.id);
+  allies = allies.filter(a => a.state !== 'crashed');
 
   // === Plane-vs-plane collision (Phase 5) ===
   // Run after bullet collisions + recombine so the resolver sees the authoritative
@@ -1377,6 +1474,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     rngState,
     player,
     enemies,
+    allies,
     bullets: collision.bullets,
     bombs: activeBombs,
     rockets: activeRockets,

@@ -1,6 +1,7 @@
-import { HP_REGEN_PER_SEC } from '@biplanes/shared';
+import { HP_REGEN_PER_SEC, WINGMAN_MAX_COUNT } from '@biplanes/shared';
 import type { WorldState } from '../world/world-state.js';
 import type { UpgradeId } from './upgrade-pool.js';
+import { createWingman } from '../entities/wingman.js';
 
 export function applyUpgrade(state: WorldState, id: UpgradeId): WorldState {
   let damageMultiplier = state.damageMultiplier;
@@ -17,6 +18,9 @@ export function applyUpgrade(state: WorldState, id: UpgradeId): WorldState {
   let xpMagnetRange = state.xpMagnetRange;
   let hpRegenPerSec = state.hpRegenPerSec;
   let droneCount = state.droneCount;
+  let wingmanCount = state.wingmanCount;
+  let allies = state.allies;
+  let nextEntityId = state.nextEntityId;
   let multishotExtra = state.multishotExtra;
   let lifestealPerKill = state.lifestealPerKill;
   let salvoCooldownMultiplier = state.salvoCooldownMultiplier;
@@ -44,13 +48,19 @@ export function applyUpgrade(state: WorldState, id: UpgradeId): WorldState {
       hasDrone = true;
       droneCount = Math.max(droneCount, 1);
       break;
-    case 'wingman':
-      // «Ведомый» — the Jackal signature. Each stack adds another mirror-plane on your
-      // tail (reuses the trailing-drone firing loop). Phase 1: immortal; phase 2 gives
-      // each its own HP that vanishes when shot.
-      hasDrone = true;
-      droneCount += 1;
+    case 'wingman': {
+      // «Ведомый» — the Jackal signature. A real AI-flown ALLY plane (NOT a drone):
+      // it flies your wing, picks its own targets, and is mortal — it lives one round
+      // or until shot down (the host relaunches a fresh one each round). Each stack adds
+      // another wingman, up to WINGMAN_MAX_COUNT. See [[feedback-wingmen-are-ai-planes]].
+      if (wingmanCount < WINGMAN_MAX_COUNT) {
+        const heavy = state.playerFaction === 'jackals';
+        allies = [...allies, createWingman(nextEntityId, player, wingmanCount, heavy)];
+        nextEntityId += 1;
+        wingmanCount += 1;
+      }
       break;
+    }
     case 'multishot': multishotExtra += 1; break;
     case 'lifesteal': lifestealPerKill += 8; break;
     case 'quick_salvo': salvoCooldownMultiplier *= 0.78; break;
@@ -112,6 +122,9 @@ export function applyUpgrade(state: WorldState, id: UpgradeId): WorldState {
   return {
     ...state,
     player,
+    allies,
+    wingmanCount,
+    nextEntityId,
     damageMultiplier,
     fireRateMultiplier,
     boostHeatMultiplier,

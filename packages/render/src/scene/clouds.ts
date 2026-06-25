@@ -1,31 +1,9 @@
 import { Assets, Container, Sprite, Texture } from 'pixi.js';
 import { WORLD_WIDTH } from '@biplanes/shared';
-import { assetUrl } from '../asset-url.js';
+import { CLOUD_LIGHT_URLS, CLOUD_HERO_URLS } from './cloud-assets.js';
 
-const GENERATED_CLOUD_URLS = [
-  assetUrl('assets/biplanes/arena/day/clouds/cloud_bank_01.png'),
-  assetUrl('assets/biplanes/arena/day/clouds/cloud_cumulus_01.png'),
-  assetUrl('assets/biplanes/arena/day/clouds/cloud_cumulus_02.png'),
-  assetUrl('assets/biplanes/arena/day/clouds/cloud_cumulus_03.png'),
-  assetUrl('assets/biplanes/arena/day/clouds/cloud_cumulus_04.png'),
-  assetUrl('assets/biplanes/arena/day/clouds/cloud_cumulus_05.png'),
-];
-
-const GENERATED_CIRRUS_URLS = [
-  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_01.png'),
-  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_02.png'),
-  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_03.png'),
-  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_04.png'),
-  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_05.png'),
-  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_06.png'),
-  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_07.png'),
-];
-
-const LEGACY_CLOUD_URLS = Array.from(
-  { length: 13 },
-  (_, i) => assetUrl(`assets/biplanes/clouds/cloud_highres_transparent_${String(i + 1).padStart(2, '0')}.png`),
-);
-const CLOUD_URLS = [...GENERATED_CLOUD_URLS, ...GENERATED_CIRRUS_URLS, ...LEGACY_CLOUD_URLS.slice(0, 4)];
+// All modes draw from the ONE unified cloud library (see cloud-assets.ts).
+const CLOUD_URLS = CLOUD_LIGHT_URLS;
 
 export interface CloudFieldOptions {
   count: number;
@@ -81,7 +59,8 @@ export function createCloudField(opts: CloudFieldOptions): CloudFieldHandle {
   const clouds: CloudInstance[] = [];
   let timeSec = 0;
 
-  const urls = opts.useSoft ? [...CLOUD_URLS, ...GENERATED_CLOUD_URLS] : CLOUD_URLS;
+  // Lush foreground fields (useSoft) mix in the big detailed hero clouds for density.
+  const urls = opts.useSoft ? [...CLOUD_LIGHT_URLS, ...CLOUD_HERO_URLS] : CLOUD_URLS;
 
   Assets.load(urls)
     .then((loaded: Record<string, Texture>) => {
@@ -125,8 +104,12 @@ export function createCloudField(opts: CloudFieldOptions): CloudFieldHandle {
         if (hasFocus) {
           const left = focusX - span * 0.5 - margin;
           const right = focusX + span * 0.5 + margin;
-          if (c.sprite.x < left || c.sprite.x > right + 260) {
-            c.sprite.x = left + Math.random() * (right - left);
+          // Recycle off the BAND EDGE (off-screen) so a cloud drifts in instead of
+          // popping into view mid-frame. Both directions handled so the field never thins.
+          if (c.sprite.x < left) {
+            c.sprite.x = right + Math.random() * margin;
+          } else if (c.sprite.x > right) {
+            c.sprite.x = left - Math.random() * margin;
           }
         } else if (c.sprite.x < -margin) {
           c.sprite.x = WORLD_WIDTH + margin;
@@ -142,7 +125,8 @@ export function createCloudSea(opts: CloudSeaOptions): CloudSeaHandle {
   const clouds: CloudInstance[] = [];
   let timeSec = 0;
   let ready = false;
-  const urls = [...GENERATED_CLOUD_URLS, ...LEGACY_CLOUD_URLS.slice(0, 3)];
+  // Cloud sea / dense floor: weight the big hero clouds so the band reads thick.
+  const urls = [...CLOUD_HERO_URLS, ...CLOUD_HERO_URLS, ...CLOUD_LIGHT_URLS];
 
   function restyle(sprite: Sprite, loaded: Record<string, Texture>) {
     const url = urls[Math.floor(Math.random() * urls.length)]!;
@@ -189,12 +173,17 @@ export function createCloudSea(opts: CloudSeaOptions): CloudSeaHandle {
       for (const c of clouds) {
         c.sprite.x -= c.speed * dt;
         const margin = Math.max(260, Math.abs(c.sprite.width) * 0.5);
+        // Recycle OFF the leading edge (always off-screen, since span*0.7 >= 1540 >
+        // the visible half-width) so the new x/baseY/alpha are never seen changing —
+        // kills the recycle "pop". Symmetric both directions so the floor never thins.
         if (c.sprite.x < focusX - opts.span - margin) {
-          c.sprite.x = focusX - opts.span + Math.random() * opts.span * 2;
+          c.sprite.x = focusX + opts.span * (0.7 + Math.random() * 0.3);
           c.baseY = opts.yTop + (Math.random() * 95 - 40);
           c.sprite.alpha = opts.alphaMin + Math.random() * (opts.alphaMax - opts.alphaMin);
         } else if (c.sprite.x > focusX + opts.span + margin) {
-          c.sprite.x = focusX - opts.span + Math.random() * opts.span * 2;
+          c.sprite.x = focusX - opts.span * (0.7 + Math.random() * 0.3);
+          c.baseY = opts.yTop + (Math.random() * 95 - 40);
+          c.sprite.alpha = opts.alphaMin + Math.random() * (opts.alphaMax - opts.alphaMin);
         }
         c.sprite.y = c.baseY + Math.sin(timeSec * c.bobSpeed + c.phase) * c.bobAmp;
       }

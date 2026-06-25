@@ -14,6 +14,7 @@ export interface CollisionResult {
   bullets: Bullet[];
   player: Plane;
   enemies: Plane[];
+  allies: Plane[];
   pilots: Pilot[];
   kills: number;
   // Score events from this resolution pass
@@ -26,9 +27,11 @@ export function resolveBulletPlaneHits(
   player: Plane,
   enemies: readonly Plane[],
   pilots: readonly Pilot[] = [],
+  allies: readonly Plane[] = [],
 ): CollisionResult {
   let newPlayer = { ...player };
   const newEnemies = enemies.map(e => ({ ...e }));
+  const newAllies = allies.map(a => ({ ...a }));
   const newPilots: Pilot[] = pilots.map(p => ({ ...p }));
   const remainingBullets: Bullet[] = [];
   let kills = 0;
@@ -83,6 +86,30 @@ export function resolveBulletPlaneHits(
       }
     }
 
+    // Ally «Ведомый» wingmen — only ENEMY fire can hit them (player/ally bullets are
+    // emitted as owner=player, so they never friendly-fire a wingman).
+    if (!consumed && b.ownerFaction === 'enemy') {
+      for (const a of newAllies) {
+        if (!a.alive) continue;
+        const dx = b.position.x - a.kinematic.position.x;
+        const dy = b.position.y - a.kinematic.position.y;
+        if (dx * dx + dy * dy < PLANE_HIT_RADIUS * PLANE_HIT_RADIUS) {
+          a.hp = Math.max(0, a.hp - b.damage * (a.incomingDamageMultiplier ?? 1));
+          if (a.hp === 0 && a.alive) {
+            a.alive = false;
+            a.state = 'dying';
+            a.dyingTimer = DYING_DURATION_SEC;
+          }
+          if (bulletPierceLeft > 0) {
+            bulletPierceLeft--;
+          } else {
+            consumed = true;
+            break;
+          }
+        }
+      }
+    }
+
     // Pilot collision — bullets only hurt pilots of the OPPOSITE faction.
     if (!consumed) {
       for (const pilot of newPilots) {
@@ -115,6 +142,7 @@ export function resolveBulletPlaneHits(
     bullets: remainingBullets,
     player: newPlayer,
     enemies: newEnemies,
+    allies: newAllies,
     pilots: newPilots,
     kills,
     playerScoreDelta,

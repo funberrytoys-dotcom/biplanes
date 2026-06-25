@@ -1,5 +1,6 @@
 import { Container, Graphics, Sprite, TilingSprite, Texture, Text, TextStyle } from 'pixi.js';
 import { assetUrl } from '../asset-url.js';
+import { CLOUD_LIGHT_URLS, CLOUD_HERO_URLS } from './cloud-assets.js';
 import {
   CEILING_Y,
   PLAYER_HANGAR_X,
@@ -136,30 +137,11 @@ interface ArenaLayerSprite {
   parallaxY: number;
 }
 
-const ARENA_CIRRUS_URLS = [
-  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_01.png'),
-  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_02.png'),
-  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_03.png'),
-  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_05.png'),
-  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_07.png'),
-];
-
-const ARENA_CLOUD_URLS = [
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_01.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_02.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_04.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_05.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_08.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_11.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_13.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_14.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_18.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_20.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_22.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_23.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_25.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_27.png'),
-];
+// High thin layer + parallax day clouds both draw from the ONE unified library
+// (see cloud-assets.ts). Cirrus = the light cut-outs stretched wide and faint;
+// the mid parallax clouds mix in a few big hero clouds for body.
+const ARENA_CIRRUS_URLS = CLOUD_LIGHT_URLS;
+const ARENA_CLOUD_URLS = [...CLOUD_LIGHT_URLS, ...CLOUD_HERO_URLS];
 
 const ARENA_ISLAND_URLS = [
   assetUrl('assets/biplanes/arena/day/islands/island_silhouette_02.png'),
@@ -232,9 +214,11 @@ function makeArenaBaseSkyGradient(width: number, height: number): Sprite | null 
   gradient.addColorStop(0, '#0b4cae');
   gradient.addColorStop(0.22, '#248ad4');
   gradient.addColorStop(0.46, '#8bd0f4');
-  gradient.addColorStop(0.68, '#cfe8f4');
-  gradient.addColorStop(0.84, '#e5f2f8');
-  gradient.addColorStop(1, '#f2fbff');
+  // Keep the lower sky a soft blue BELOW cloud-top brightness so the dense cloud
+  // floor reads as bright cloud, not a grey smudge on near-white sky.
+  gradient.addColorStop(0.68, '#b7d9f0');
+  gradient.addColorStop(0.84, '#c2def2');
+  gradient.addColorStop(1, '#cfe9f6');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ditherCanvas(ctx, canvas.width, canvas.height, 1.4);
@@ -297,9 +281,9 @@ function createLayeredArenaDecor(width: number, height: number, includeBaseGradi
       sprites,
       ARENA_CIRRUS_URLS[i % ARENA_CIRRUS_URLS.length]!,
       860 + (i % 3) * 160,
-      width * (0.08 + i * 0.078),
-      cirrusY[i % cirrusY.length]! + ((i % 2) * 34),
-      0.22 + (i % 3) * 0.04,
+      width * (0.08 + i * 0.078) + (Math.random() - 0.5) * width * 0.03,
+      cirrusY[i % cirrusY.length]! + ((i % 2) * 34) + (Math.random() - 0.5) * height * 0.045,
+      0.32 + (i % 3) * 0.05,
       0.018,
       0.008,
       10,
@@ -332,11 +316,11 @@ function createLayeredArenaDecor(width: number, height: number, includeBaseGradi
     addArenaLayerSprite(
       container,
       sprites,
-      ARENA_CLOUD_URLS[i % ARENA_CLOUD_URLS.length]!,
-      410 + (i % 5) * 82,
-      width * (0.035 + i * 0.081),
-      height * (0.43 + (i % 5) * 0.045),
-      0.18 + (i % 4) * 0.035,
+      ARENA_CLOUD_URLS[(i * 7) % ARENA_CLOUD_URLS.length]!,
+      440 + (i % 5) * 170,
+      width * (0.035 + i * 0.081) + (Math.random() - 0.5) * width * 0.03,
+      height * (0.43 + (i % 5) * 0.045) + (Math.random() - 0.5) * height * 0.05,
+      0.3 + (i % 4) * 0.05,
       0.045,
       0.018,
       12,
@@ -350,11 +334,11 @@ function createLayeredArenaDecor(width: number, height: number, includeBaseGradi
     addArenaLayerSprite(
       container,
       sprites,
-      ARENA_CLOUD_URLS[(i + 2) % ARENA_CLOUD_URLS.length]!,
-      570 + (i % 4) * 105,
-      width * (0.08 + i * 0.135),
-      height * (0.56 + (i % 3) * 0.045),
-      0.26 + (i % 3) * 0.045,
+      ARENA_CLOUD_URLS[(i * 11 + 5) % ARENA_CLOUD_URLS.length]!,
+      620 + (i % 4) * 200,
+      width * (0.08 + i * 0.135) + (Math.random() - 0.5) * width * 0.03,
+      height * (0.56 + (i % 3) * 0.045) + (Math.random() - 0.5) * height * 0.05,
+      0.4 + (i % 3) * 0.06,
       0.065,
       0.028,
       16,

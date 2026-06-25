@@ -31,6 +31,7 @@ import {
 import {
   createWorldState, tick,
   applyUpgrade,
+  createWingman,
   createRng,
   rollUpgradeChoices,
   ARENA_FINAL_BOSS_SCORE,
@@ -61,6 +62,8 @@ import {
   createSkyBackground,
   createCloudField,
   createCloudSea,
+  CLOUD_LIGHT_URLS,
+  CLOUD_HERO_URLS,
   createPlaneSprite,
   createPilotSprite,
   BulletPool,
@@ -153,25 +156,9 @@ const CLOUD_VOLUME_WORLD_WIDTH = Math.max(ARENA_WORLD_WIDTH, SKY_TEST_WORLD_WIDT
 const CLOUD_VOLUME_WORLD_HEIGHT = Math.max(ARENA_WORLD_HEIGHT, SKY_TEST_WORLD_HEIGHT);
 const SKY_TEST_IMAGE_URL = assetUrl('assets/biplanes/arena/day/arena_day_generated_test.jpg');
 const SKY_TEST_LAYER_ASSET_URLS = [
-  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_01.png'),
-  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_02.png'),
-  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_03.png'),
-  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_05.png'),
-  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_07.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_01.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_02.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_04.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_05.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_08.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_11.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_13.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_14.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_18.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_20.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_22.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_23.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_25.png'),
-  assetUrl('assets/biplanes/arena/day/clean-clouds/cloud_highres_transparent_27.png'),
+  // Clouds preload from the ONE unified library (see render/cloud-assets.ts).
+  ...CLOUD_LIGHT_URLS,
+  ...CLOUD_HERO_URLS,
   assetUrl('assets/biplanes/arena/day/islands/island_silhouette_02.png'),
   assetUrl('assets/biplanes/arena/day/islands/island_silhouette_03.png'),
   assetUrl('assets/biplanes/arena/day/islands/island_silhouette_04.png'),
@@ -187,21 +174,14 @@ const HUD_ICON_URLS = {
   eject: assetUrl('assets/biplanes/hud/icons/icon_eject.png'),
 };
 
-// Soft cloud sprites for the drifting screen-space sky strata (Path B).
-const SKY_CLOUD_URLS = [
-  assetUrl('assets/biplanes/arena/day/clouds/cloud_cumulus_01.png'),
-  assetUrl('assets/biplanes/arena/day/clouds/cloud_cumulus_02.png'),
-  assetUrl('assets/biplanes/arena/day/clouds/cloud_cumulus_03.png'),
-  assetUrl('assets/biplanes/arena/day/clouds/cloud_cumulus_04.png'),
-  assetUrl('assets/biplanes/arena/day/clouds/cloud_cumulus_05.png'),
-  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_01.png'),
-  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_03.png'),
-  assetUrl('assets/biplanes/arena/day/cirrus/cloud_cirrus_05.png'),
-];
+// Soft cloud sprites for the drifting screen-space sky strata (Path B) — drawn from
+// the ONE unified cloud library (light cut-outs, kept faint for distance).
+const SKY_CLOUD_URLS = CLOUD_LIGHT_URLS;
 
 const VISUAL_ASSET_URLS = [
-  assetUrl('assets/fx/explosion_small.png'),
-  assetUrl('assets/fx/explosion_large.png'),
+  assetUrl('assets/fx/explosion_small.webp'),
+  assetUrl('assets/fx/explosion_medium.webp'),
+  assetUrl('assets/fx/explosion_large.webp'),
   SKY_TEST_IMAGE_URL,
   ...Object.values(ARENA_BACKGROUND_URLS),
   ...Object.values(HUD_ICON_URLS),
@@ -998,8 +978,8 @@ export async function startGame(container: HTMLElement) {
   interface SkyCloud { sprite: Sprite; speed: number; baseY: number; depth: number; }
   const skyClouds: SkyCloud[] = [];
   const SKY_STRATA = [
-    { count: 4, scaleMin: 0.55, scaleMax: 0.95, alpha: 0.16, speed: 5, yMin: 0.04, yMax: 0.5, depth: 0.03 },
-    { count: 5, scaleMin: 0.35, scaleMax: 0.6, alpha: 0.26, speed: 13, yMin: 0.08, yMax: 0.62, depth: 0.06 },
+    { count: 4, scaleMin: 0.55, scaleMax: 0.95, alpha: 0.26, speed: 5, yMin: 0.04, yMax: 0.5, depth: 0.03 },
+    { count: 5, scaleMin: 0.35, scaleMax: 0.6, alpha: 0.4, speed: 13, yMin: 0.08, yMax: 0.62, depth: 0.06 },
   ];
   function buildSkyStrata() {
     for (const c of skyClouds) backdropLayer.removeChild(c.sprite);
@@ -1137,9 +1117,9 @@ export async function startGame(container: HTMLElement) {
     yMin: 90,
     yMax: 430,
     widthMin: 180,
-    widthMax: 360,
-    alphaMin: 0.07,
-    alphaMax: 0.16,
+    widthMax: 580,
+    alphaMin: 0.16,
+    alphaMax: 0.34,
     speedMin: 3,
     speedMax: 8,
   });
@@ -1301,10 +1281,10 @@ export async function startGame(container: HTMLElement) {
     count: 4,
     yMin: 210,
     yMax: 650,
-    widthMin: 360,
-    widthMax: 680,
-    alphaMin: 0.1,
-    alphaMax: 0.24,
+    widthMin: 380,
+    widthMax: 1180,
+    alphaMin: 0.24,
+    alphaMax: 0.5,
     speedMin: 6,
     speedMax: 13,
     useSoft: true,
@@ -1317,10 +1297,10 @@ export async function startGame(container: HTMLElement) {
     count: 22,
     yTop: WORLD_HEIGHT * 0.74,
     span: 2200,
-    widthMin: 440,
-    widthMax: 760,
-    alphaMin: 0.36,
-    alphaMax: 0.64,
+    widthMin: 460,
+    widthMax: 1200,
+    alphaMin: 0.54,
+    alphaMax: 0.86,
     driftSpeed: 8,
   });
   worldLayer.addChild(cloudSea.container);
@@ -1334,11 +1314,24 @@ export async function startGame(container: HTMLElement) {
   wcCloudFloor.container.visible = false;
   worldLayer.addChild(wcCloudFloor.container);
 
+  // Dense cloud FLOOR for standard-height groundless missions (campaign/story): when
+  // there's no ground drawn, the bottom of the screen is a thick, near-opaque carpet of
+  // big clouds — «в миссиях без земли максимально плотный слой облаков». Toggled per mode.
+  const missionCloudFloor = createCloudSea({
+    count: 46, yTop: Math.round(WORLD_HEIGHT * 0.86),
+    span: 2600, widthMin: 600, widthMax: 1140, alphaMin: 0.8, alphaMax: 0.98, driftSpeed: 6,
+  });
+  missionCloudFloor.container.visible = false;
+  worldLayer.addChild(missionCloudFloor.container);
+
   function syncAtmosphereLayers() {
     const showAtmosphere = runMode !== 'menu' && runMode !== 'skytest';
     bgClouds.container.visible = showAtmosphere;
     fgClouds.container.visible = showAtmosphere;
     cloudSea.container.visible = showAtmosphere;
+    // Groundless campaign missions get the dense bottom cloud carpet (Wolf Comet has
+    // its own, taller wcCloudFloor handled in the demo loop).
+    missionCloudFloor.container.visible = runMode === 'story';
     skytestCloudVolume.backContainer.visible = runMode === 'skytest' || runMode === 'arena' || runMode === 'gunfeelLab' || runMode === 'flightLab' || runMode === 'oilshot';
     skytestCloudVolume.frontContainer.visible = runMode === 'skytest' || runMode === 'arena' || runMode === 'gunfeelLab' || runMode === 'flightLab' || runMode === 'oilshot';
   }
@@ -1426,6 +1419,10 @@ export async function startGame(container: HTMLElement) {
   }
 
   const enemySprites = new Map<number, ReturnType<typeof createPlaneSprite>>();
+  // «Ведомый» ally planes — full faction-coloured airframes (NOT the drone silhouette),
+  // synced against state.allies just like enemies.
+  const allySprites = new Map<number, ReturnType<typeof createPlaneSprite>>();
+  const allyExploded = new Set<number>(); // ally ids that already played a death explosion
 
   // Pilot sprites — keyed by pilot.id like enemy planes. Faction baked in at creation.
   const pilotSprites = new Map<number, ReturnType<typeof createPilotSprite>>();
@@ -2231,6 +2228,19 @@ export async function startGame(container: HTMLElement) {
     state.pilots = state.pilots.filter(p => p.faction !== 'enemy');
     state.enemyAiStates.clear();
     state.prevEnemyHp.clear();
+    // Relaunch the «Ведомый» звено for this round: one fresh MORTAL ally plane per
+    // owned wingman (a downed wingman stays gone until the next round). Heavy "ball"
+    // gun when the player flies Алые Шакалы. See [[feedback-wingmen-are-ai-planes]].
+    if (state.wingmanCount > 0) {
+      const heavy = chosenFaction === 'jackals';
+      const wingmen = Array.from({ length: state.wingmanCount }, (_, i) =>
+        createWingman(state.nextEntityId + i, state.player, i, heavy));
+      state.nextEntityId += wingmen.length;
+      state.allies = wingmen;
+    } else {
+      state.allies = [];
+    }
+    state.allyAiStates.clear();
     // Drop 2-4 supply balloons for the player to shoot down this round (worth chasing:
     // ammo / repair / rapidfire / a bonus card pick).
     const balloonCount = 2 + Math.floor(Math.random() * 3);
@@ -2255,6 +2265,7 @@ export async function startGame(container: HTMLElement) {
       gameOver: false,
       player: { ...makeArenaRunwayPlayer(state.player), wingRockets: wingRocketCapacity(state.appliedUpgradeIds) },
       enemies: [],
+      allies: [],
       bullets: [],
       bombs: [],
       rockets: [],
@@ -2263,6 +2274,7 @@ export async function startGame(container: HTMLElement) {
       rapidFireSec: 0,
       pilots: state.pilots.filter(p => p.faction !== 'enemy'),
       enemyAiStates: new Map(),
+      allyAiStates: new Map(),
       prevEnemyHp: new Map(),
     };
     bullets.sync([]);
@@ -3146,6 +3158,9 @@ export async function startGame(container: HTMLElement) {
     if (wcCloudFloor.container.visible) {
       wcCloudFloor.update(dt, cloudFocusX);
     }
+    if (missionCloudFloor.container.visible) {
+      missionCloudFloor.update(dt, cloudFocusX);
+    }
     if ((runMode === 'skytest' || runMode === 'arena' || runMode === 'gunfeelLab' || runMode === 'flightLab' || runMode === 'oilshot') && skytestCloudVolume.backContainer.visible) {
       const cloudPlanes: CloudVolumePlane[] = [
         {
@@ -3529,7 +3544,7 @@ export async function startGame(container: HTMLElement) {
     // re-trigger shake + hit-pause every frame — the screen "shakes forever".
     if (state.tickCount !== prevTickCount) {
       for (const pos of frameExplosions) {
-        spriteExplosions.spawn(pos.x, pos.y, true); // big sprite-sheet fireball on bomb/rocket blasts
+        spriteExplosions.spawn(pos.x, pos.y, 'medium'); // mid fireball on bomb/rocket blasts
         damageFx.addExplosion(pos);
         damageFx.addShockwave(pos);
         audio.playExplosion();
@@ -3880,11 +3895,13 @@ export async function startGame(container: HTMLElement) {
             if (s.stages && s.stageIdx < s.stages.length && s.hp <= s.stages[s.stageIdx]!.hp) {
               s.sprite.texture = Texture.from(assetUrl('assets/airships/wolfcomet/' + s.stages[s.stageIdx]!.file));
               s.stageIdx++;
-              spriteExplosions.spawn(wp.x, wp.y, true); damageFx.addExplosion(wp); audio.playExplosion();
+              spriteExplosions.spawn(wp.x, wp.y, 'large'); damageFx.addExplosion(wp); audio.playExplosion();
             }
             if (s.hp <= 0) {
               s.alive = false;
-              for (let k = 0; k < 5; k++) spriteExplosions.spawn(wp.x + (k - 2) * 26, wp.y + ((k % 2) - 0.5) * 26, true);
+              // turrets pop small; the bridge / engine / propeller / big guns blow up large
+              const secTier = s.kind === 'turret' ? 'small' : 'large';
+              for (let k = 0; k < 5; k++) spriteExplosions.spawn(wp.x + (k - 2) * 26, wp.y + ((k % 2) - 0.5) * 26, secTier);
               damageFx.addExplosion(wp); audio.playExplosion();
               if (s.wreckFile) s.sprite.texture = Texture.from(assetUrl('assets/airships/wolfcomet/' + s.wreckFile));
               else s.sprite.alpha = 0.35; // engine has no wreck art yet → darken
@@ -3935,7 +3952,7 @@ export async function startGame(container: HTMLElement) {
         e.heavyGun = true; // every Jackal off the deck (incl. the Baron) fires the heavy ball gun
         if (asBoss) wcBossId = e.id;
         state = { ...state, nextEntityId: state.nextEntityId + 1, enemies: [...state.enemies, e] };
-        spriteExplosions.spawn(wp.x, wp.y, false);
+        spriteExplosions.spawn(wp.x, wp.y, 'medium'); // a plane roars off the deck
       };
       if (!wcDefeated && state.player.alive) {
         const beats = resolveWolfCometLaunch({
@@ -4033,7 +4050,7 @@ export async function startGame(container: HTMLElement) {
         for (let k = 0; k < 3; k++) {
           const ex = wolfCometGroup.x + (Math.random() * 4800 - 2400) * gscale;
           const ey = wolfCometGroup.y + (Math.random() * 2800 - 1400) * gscale;
-          spriteExplosions.spawn(ex, ey, true);
+          spriteExplosions.spawn(ex, ey, 'large');
         }
         if (Math.random() < dt * 5) audio.playExplosion();
         wolfCometGroup.y += 70 * dt;
@@ -4066,7 +4083,7 @@ export async function startGame(container: HTMLElement) {
           // The light fails — the night DESTROYS the plane (big explosion), then a fresh plane
           // drops back in ABOVE the clouds (no runway in the void; keeps the demo playable).
           const ppx = state.player.kinematic.position.x;
-          for (let k = 0; k < 9; k++) spriteExplosions.spawn(ppx + (k - 4) * 32, ppy + ((k % 2) - 0.5) * 34, true);
+          for (let k = 0; k < 9; k++) spriteExplosions.spawn(ppx + (k - 4) * 32, ppy + ((k % 2) - 0.5) * 34, 'medium');
           damageFx.addExplosion({ x: ppx, y: ppy }); audio.playExplosion();
           screenFx.flash(0xff5544, 0.85, 0.6); camera.shake(10);
           showArenaToast('ТЬМА ПОГЛОТИЛА', 'Свет погас — ночь забрала нас! Держись выше облаков.', 3.6);
@@ -4125,7 +4142,7 @@ export async function startGame(container: HTMLElement) {
       seenEnemy.add(e.id);
       // Sprite-sheet death explosion at the kill moment (once per enemy).
       if (!enemyExploded.has(e.id) && (e.state === 'dying' || e.state === 'crashed' || !e.alive)) {
-        spriteExplosions.spawn(e.kinematic.position.x, e.kinematic.position.y, false);
+        spriteExplosions.spawn(e.kinematic.position.x, e.kinematic.position.y, 'medium');
         enemyExploded.add(e.id);
       }
       let s = enemySprites.get(e.id);
@@ -4142,6 +4159,31 @@ export async function startGame(container: HTMLElement) {
         s.destroy(); // detaches from layers + frees Graphics/geometry (keeps shared spritesheet)
         enemySprites.delete(id);
         enemyExploded.delete(id);
+      }
+    }
+
+    // «Ведомый» allies — drawn as full planes in the player's faction colours.
+    const seenAlly = new Set<number>();
+    for (const a of state.allies) {
+      seenAlly.add(a.id);
+      if (!allyExploded.has(a.id) && (a.state === 'dying' || a.state === 'crashed' || !a.alive)) {
+        spriteExplosions.spawn(a.kinematic.position.x, a.kinematic.position.y, 'medium');
+        allyExploded.add(a.id);
+      }
+      let s = allySprites.get(a.id);
+      if (!s) {
+        s = createPlaneSprite('player', playerVisual());
+        planeLayer.addChild(s.container, s.hpBar);
+        groundShadowLayer.addChild(s.shadow);
+        allySprites.set(a.id, s);
+      }
+      s.update(a, dt, damageFx, clock, camera, undefined, groundFx, { screenFx, groundY: worldGroundY });
+    }
+    for (const [id, s] of allySprites) {
+      if (!seenAlly.has(id)) {
+        s.destroy();
+        allySprites.delete(id);
+        allyExploded.delete(id);
       }
     }
 
@@ -4295,6 +4337,11 @@ export async function startGame(container: HTMLElement) {
       s.destroy();
     }
     enemySprites.clear();
+    for (const [, s] of allySprites) {
+      s.destroy();
+    }
+    allySprites.clear();
+    allyExploded.clear();
     for (const [, s] of pilotSprites) {
       s.destroy();
     }

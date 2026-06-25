@@ -150,6 +150,13 @@ export const DRONE_COOLDOWN = 0.5;            // interval between drone shots
 export const DRONE_DAMAGE = 5;                // damage per drone bullet
 export const DRONE_RANGE = 400;               // range of drone shooting
 
+// === «Ведомый» (Jackal signature) — a real AI-flown ALLY plane, not a drone ===
+// It flies the player's wing, hunts enemies on its own, and is MORTAL: it lives one
+// round (cleared between rounds) or until an enemy shoots it down. Stacking the card
+// adds another wingman (a звено). See [[feedback-wingmen-are-ai-planes]].
+export const WINGMAN_HP = 60;                 // mortal: tougher than an enemy (30) but a real loss
+export const WINGMAN_MAX_COUNT = 4;           // hard cap on simultaneous wingmen
+
 export const HEAVY_CANNON_DAMAGE = 40;
 export const HEAVY_CANNON_COOLDOWN = 0.6;
 export const HEAVY_CANNON_PIERCE = 2;
