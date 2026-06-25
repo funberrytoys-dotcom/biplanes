@@ -1172,7 +1172,7 @@ export async function startGame(container: HTMLElement) {
   // The two С.О.В. ally fighters (built after planeLayer exists, below). app-side AI flies them.
   const wcAllies: { plane: Plane; sprite: ReturnType<typeof createPlaneSprite>; fireCd: number }[] = [];
   let wcDarkTimer = 0;      // seconds spent below the cloud floor in the dark (6s = the night takes you)
-  let wcDefeated = false, wcFinaleTimer = 0; // victory explosion cascade
+  let wcDefeated = false, wcFinaleTimer = 0, wcFinaleSpawnAcc = 0; // victory explosion cascade (rate-limited)
   let wcSmokeTick = 0;       // throttles the wreck-smoke emission
   const wolfCometGroup = new Container();
   wolfCometGroup.visible = false;
@@ -1266,7 +1266,7 @@ export async function startGame(container: HTMLElement) {
     for (const dp of wcDeckPlanes) { dp.launched = false; dp.handle.container.visible = true; }
     wcFiredApproach = false; wcFiredHalfTurrets = false; wcFiredBoss = false; wcBossId = null;
     wcDarkTimer = 0; wcDarkOverlay.visible = false; wcDarkWarning.visible = false;
-    wcDefeated = false; wcFinaleTimer = 0;
+    wcDefeated = false; wcFinaleTimer = 0; wcFinaleSpawnAcc = 0;
   };
 
   worldLayer.addChild(bulletLayer, fxLayer, glowLayer.container, groundFxLayer, supplyLayer, groundShadowLayer, planeLayer);
@@ -4034,7 +4034,7 @@ export async function startGame(container: HTMLElement) {
         if (wcFiredBoss && wcBossId !== null) {
           const boss = state.enemies.find(en => en.id === wcBossId);
           if (!boss || !boss.alive) {
-            wcDefeated = true; wcFinaleTimer = 0;
+            wcDefeated = true; wcFinaleTimer = 0; wcFinaleSpawnAcc = 0;
             showArenaToast('БАРОН ПОВЕРЖЕН', '«Волчья комета» падает!', 2.4);
           }
         }
@@ -4045,9 +4045,14 @@ export async function startGame(container: HTMLElement) {
           for (const a of wcAllies) a.sprite.container.visible = false;
         }
       } else {
-        // victory cascade — explosions all over the hull, then it sinks + fades out
+        // victory cascade — explosions all over the hull, then it sinks + fades out.
+        // Rate-limited (~8/sec) instead of 3-per-FRAME so the finale doesn't spawn
+        // hundreds of big sprites and tank FPS into a freeze (dt is clamped, so the
+        // while runs ≤1×/frame).
         wcFinaleTimer += dt;
-        for (let k = 0; k < 3; k++) {
+        wcFinaleSpawnAcc += dt;
+        while (wcFinaleSpawnAcc >= 0.12) {
+          wcFinaleSpawnAcc -= 0.12;
           const ex = wolfCometGroup.x + (Math.random() * 4800 - 2400) * gscale;
           const ey = wolfCometGroup.y + (Math.random() * 2800 - 1400) * gscale;
           spriteExplosions.spawn(ex, ey, 'large');
