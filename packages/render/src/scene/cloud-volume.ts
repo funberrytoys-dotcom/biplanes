@@ -129,7 +129,11 @@ function addBank(
   });
 }
 
-export function createCloudVolume(worldWidth: number, worldHeight: number): CloudVolumeHandle {
+// density (<1 on phones) scales the bank + particle counts down to cut fill-rate.
+export function createCloudVolume(worldWidth: number, worldHeight: number, density = 1): CloudVolumeHandle {
+  const backCount = Math.max(6, Math.round(18 * density));
+  const frontCount = Math.max(4, Math.round(9 * density));
+  const maxParticles = Math.max(60, Math.round(220 * density));
   const backContainer = new Container();
   const frontContainer = new Container();
   const banks: CloudBank[] = [];
@@ -145,7 +149,7 @@ export function createCloudVolume(worldWidth: number, worldHeight: number): Clou
         { y: worldHeight * 0.51, width: 780, alpha: 0.42 },
         { y: worldHeight * 0.60, width: 1000, alpha: 0.48 },
       ];
-      for (let i = 0; i < 18; i++) {
+      for (let i = 0; i < backCount; i++) {
         const row = backRows[i % backRows.length]!;
         addBank(
           backContainer,
@@ -164,7 +168,7 @@ export function createCloudVolume(worldWidth: number, worldHeight: number): Clou
 
       // Soft foreground banks you can drift behind. Kept gentle (moderate size + alpha)
       // so the "parting as the plane passes through" reads SMOOTH, not jerky.
-      for (let i = 0; i < 9; i++) {
+      for (let i = 0; i < frontCount; i++) {
         addBank(
           frontContainer,
           banks,
@@ -224,7 +228,7 @@ export function createCloudVolume(worldWidth: number, worldHeight: number): Clou
       stretchY,
     };
 
-    particleCursor = (particleCursor + 1) % 220;
+    particleCursor = (particleCursor + 1) % maxParticles;
   }
 
   function spawnPuff(x: number, y: number, vx: number, vy: number, strength: number, spread = 1) {

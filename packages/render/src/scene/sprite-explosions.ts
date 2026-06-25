@@ -42,7 +42,6 @@ const TIERS: Record<ExplosionTier, TierCfg> = {
  * don't show and the game keeps running; spawns before load are skipped.
  */
 export class SpriteExplosions {
-  private static readonly MAX_ACTIVE = 40; // cap concurrent explosion sprites (anti-freeze)
   private active: ActiveExplosion[] = [];
 
   /** Live count of concurrent explosion sprites (for the on-screen perf diagnostics). */
@@ -50,7 +49,8 @@ export class SpriteExplosions {
 
   private frames: Record<ExplosionTier, Texture[]> = { small: [], medium: [], large: [] };
 
-  constructor(private container: Container) {
+  // maxActive: cap on concurrent explosion sprites (anti-freeze; lower on phones).
+  constructor(private container: Container, private maxActive = 40) {
     for (const tier of Object.keys(TIERS) as ExplosionTier[]) {
       void this.loadSheet(tier);
     }
@@ -84,7 +84,7 @@ export class SpriteExplosions {
     if (!first) return; // not loaded yet / failed — skip safely
     // Hard global cap on concurrent explosion sprites — defends against fillrate
     // pile-ups (mass deaths, the airship victory cascade) tanking FPS into a freeze.
-    if (this.active.length >= SpriteExplosions.MAX_ACTIVE) {
+    if (this.active.length >= this.maxActive) {
       const old = this.active.shift();
       if (old) { old.sprite.parent?.removeChild(old.sprite); old.sprite.destroy(); }
     }

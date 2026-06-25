@@ -875,7 +875,12 @@ const SKIP_BRIEFING = URL_PARAMS.has('skipBriefing');
 const DEBUG_HUD_ON_BOOT = URL_PARAMS.has('debug');
 // Bump every deploy. Shown always-on bottom-left so a home-screen iPhone app (no
 // address bar for ?debug) can confirm WHICH build is live + read FPS/counts on a freeze.
-const BUILD_TAG = 'v10';
+const BUILD_TAG = 'v11';
+// Phones are fill-rate bound (many big semi-transparent clouds + explosions = overdraw).
+// Lighten those on touch devices only; PC/Steam keep full quality.
+const IS_MOBILE = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
+const CLOUD_MULT = IS_MOBILE ? 0.55 : 1;   // fewer cloud sprites on phones
+const EXPLOSION_CAP = IS_MOBILE ? 20 : 40; // fewer concurrent explosion sprites on phones
 const TIME_SKIP_SEC = Math.max(0, parseFloat(URL_PARAMS.get('t') ?? '0') || 0);
 const DEBUG_ARENA_SCORE = DEBUG_HUD_ON_BOOT
   ? Math.max(0, Math.min(ARENA_FINAL_BOSS_SCORE, Math.floor(parseFloat(URL_PARAMS.get('arenaScore') ?? '0') || 0)))
@@ -1116,7 +1121,7 @@ export async function startGame(container: HTMLElement) {
 
   // Background clouds — behind the dogfight for depth. Subtle and high.
   const bgClouds = createCloudField({
-    count: 5,
+    count: Math.round(5 * CLOUD_MULT),
     yMin: 90,
     yMax: 430,
     widthMin: 180,
@@ -1128,7 +1133,7 @@ export async function startGame(container: HTMLElement) {
   });
   worldLayer.addChild(bgClouds.container);
 
-  const skytestCloudVolume = createCloudVolume(CLOUD_VOLUME_WORLD_WIDTH, CLOUD_VOLUME_WORLD_HEIGHT);
+  const skytestCloudVolume = createCloudVolume(CLOUD_VOLUME_WORLD_WIDTH, CLOUD_VOLUME_WORLD_HEIGHT, CLOUD_MULT);
   worldLayer.addChild(skytestCloudVolume.backContainer);
 
   const bulletLayer = new Container();
@@ -1275,13 +1280,13 @@ export async function startGame(container: HTMLElement) {
   worldLayer.addChild(bulletLayer, fxLayer, glowLayer.container, groundFxLayer, supplyLayer, groundShadowLayer, planeLayer);
   const explosionLayer = new Container(); // sprite-sheet explosions render ON TOP of planes
   worldLayer.addChild(explosionLayer);
-  const spriteExplosions = new SpriteExplosions(explosionLayer);
+  const spriteExplosions = new SpriteExplosions(explosionLayer, EXPLOSION_CAP);
   const groundFx = new GroundFx(groundFxLayer);
 
   // Foreground clouds — ABOVE the planes, so the hero/enemy can fly into cover
   // and be partially hidden. Denser and larger; includes the soft photoreal puff.
   const fgClouds = createCloudField({
-    count: 4,
+    count: Math.round(4 * CLOUD_MULT),
     yMin: 210,
     yMax: 650,
     widthMin: 380,
@@ -1297,7 +1302,7 @@ export async function startGame(container: HTMLElement) {
   worldLayer.addChild(skytestCloudVolume.frontContainer);
 
   const cloudSea = createCloudSea({
-    count: 22,
+    count: Math.round(22 * CLOUD_MULT),
     yTop: WORLD_HEIGHT * 0.74,
     span: 2200,
     widthMin: 460,
@@ -1311,7 +1316,7 @@ export async function startGame(container: HTMLElement) {
   // «Вечная ночь» dense cloud FLOOR for air missions (wolf-comet demo) — a thick, near-opaque
   // band at the bottom of the play area. Below it = darkness (the death zone). Demo-only.
   const wcCloudFloor = createCloudSea({
-    count: 52, yTop: Math.round(ARENA_WORLD_HEIGHT * WC_WORLD_HEIGHT_MULT * WC_CLOUD_FLOOR_FRAC),
+    count: Math.round(52 * CLOUD_MULT), yTop: Math.round(ARENA_WORLD_HEIGHT * WC_WORLD_HEIGHT_MULT * WC_CLOUD_FLOOR_FRAC),
     span: 2900, widthMin: 660, widthMax: 1220, alphaMin: 0.78, alphaMax: 0.98, driftSpeed: 5,
   });
   wcCloudFloor.container.visible = false;
@@ -1321,7 +1326,7 @@ export async function startGame(container: HTMLElement) {
   // there's no ground drawn, the bottom of the screen is a thick, near-opaque carpet of
   // big clouds — «в миссиях без земли максимально плотный слой облаков». Toggled per mode.
   const missionCloudFloor = createCloudSea({
-    count: 46, yTop: Math.round(WORLD_HEIGHT * 0.86),
+    count: Math.round(46 * CLOUD_MULT), yTop: Math.round(WORLD_HEIGHT * 0.86),
     span: 2600, widthMin: 600, widthMax: 1140, alphaMin: 0.8, alphaMax: 0.98, driftSpeed: 6,
   });
   missionCloudFloor.container.visible = false;
@@ -1905,7 +1910,7 @@ export async function startGame(container: HTMLElement) {
   // TEMP diagnostics (always-on): build tag + live FPS / plane / bullet / explosion
   // counts, bottom-left. Lets a home-screen iPhone app confirm the build and show
   // what spikes on a freeze. Remove once the freeze is resolved.
-  let diagFps = 60;
+  let diagFps = 60, diagLoCur = 999, diagLo = 60, diagLoT = 0; // smoothed fps + worst-frame (last 2s)
   const diagText = new Text({
     text: BUILD_TAG,
     style: new TextStyle({ fontFamily: 'monospace', fontSize: 13, fill: 0xffe08a, stroke: { color: 0x000000, width: 3 } }),
@@ -3164,7 +3169,13 @@ export async function startGame(container: HTMLElement) {
     renderTimeSec += dt;
     // TRUE fps from the UNCLAMPED frame time (realDt caps at 0.1s, which would hide
     // a sub-10fps phone). Smoothed; the frozen frame shows the last value.
-    if (Number.isFinite(rawDt) && rawDt > 0.0002) diagFps += (1 / rawDt - diagFps) * 0.15;
+    if (Number.isFinite(rawDt) && rawDt > 0.0002) {
+      const inst = 1 / rawDt;
+      diagFps += (inst - diagFps) * 0.15;
+      if (inst < diagLoCur) diagLoCur = inst;       // worst single frame this window
+      diagLoT += rawDt;
+      if (diagLoT >= 2) { diagLo = diagLoCur; diagLoCur = 999; diagLoT = 0; }
+    }
 
     lightning.update(dt);
     const cloudFocusX = runMode === 'story' ? camera.currentFocusX : state.player.kinematic.position.x;
@@ -4332,7 +4343,7 @@ export async function startGame(container: HTMLElement) {
     {
       const fe = (window as unknown as { __biplanesFrameError?: string }).__biplanesFrameError;
       const errPart = fe ? `  ERR:${(String(fe).split('\n')[0] ?? '').slice(0, 46)}` : '';
-      diagText.text = `${BUILD_TAG}  fps:${diagFps.toFixed(0)}  pl:${state.enemies.length + state.allies.length + 1}  bu:${state.bullets.length}  fx:${spriteExplosions.activeCount}${errPart}`;
+      diagText.text = `${BUILD_TAG}  fps:${diagFps.toFixed(0)} lo:${diagLo.toFixed(0)}  pl:${state.enemies.length + state.allies.length + 1}  bu:${state.bullets.length}  fx:${spriteExplosions.activeCount}${errPart}`;
       diagText.style.fill = fe ? 0xff7a7a : 0xffe08a; // turn RED if a frame error is captured
     }
 
