@@ -875,7 +875,7 @@ const SKIP_BRIEFING = URL_PARAMS.has('skipBriefing');
 const DEBUG_HUD_ON_BOOT = URL_PARAMS.has('debug');
 // Bump every deploy. Shown always-on bottom-left so a home-screen iPhone app (no
 // address bar for ?debug) can confirm WHICH build is live + read FPS/counts on a freeze.
-const BUILD_TAG = 'v9';
+const BUILD_TAG = 'v10';
 const TIME_SKIP_SEC = Math.max(0, parseFloat(URL_PARAMS.get('t') ?? '0') || 0);
 const DEBUG_ARENA_SCORE = DEBUG_HUD_ON_BOOT
   ? Math.max(0, Math.min(ARENA_FINAL_BOSS_SCORE, Math.floor(parseFloat(URL_PARAMS.get('arenaScore') ?? '0') || 0)))
@@ -4329,7 +4329,12 @@ export async function startGame(container: HTMLElement) {
     }
 
     diagText.y = app.screen.height - 22;
-    diagText.text = `${BUILD_TAG}  fps:${diagFps.toFixed(0)}  pl:${state.enemies.length + state.allies.length + 1}  bu:${state.bullets.length}  fx:${spriteExplosions.activeCount}`;
+    {
+      const fe = (window as unknown as { __biplanesFrameError?: string }).__biplanesFrameError;
+      const errPart = fe ? `  ERR:${(String(fe).split('\n')[0] ?? '').slice(0, 46)}` : '';
+      diagText.text = `${BUILD_TAG}  fps:${diagFps.toFixed(0)}  pl:${state.enemies.length + state.allies.length + 1}  bu:${state.bullets.length}  fx:${spriteExplosions.activeCount}${errPart}`;
+      diagText.style.fill = fe ? 0xff7a7a : 0xffe08a; // turn RED if a frame error is captured
+    }
 
     publishDebugState();
    } catch (err) {
