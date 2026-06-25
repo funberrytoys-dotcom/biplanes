@@ -9,10 +9,14 @@ export async function createPixiApp(container: HTMLElement): Promise<Application
     resizeTo: container,
     antialias: true,
     autoDensity: true,
-    // Render at the device's native pixel density (capped at 3× so absurd DPRs
-    // don't tank perf). Previously phones were forced to 2×, which upscaled to a
-    // 3× screen like the iPhone 15 Pro Max → everything looked slightly soft.
-    resolution: Math.min(window.devicePixelRatio || 1, 3),
+    // Render at the device's pixel density, capped. PHONES are fill-rate bound, and
+    // a 3× retina screen means ~2.25× the pixels of 2× — a huge cost for a weak GPU
+    // (30fps with an empty scene). So cap touch devices at 2× (slightly softer, ~2×
+    // the framerate); desktop/Steam keep up to 3× for crispness.
+    resolution: Math.min(
+      window.devicePixelRatio || 1,
+      (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0) ? 2 : 3,
+    ),
   });
   app.canvas.style.position = 'absolute';
   app.canvas.style.inset = '0';
