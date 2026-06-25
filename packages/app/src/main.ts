@@ -873,6 +873,9 @@ const AUTO_FLIGHT_LAB = URL_PARAMS.has('flightLab');
 const AUTO_OIL_SHOT = URL_PARAMS.has('oilshot');
 const SKIP_BRIEFING = URL_PARAMS.has('skipBriefing');
 const DEBUG_HUD_ON_BOOT = URL_PARAMS.has('debug');
+// Bump every deploy. Shown always-on bottom-left so a home-screen iPhone app (no
+// address bar for ?debug) can confirm WHICH build is live + read FPS/counts on a freeze.
+const BUILD_TAG = 'v9';
 const TIME_SKIP_SEC = Math.max(0, parseFloat(URL_PARAMS.get('t') ?? '0') || 0);
 const DEBUG_ARENA_SCORE = DEBUG_HUD_ON_BOOT
   ? Math.max(0, Math.min(ARENA_FINAL_BOSS_SCORE, Math.floor(parseFloat(URL_PARAMS.get('arenaScore') ?? '0') || 0)))
@@ -1898,6 +1901,18 @@ export async function startGame(container: HTMLElement) {
   debugText.y = 8;
   debugText.visible = DEBUG_HUD_ON_BOOT;
   uiLayer.addChild(debugText);
+
+  // TEMP diagnostics (always-on): build tag + live FPS / plane / bullet / explosion
+  // counts, bottom-left. Lets a home-screen iPhone app confirm the build and show
+  // what spikes on a freeze. Remove once the freeze is resolved.
+  let diagFps = 60;
+  const diagText = new Text({
+    text: BUILD_TAG,
+    style: new TextStyle({ fontFamily: 'monospace', fontSize: 13, fill: 0xffe08a, stroke: { color: 0x000000, width: 3 } }),
+  });
+  diagText.x = 8;
+  diagText.alpha = 0.9;
+  uiLayer.addChild(diagText);
 
   let state: WorldState = createWorldState(Math.floor(Math.random() * 1e9), makePlayer());
   let gameRunning = false;
@@ -3147,6 +3162,9 @@ export async function startGame(container: HTMLElement) {
     const realDt = Number.isFinite(rawDt) ? Math.min(0.1, Math.max(0, rawDt)) : 1 / 60;
     const dt = clock.tick(realDt);
     renderTimeSec += dt;
+    // TRUE fps from the UNCLAMPED frame time (realDt caps at 0.1s, which would hide
+    // a sub-10fps phone). Smoothed; the frozen frame shows the last value.
+    if (Number.isFinite(rawDt) && rawDt > 0.0002) diagFps += (1 / rawDt - diagFps) * 0.15;
 
     lightning.update(dt);
     const cloudFocusX = runMode === 'story' ? camera.currentFocusX : state.player.kinematic.position.x;
@@ -4309,6 +4327,9 @@ export async function startGame(container: HTMLElement) {
         debugText.text = `${runMode.toUpperCase()}  t=${state.timeSec.toFixed(1)}  enemies=${state.enemies.length}  hp=${state.player.hp.toFixed(0)}  score=${state.playerScore}`;
       }
     }
+
+    diagText.y = app.screen.height - 22;
+    diagText.text = `${BUILD_TAG}  fps:${diagFps.toFixed(0)}  pl:${state.enemies.length + state.allies.length + 1}  bu:${state.bullets.length}  fx:${spriteExplosions.activeCount}`;
 
     publishDebugState();
    } catch (err) {
