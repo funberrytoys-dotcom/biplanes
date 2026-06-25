@@ -44,6 +44,10 @@ const TIERS: Record<ExplosionTier, TierCfg> = {
 export class SpriteExplosions {
   private static readonly MAX_ACTIVE = 40; // cap concurrent explosion sprites (anti-freeze)
   private active: ActiveExplosion[] = [];
+
+  /** Live count of concurrent explosion sprites (for the on-screen perf diagnostics). */
+  get activeCount(): number { return this.active.length; }
+
   private frames: Record<ExplosionTier, Texture[]> = { small: [], medium: [], large: [] };
 
   constructor(private container: Container) {
