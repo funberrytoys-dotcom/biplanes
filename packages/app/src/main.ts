@@ -878,7 +878,7 @@ const SKIP_BRIEFING = URL_PARAMS.has('skipBriefing');
 const DEBUG_HUD_ON_BOOT = URL_PARAMS.has('debug');
 // Bump every deploy. Shown always-on bottom-left so a home-screen iPhone app (no
 // address bar for ?debug) can confirm WHICH build is live + read FPS/counts on a freeze.
-const BUILD_TAG = 'v20-wave5-balance';
+const BUILD_TAG = 'v21-pick-guard';
 // Phones are fill-rate bound (many big semi-transparent clouds + explosions = overdraw).
 // Lighten those on touch devices only; PC/Steam keep full quality.
 const IS_MOBILE = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
@@ -2117,12 +2117,20 @@ export async function startGame(container: HTMLElement) {
     app.screen.width,
     app.screen.height,
     (id: string) => {
-      audio.playUpgradePick();
-      state = applyUpgrade(state, id as UpgradeId);
-      if (runSession) runSession = recordPick(runSession, id as UpgradeId);
-      levelUpScreen.hide();
-      choicesShowing = false;
-      updateArenaDirector();
+      try {
+        audio.playUpgradePick();
+        const upgradeId = id as UpgradeId;
+        const nextState = applyUpgrade(state, upgradeId);
+        const nextRunSession = runSession ? recordPick(runSession, upgradeId) : runSession;
+        state = nextState;
+        runSession = nextRunSession;
+        levelUpScreen.hide();
+        choicesShowing = false;
+        updateArenaDirector();
+      } catch (err) {
+        choicesShowing = true;
+        handleFrameError(err);
+      }
     },
     {
       onReroll: () => {
@@ -2132,11 +2140,16 @@ export async function startGame(container: HTMLElement) {
         showRunPickChoices();
       },
       onSkip: () => {
-        if (!runSession) return;
-        runSession = recordSkip(runSession);
-        levelUpScreen.hide();
-        choicesShowing = false;
-        updateArenaDirector();
+        try {
+          if (!runSession) return;
+          runSession = recordSkip(runSession);
+          levelUpScreen.hide();
+          choicesShowing = false;
+          updateArenaDirector();
+        } catch (err) {
+          choicesShowing = true;
+          handleFrameError(err);
+        }
       },
       branchEmblems: {
         assault: Texture.from(assetUrl('assets/run/emblem_assault.png')),

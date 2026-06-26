@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { applyUpgrade } from './apply-upgrade.js';
+import { UPGRADE_DEFS } from './upgrade-pool.js';
 import { createWorldState } from '../world/world-state.js';
 import { PLANE_INITIAL_HP } from '@biplanes/shared';
 import type { Plane } from '../entities/plane.js';
@@ -90,6 +91,13 @@ describe('applyUpgrade', () => {
     const after = applyUpgrade(createWorldState(42, makePlayer()), 'chico_wing');
     expect(after.droneCount).toBe(2);
     expect(after.hasDrone).toBe(true);
+  });
+
+  it('can safely apply every upgrade offered by the pool', () => {
+    for (const def of UPGRADE_DEFS) {
+      const after = applyUpgrade(createWorldState(42, makePlayer()), def.id);
+      expect(after.appliedUpgradeIds).toContain(def.id);
+    }
   });
 });
 

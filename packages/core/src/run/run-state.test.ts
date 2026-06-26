@@ -8,6 +8,7 @@ import {
   recordReroll,
   advanceWave,
 } from './run-state.js';
+import { UPGRADE_DEFS } from '../upgrades/upgrade-pool.js';
 
 describe('run-state', () => {
   it('starts on wave 1 with full reroll budget and zero affinity', () => {
@@ -29,6 +30,13 @@ describe('run-state', () => {
     // immutability
     expect(run.picks).toEqual([]);
     expect(run.affinity.assault).toBe(0);
+  });
+
+  it('can record every upgrade offered by the pool', () => {
+    for (const def of UPGRADE_DEFS) {
+      const after = recordPick(createRunState(), def.id);
+      expect(after.picks).toEqual([def.id]);
+    }
   });
 
   it('accumulates affinity across multiple picks in the same branch', () => {
