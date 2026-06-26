@@ -84,7 +84,17 @@ export function resolvePlanePlaneCollisions(
       const rvx = A.kinematic.velocity.x - B.kinematic.velocity.x;
       const rvy = A.kinematic.velocity.y - B.kinematic.velocity.y;
       const distMag = Math.max(1, Math.sqrt(distSq));
-      const nx = dx / distMag, ny = dy / distMag;
+      let nx = dx / distMag, ny = dy / distMag;
+      if (distSq < 0.0001) {
+        const rvMag = Math.hypot(rvx, rvy);
+        if (rvMag > 0.0001) {
+          nx = -rvx / rvMag;
+          ny = -rvy / rvMag;
+        } else {
+          nx = Math.cos(A.kinematic.heading);
+          ny = Math.sin(A.kinematic.heading);
+        }
+      }
       const closingSpeed = rvx * nx + rvy * ny;
       const impact = Math.max(0, closingSpeed);
       // Per-plane damage scales with closing speed but is CAPPED at a fraction of THAT
@@ -119,6 +129,18 @@ export function resolvePlanePlaneCollisions(
       B.kinematic.velocity.y *= COLLISION_BOUNCE_VELOCITY_RETAIN;
       A.kinematic.heading += (jitter(rngSeed + A.id) - 0.5) * 2 * COLLISION_BOUNCE_HEADING_JITTER;
       B.kinematic.heading += (jitter(rngSeed + B.id) - 0.5) * 2 * COLLISION_BOUNCE_HEADING_JITTER;
+
+      // A ram is an impulse, not a sticky overlap. Without positional separation two
+      // planes can stay interpenetrating for the cooldown window and the player can
+      // appear frozen on the stall edge while trying to finish an enemy.
+      const separation = Math.max(0, PLANE_COLLISION_RADIUS - Math.sqrt(distSq));
+      if (separation > 0) {
+        const push = separation / 2 + 0.5;
+        A.kinematic.position.x -= nx * push;
+        A.kinematic.position.y -= ny * push;
+        B.kinematic.position.x += nx * push;
+        B.kinematic.position.y += ny * push;
+      }
 
       newCooldowns.set(key, COLLISION_COOLDOWN_TICKS);
 
