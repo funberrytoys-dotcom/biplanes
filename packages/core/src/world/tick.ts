@@ -1494,7 +1494,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
     xpCollected,
     level,
     pendingLevelUp,
-    gameOver: (!state.suppressScoreGameOver && playerScore >= PLAYER_SCORE_TO_WIN) || enemyScore >= ENEMY_SCORE_TO_LOSE || caravanDead,
+    gameOver: (!state.suppressScoreGameOver && (playerScore >= PLAYER_SCORE_TO_WIN || enemyScore >= ENEMY_SCORE_TO_LOSE)) || caravanDead,
     planeCollisionCooldowns,
     planeCollisionEvents,
     caravan,

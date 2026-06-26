@@ -598,6 +598,21 @@ describe('world tick', () => {
     expect(after.tickCount).toBe(1);
   });
 
+  it('lets host-managed run modes ignore the legacy enemy score cap too', () => {
+    const s = {
+      ...createWorldState(42, makePlayer()),
+      enemyScore: 5,
+      suppressScoreGameOver: true,
+    };
+
+    const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+
+    expect(after.enemyScore).toBe(5);
+    expect(after.player.alive).toBe(true);
+    expect(after.gameOver).toBe(false);
+    expect(after.tickCount).toBe(1);
+  });
+
   it('ends the arena run when the final boss is destroyed', () => {
     const player = makePlayer();
     const boss = {
