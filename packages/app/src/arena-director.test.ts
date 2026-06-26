@@ -9,7 +9,9 @@ import {
   shouldSpawnArenaFinalBossForRound,
   countUnresolvedArenaEnemies,
   resolveArenaDuelFlow,
+  runDifficultyForWave,
   shouldClearRunLegacyGameOver,
+  shouldEnemyCarryRockets,
   shouldHoldArenaAutoSpawnForFinalBoss,
   shouldSpawnArenaFinalBoss,
 } from './arena-director.js';
@@ -155,6 +157,18 @@ describe('arena duel round flow', () => {
     expect(arenaDifficultyForRound(1)).toBe('easy');
     expect(arenaDifficultyForRound(4)).toBe('medium');
     expect(arenaDifficultyForRound(8)).toBe('hard');
+  });
+
+  it('keeps run wave 5 medium instead of suddenly jumping to hard', () => {
+    expect(runDifficultyForWave(5)).toBe('medium');
+    expect(runDifficultyForWave(6)).toBe('medium');
+    expect(runDifficultyForWave(7)).toBe('hard');
+  });
+
+  it('delays enemy rockets in run mode until the mid-run', () => {
+    expect(shouldEnemyCarryRockets({ role: 'ace', round: 5, lane: 1, isRun: true })).toBe(false);
+    expect(shouldEnemyCarryRockets({ role: 'ace', round: 8, lane: 1, isRun: true })).toBe(true);
+    expect(shouldEnemyCarryRockets({ role: 'ace', round: 4, lane: 1, isRun: false })).toBe(true);
   });
 
   it('ramps enemy roles from rookies into hunters and aces', () => {
