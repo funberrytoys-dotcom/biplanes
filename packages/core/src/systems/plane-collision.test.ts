@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { resolvePlanePlaneCollisions } from './plane-collision.js';
-import { PLANE_INITIAL_HP } from '@biplanes/shared';
+import { PLANE_COLLISION_RADIUS, PLANE_INITIAL_HP } from '@biplanes/shared';
 
 function plane(id: number, faction: 'player' | 'enemy', x: number, y: number, vx: number, vy: number) {
   return {
@@ -51,5 +51,17 @@ describe('plane-plane collision', () => {
     const cooldowns = new Map<string, number>([['1-2', 20]]);
     const { events } = resolvePlanePlaneCollisions(a, [b], cooldowns, 0);
     expect(events.length).toBe(0);
+  });
+
+  it('pushes overlapping planes apart so they cannot stick together after a ram', () => {
+    const a = plane(1, 'player', 500, 500, 580, 0);
+    const b = plane(2, 'enemy', 508, 500, -580, 0);
+    const { player, enemies, events } = resolvePlanePlaneCollisions(a, [b], new Map(), 0);
+
+    expect(events.length).toBe(1);
+    const enemy = enemies[0]!;
+    const dx = enemy.kinematic.position.x - player.kinematic.position.x;
+    const dy = enemy.kinematic.position.y - player.kinematic.position.y;
+    expect(Math.hypot(dx, dy)).toBeGreaterThanOrEqual(PLANE_COLLISION_RADIUS);
   });
 });
