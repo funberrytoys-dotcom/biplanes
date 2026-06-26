@@ -126,7 +126,9 @@ import {
   arenaEnemyRoleTuning,
   countUnresolvedArenaEnemies,
   resolveArenaDuelFlow,
+  runDifficultyForWave,
   shouldClearRunLegacyGameOver,
+  shouldEnemyCarryRockets,
   shouldSpawnArenaFinalBossForRound,
   type ArenaRoundPhase,
 } from './arena-director.js';
@@ -744,7 +746,7 @@ function makeArenaRoundEnemy(id: number, player: Plane, round: number, lane: num
   const y = Math.max(360, Math.min(ARENA_WORLD_HEIGHT - 560, player.kinematic.position.y + laneOffset));
   // A subset of late-wave aces carry rockets — a dangerous minority, not every plane,
   // so the sky isn't a constant rocket storm. Staggered first-launch delay per lane.
-  const firesRockets = role === 'ace' && round >= (isRun ? 5 : 4) && lane % 3 === 1;
+  const firesRockets = shouldEnemyCarryRockets({ role, round, lane, isRun });
   return {
     id,
     faction: 'enemy',
@@ -876,7 +878,7 @@ const SKIP_BRIEFING = URL_PARAMS.has('skipBriefing');
 const DEBUG_HUD_ON_BOOT = URL_PARAMS.has('debug');
 // Bump every deploy. Shown always-on bottom-left so a home-screen iPhone app (no
 // address bar for ?debug) can confirm WHICH build is live + read FPS/counts on a freeze.
-const BUILD_TAG = 'v19-run-guard';
+const BUILD_TAG = 'v20-wave5-balance';
 // Phones are fill-rate bound (many big semi-transparent clouds + explosions = overdraw).
 // Lighten those on touch devices only; PC/Steam keep full quality.
 const IS_MOBILE = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
@@ -2214,7 +2216,7 @@ export async function startGame(container: HTMLElement) {
     arenaUpgradeDelaySec = 0;
     arenaVictoryFlightSec = 0;
     state.disableAutoEnemySpawn = true;
-    state.difficulty = arenaDifficultyForRound(arenaRound);
+    state.difficulty = runSession ? runDifficultyForWave(arenaRound) : arenaDifficultyForRound(arenaRound);
     // «Забег» drives waves by round number (15 waves, boss on 15); arena keeps its
     // score-based escalation/boss.
     const nextEnemyCount = runSession
@@ -2280,7 +2282,7 @@ export async function startGame(container: HTMLElement) {
     arenaVictoryFlightSec = 0;
     state = {
       ...state,
-      difficulty: arenaDifficultyForRound(arenaRound),
+      difficulty: runSession ? runDifficultyForWave(arenaRound) : arenaDifficultyForRound(arenaRound),
       disableAutoEnemySpawn: true,
       pendingLevelUp: false,
       gameOver: false,
@@ -4358,7 +4360,7 @@ export async function startGame(container: HTMLElement) {
     {
       const fe = (window as unknown as { __biplanesFrameError?: string }).__biplanesFrameError;
       const errPart = fe ? `  ERR:${(String(fe).split('\n')[0] ?? '').slice(0, 46)}` : '';
-      diagText.text = `${BUILD_TAG}  fps:${diagFps.toFixed(0)} lo:${diagLo.toFixed(0)}  tc:${state.tickCount} st:${state.player.state.slice(0, 3)} g:${state.player.kinematic.g.toFixed(0)} go:${state.gameOver ? 1 : 0} es:${state.enemyScore} r:${arenaRound}/${arenaRoundPhase.slice(0, 3)} pl:${state.enemies.length + state.allies.length + 1} bu:${state.bullets.length} fx:${spriteExplosions.activeCount}${errPart}`;
+      diagText.text = `${BUILD_TAG}  fps:${diagFps.toFixed(0)} lo:${diagLo.toFixed(0)}  tc:${state.tickCount} hp:${state.player.hp.toFixed(0)} st:${state.player.state.slice(0, 3)} g:${state.player.kinematic.g.toFixed(0)} go:${state.gameOver ? 1 : 0} es:${state.enemyScore} r:${arenaRound}/${arenaRoundPhase.slice(0, 3)} pl:${state.enemies.length + state.allies.length + 1} bu:${state.bullets.length} fx:${spriteExplosions.activeCount}${errPart}`;
       diagText.style.fill = fe ? 0xff7a7a : 0xffe08a; // turn RED if a frame error is captured
     }
 

@@ -129,6 +129,22 @@ export function arenaDifficultyForRound(round: number): 'easy' | 'medium' | 'har
   return 'hard';
 }
 
+export function runDifficultyForWave(wave: number): 'easy' | 'medium' | 'hard' {
+  if (wave <= 1) return 'easy';
+  if (wave <= 6) return 'medium';
+  return 'hard';
+}
+
+export function shouldEnemyCarryRockets(input: {
+  role: ArenaEnemyRole;
+  round: number;
+  lane: number;
+  isRun: boolean;
+}) {
+  const startWave = input.isRun ? 8 : 4;
+  return input.role === 'ace' && input.round >= startWave && input.lane % 3 === 1;
+}
+
 export function resolveArenaDuelFlow(state: ArenaDuelFlowState): ArenaDuelFlowResult {
   if (state.gameOver) {
     return {
