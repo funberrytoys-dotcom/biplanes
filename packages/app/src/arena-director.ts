@@ -107,6 +107,14 @@ export function shouldHoldArenaAutoSpawnForFinalBoss(
   return state.playerScore >= state.finalBossScore && !state.gameOver;
 }
 
+export function shouldClearRunLegacyGameOver(state: {
+  hasRunSession: boolean;
+  gameOver: boolean;
+  playerAlive: boolean;
+}) {
+  return state.hasRunSession && state.gameOver && state.playerAlive;
+}
+
 export function arenaEnemyHpMultiplierForRound(round: number): number {
   return 1.15 * Math.pow(1.42, Math.max(0, round - 1));
 }
