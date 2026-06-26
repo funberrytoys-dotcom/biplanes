@@ -3339,7 +3339,7 @@ export async function startGame(container: HTMLElement) {
       if (state.explosionEvents.length > 0) frameExplosions.push(...state.explosionEvents);
       acc -= TICK_DT;
       safety--;
-      if (state.pendingLevelUp || state.gameOver) break;
+      if ((state.pendingLevelUp && !state.suppressCoreLevelUps) || state.gameOver) break;
     }
 
     if (runMode === 'story') {

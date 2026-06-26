@@ -80,6 +80,8 @@ export interface WorldState {
   xpCollected: number;
   level: number;
   pendingLevelUp: boolean;  // true between earning level-up and choosing upgrade
+  /** Arena/run hosts award picks between waves; level-up must not pause combat mid-wave. */
+  suppressCoreLevelUps?: boolean;
 
   appliedUpgradeIds: string[];      // chronological list of upgrade IDs picked
   damageMultiplier: number;         // 1.0 base, multiplies bullet damage

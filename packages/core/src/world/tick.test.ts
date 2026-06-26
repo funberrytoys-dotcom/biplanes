@@ -37,6 +37,21 @@ describe('world tick', () => {
     expect(after.player.kinematic.position.x).toBeGreaterThan(500);
   });
 
+  it('can keep arena-style combat ticking while a level-up is deferred by the host', () => {
+    const s = {
+      ...createWorldState(42, makePlayer()),
+      pendingLevelUp: true,
+      suppressCoreLevelUps: true,
+    };
+
+    const after = tick(s, { rotate: 0, fire: false, bomb: false, throttleDelta: 0, eject: false, jump: false });
+
+    expect(after.tickCount).toBe(1);
+    expect(after.timeSec).toBeCloseTo(TICK_DT);
+    expect(after.pendingLevelUp).toBe(false);
+    expect(after.player.kinematic.position.x).toBeGreaterThan(500);
+  });
+
   it('firing bleeds a little airspeed (recoil brakes the plane)', () => {
     const base = createWorldState(42, {
       ...makePlayer(),
