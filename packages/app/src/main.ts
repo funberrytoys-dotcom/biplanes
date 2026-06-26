@@ -126,6 +126,7 @@ import {
   arenaEnemyRoleTuning,
   countUnresolvedArenaEnemies,
   resolveArenaDuelFlow,
+  shouldClearRunLegacyGameOver,
   shouldSpawnArenaFinalBossForRound,
   type ArenaRoundPhase,
 } from './arena-director.js';
@@ -875,7 +876,7 @@ const SKIP_BRIEFING = URL_PARAMS.has('skipBriefing');
 const DEBUG_HUD_ON_BOOT = URL_PARAMS.has('debug');
 // Bump every deploy. Shown always-on bottom-left so a home-screen iPhone app (no
 // address bar for ?debug) can confirm WHICH build is live + read FPS/counts on a freeze.
-const BUILD_TAG = 'v18-run-cap-fix';
+const BUILD_TAG = 'v19-run-guard';
 // Phones are fill-rate bound (many big semi-transparent clouds + explosions = overdraw).
 // Lighten those on touch devices only; PC/Steam keep full quality.
 const IS_MOBILE = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
@@ -2390,6 +2391,13 @@ export async function startGame(container: HTMLElement) {
     // Arena is forgiving (auto-clears gameOver to keep flying). «Забег» is one life:
     // never auto-clear — a destroyed plane ends the run (handled in the ticker).
     if (!runSession && state.gameOver && state.player.alive && state.playerScore < PLAYER_SCORE_TO_WIN) {
+      state = { ...state, gameOver: false };
+    }
+    if (shouldClearRunLegacyGameOver({
+      hasRunSession: runSession !== null,
+      gameOver: state.gameOver,
+      playerAlive: state.player.alive,
+    })) {
       state = { ...state, gameOver: false };
     }
 

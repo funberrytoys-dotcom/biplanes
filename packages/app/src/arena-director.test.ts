@@ -9,6 +9,7 @@ import {
   shouldSpawnArenaFinalBossForRound,
   countUnresolvedArenaEnemies,
   resolveArenaDuelFlow,
+  shouldClearRunLegacyGameOver,
   shouldHoldArenaAutoSpawnForFinalBoss,
   shouldSpawnArenaFinalBoss,
 } from './arena-director.js';
@@ -41,6 +42,16 @@ describe('shouldSpawnArenaFinalBoss', () => {
     expect(shouldHoldArenaAutoSpawnForFinalBoss(ready)).toBe(true);
     expect(shouldHoldArenaAutoSpawnForFinalBoss({ ...ready, playerScore: 13 })).toBe(false);
     expect(shouldHoldArenaAutoSpawnForFinalBoss({ ...ready, gameOver: true })).toBe(false);
+  });
+});
+
+describe('shouldClearRunLegacyGameOver', () => {
+  it('clears legacy game-over flags in a live run while the player is still alive', () => {
+    expect(shouldClearRunLegacyGameOver({ hasRunSession: true, gameOver: true, playerAlive: true })).toBe(true);
+  });
+
+  it('does not clear a real run loss when the player is dead', () => {
+    expect(shouldClearRunLegacyGameOver({ hasRunSession: true, gameOver: true, playerAlive: false })).toBe(false);
   });
 });
 
