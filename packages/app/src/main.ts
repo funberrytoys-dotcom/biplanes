@@ -875,7 +875,7 @@ const SKIP_BRIEFING = URL_PARAMS.has('skipBriefing');
 const DEBUG_HUD_ON_BOOT = URL_PARAMS.has('debug');
 // Bump every deploy. Shown always-on bottom-left so a home-screen iPhone app (no
 // address bar for ?debug) can confirm WHICH build is live + read FPS/counts on a freeze.
-const BUILD_TAG = 'v16-crisp-fix';
+const BUILD_TAG = 'v17-score-fix';
 // Phones are fill-rate bound (many big semi-transparent clouds + explosions = overdraw).
 // Lighten those on touch devices only; PC/Steam keep full quality.
 const IS_MOBILE = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
@@ -2659,6 +2659,7 @@ export async function startGame(container: HTMLElement) {
     state.worldHeight = ARENA_WORLD_HEIGHT;
     state.disableAutoEnemySpawn = true;
     state.suppressCoreLevelUps = true;
+    state.suppressScoreGameOver = runSession !== null;
     if (DEBUG_ARENA_SCORE > 0) {
       state = {
         ...state,
