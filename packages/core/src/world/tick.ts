@@ -368,7 +368,7 @@ function spawnPilot(id: number, x: number, y: number, faction: Faction): Pilot {
 }
 
 export function tick(state: WorldState, playerCommand: PlayerCommand): WorldState {
-  if (state.gameOver || state.pendingLevelUp) return state;
+  if (state.gameOver || (state.pendingLevelUp && !state.suppressCoreLevelUps)) return state;
 
   const worldWidth = state.worldWidth || WORLD_WIDTH;
   const worldHeight = state.worldHeight || WORLD_HEIGHT;
@@ -1447,7 +1447,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
   const nextThreshold = LEVEL_UP_THRESHOLDS[level - 1];
   if (nextThreshold !== undefined && xpCollected >= nextThreshold) {
     level += 1;
-    pendingLevelUp = true;
+    pendingLevelUp = !state.suppressCoreLevelUps;
   }
 
   const caravanDead = caravan !== undefined && caravan.active && caravan.hp <= 0;
