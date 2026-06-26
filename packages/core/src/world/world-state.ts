@@ -82,7 +82,7 @@ export interface WorldState {
   pendingLevelUp: boolean;  // true between earning level-up and choosing upgrade
   /** Arena/run hosts award picks between waves; level-up must not pause combat mid-wave. */
   suppressCoreLevelUps?: boolean;
-  /** Host-managed modes (e.g. 15-wave run) decide victory outside the core score cap. */
+  /** Host-managed modes (e.g. 15-wave run) decide outcomes outside legacy score caps. */
   suppressScoreGameOver?: boolean;
 
   appliedUpgradeIds: string[];      // chronological list of upgrade IDs picked
