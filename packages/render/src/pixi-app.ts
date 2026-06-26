@@ -1,7 +1,13 @@
 import { Application } from 'pixi.js';
 
+export function resolveRenderResolution(devicePixelRatio: number, isTouchDevice: boolean): number {
+  const dpr = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1;
+  return Math.min(dpr, isTouchDevice ? 2.5 : 3);
+}
+
 export async function createPixiApp(container: HTMLElement): Promise<Application> {
   const app = new Application();
+  const isTouchDevice = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
   await app.init({
     preference: 'webgl',
     powerPreference: 'high-performance',
@@ -13,10 +19,7 @@ export async function createPixiApp(container: HTMLElement): Promise<Application
     // a 3× retina screen means ~2.25× the pixels of 2× — a huge cost for a weak GPU
     // (30fps with an empty scene). So cap touch devices at 2× (slightly softer, ~2×
     // the framerate); desktop/Steam keep up to 3× for crispness.
-    resolution: Math.min(
-      window.devicePixelRatio || 1,
-      (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0) ? 1.5 : 3,
-    ),
+    resolution: resolveRenderResolution(window.devicePixelRatio || 1, isTouchDevice),
   });
   app.canvas.style.position = 'absolute';
   app.canvas.style.inset = '0';
