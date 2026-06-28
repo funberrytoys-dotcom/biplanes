@@ -878,7 +878,7 @@ const SKIP_BRIEFING = URL_PARAMS.has('skipBriefing');
 const DEBUG_HUD_ON_BOOT = URL_PARAMS.has('debug');
 // Bump every deploy. Shown always-on bottom-left so a home-screen iPhone app (no
 // address bar for ?debug) can confirm WHICH build is live + read FPS/counts on a freeze.
-const BUILD_TAG = 'v21-pick-guard';
+const BUILD_TAG = 'v22-mobile-bg-memory';
 // Phones are fill-rate bound (many big semi-transparent clouds + explosions = overdraw).
 // Lighten those on touch devices only; PC/Steam keep full quality.
 const IS_MOBILE = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
@@ -932,7 +932,15 @@ const RUN_BOSS_HP = 11000;
 const RUN_ENEMY_BASE_HP = 55;
 
 export async function startGame(container: HTMLElement) {
-  await loadVisualAssetsResilient(VISUAL_ASSET_URLS);
+  // Phones: do NOT decode all 15 full-HD arena/run backgrounds at boot — each is huge
+  // and they otherwise pile up in GPU memory wave-by-wave (a new sky every stage),
+  // crashing low-memory mobile browsers mid-run (~wave 4-5). They load on demand per
+  // stage instead (setBackdrop), with the previous one freed. PC/Steam keep the preload.
+  const ARENA_BG_URL_SET = new Set<string>(Object.values(ARENA_BACKGROUND_URLS));
+  const bootAssetUrls = IS_MOBILE
+    ? VISUAL_ASSET_URLS.filter((u) => !ARENA_BG_URL_SET.has(u))
+    : VISUAL_ASSET_URLS;
+  await loadVisualAssetsResilient(bootAssetUrls);
   const menuBackdrop = createMenuBackdrop(container);
 
   const app = await createPixiApp(container);
@@ -976,8 +984,27 @@ export async function startGame(container: HTMLElement) {
     backdropLayer.visible = url !== null;
     if (!url) { backdropUrl = null; fitBackdrop(); return; }
     if (url !== backdropUrl) {
+      const prevUrl = backdropUrl;
       backdropUrl = url;
-      backdropSprite.texture = Texture.from(url);
+      if (IS_MOBILE) {
+        // Phones keep only the CURRENT stage photo resident. Backgrounds are full-HD,
+        // uploaded to the GPU on first draw; without freeing the previous one, GPU
+        // memory climbs every wave (new sky each stage) until the mobile browser kills
+        // the tab mid-run (~wave 4-5). Stage progression is forward-only, so dropping
+        // the previous photo is safe. CRITICAL: only free the previous photo AFTER the
+        // new one is applied to the sprite — freeing it while the sprite still shows it
+        // (new one not loaded yet — slow on phones) nulls the texture source mid-render.
+        void Assets.load<Texture>(url)
+          .then((tex) => {
+            if (backdropUrl !== url || !tex) return; // a newer stage already superseded this
+            backdropSprite.texture = tex;
+            fitBackdrop();
+            if (prevUrl && prevUrl !== url) void Assets.unload(prevUrl).catch(() => {});
+          })
+          .catch(() => { /* missing/slow — the procedural sky + backstop still show */ });
+      } else {
+        backdropSprite.texture = Texture.from(url);
+      }
     }
     fitBackdrop();
   }
