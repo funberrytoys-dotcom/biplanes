@@ -23,3 +23,7 @@ coverage/
 /INTRO1/
 /SOV fraction/
 /intro 2/
+
+# Capacitor native projects — generated in CI, not committed
+apps/web/android/
+apps/web/ios/

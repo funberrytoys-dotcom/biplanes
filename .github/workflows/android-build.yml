@@ -1,0 +1,68 @@
+name: Android build (APK)
+
+# Cloud "build factory" for the native Android wrapper. The owner has no Android
+# toolchain locally, so GitHub builds the APK and uploads it as a downloadable
+# artifact. Install with "unknown sources" allowed on the phone to test the game
+# as a real app (full graphics, the larger native memory budget — no browser-tab
+# white-screen). Runs on push to the native branch and on manual dispatch.
+on:
+  push:
+    branches:
+      - feat/native-capacitor
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        # Version comes from package.json "packageManager" — do NOT set `version` too.
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Setup Java (Android Gradle needs a JDK)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install deps
+        # Lockfile doesn't yet pin Capacitor (added without a local install), so allow
+        # pnpm to resolve it here. Switch back to --frozen-lockfile once the lockfile
+        # is regenerated locally.
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Build web bundle (apps/web/dist)
+        run: pnpm build
+
+      - name: Generate native Android project
+        working-directory: apps/web
+        run: npx cap add android
+
+      - name: Sync web build into the Android project
+        working-directory: apps/web
+        run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: apps/web/android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: biplanes-android-debug-apk
+          path: apps/web/android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
