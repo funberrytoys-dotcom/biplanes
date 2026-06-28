@@ -10,11 +10,20 @@ import { assetUrl } from '../asset-url.js';
  * mishmash; their edges read too dark). Do NOT add ad-hoc cloud URLs elsewhere.
  * If clouds change, re-run the build script and update CLOUD_COUNT below.
  */
-const CLOUD_COUNT = 20; // cloud_01.webp .. cloud_20.webp
+const CLOUD_COUNT = 20; // cloud_01.webp .. cloud_20.webp on disk
 
-/** The whole soft cloud set. */
+// Phones load HALF the unique cloud textures. Each cloud is a ~1180px webp (~3-4 MB of
+// GPU once drawn); the full set of 20 is ~70 MB resident — a big chunk of a weak phone's
+// GPU budget that, stacked with everything else, tips low-memory devices over mid-run.
+// The clouds are soft, semi-transparent and sized/placed randomly, and the per-field
+// sprite COUNT is unchanged — only the number of distinct shapes drops — so 10 reads the
+// same as 20 on screen. PC/Steam keep all 20.
+const IS_TOUCH = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
+const ACTIVE_CLOUD_COUNT = IS_TOUCH ? 10 : CLOUD_COUNT;
+
+/** The soft cloud set actually used this session (halved on phones for GPU memory). */
 export const CLOUD_URLS: string[] = Array.from(
-  { length: CLOUD_COUNT },
+  { length: ACTIVE_CLOUD_COUNT },
   (_, i) => assetUrl(`assets/clouds/cloud_${String(i + 1).padStart(2, '0')}.webp`),
 );
 
