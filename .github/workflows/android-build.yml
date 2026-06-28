@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write # publish the APK to a rolling pre-release for an easy phone download
 
 jobs:
   build-apk:
@@ -66,3 +66,14 @@ jobs:
           name: biplanes-android-debug-apk
           path: apps/web/android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
+
+      - name: Publish APK to a rolling pre-release (easy phone download)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp apps/web/android/app/build/outputs/apk/debug/app-debug.apk biplanes-android.apk
+          gh release delete android-latest --yes --cleanup-tag || true
+          gh release create android-latest biplanes-android.apk \
+            --prerelease \
+            --title "Biplanes — Android test build" \
+            --notes "Latest test build of the Android app. On your phone: open this page, download **biplanes-android.apk**, tap it, allow installs from this source, install, open."
