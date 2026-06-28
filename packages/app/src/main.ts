@@ -878,7 +878,7 @@ const SKIP_BRIEFING = URL_PARAMS.has('skipBriefing');
 const DEBUG_HUD_ON_BOOT = URL_PARAMS.has('debug');
 // Bump every deploy. Shown always-on bottom-left so a home-screen iPhone app (no
 // address bar for ?debug) can confirm WHICH build is live + read FPS/counts on a freeze.
-const BUILD_TAG = 'v22-mobile-bg-memory';
+const BUILD_TAG = 'v23-mobile-bg-downscale';
 // Phones are fill-rate bound (many big semi-transparent clouds + explosions = overdraw).
 // Lighten those on touch devices only; PC/Steam keep full quality.
 const IS_MOBILE = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
@@ -967,6 +967,32 @@ export async function startGame(container: HTMLElement) {
   let backdropUrl: string | null = null;
   let backstopColor = 0x141a30;
   const BACKDROP_OVER = 1.3; // oversize so parallax drift never reveals an edge
+  // Phones: the source backdrops are ~4800px wide (≈31 MB of GPU each) and a new one
+  // loads every stage — that load/free churn fragments mobile GPU memory until the tab
+  // dies mid-run. They're drawn onto a ~1100px screen, so downscale to a sane width on
+  // load (≈9× less GPU, ≈3.5 MB) via a throwaway canvas. PC/Steam keep the full-res photo.
+  const MOBILE_BACKDROP_MAX_W = 1600;
+  async function loadDownscaledBackdropTexture(url: string): Promise<Texture | null> {
+    try {
+      const img = new Image();
+      img.decoding = 'async';
+      img.src = url;
+      await img.decode();
+      const srcW = img.naturalWidth || MOBILE_BACKDROP_MAX_W;
+      const srcH = img.naturalHeight || MOBILE_BACKDROP_MAX_W;
+      const s = Math.min(1, MOBILE_BACKDROP_MAX_W / srcW);
+      const cw = Math.max(1, Math.round(srcW * s));
+      const ch = Math.max(1, Math.round(srcH * s));
+      const cv = document.createElement('canvas');
+      cv.width = cw; cv.height = ch;
+      const ctx = cv.getContext('2d');
+      if (!ctx) return null;
+      ctx.drawImage(img, 0, 0, cw, ch);
+      return Texture.from(cv);
+    } catch {
+      return null; // missing/slow image — the procedural sky + backstop still show
+    }
+  }
   function fitBackdrop() {
     backdropBackstop.clear()
       .rect(0, 0, app.screen.width, app.screen.height)
@@ -987,21 +1013,20 @@ export async function startGame(container: HTMLElement) {
       const prevUrl = backdropUrl;
       backdropUrl = url;
       if (IS_MOBILE) {
-        // Phones keep only the CURRENT stage photo resident. Backgrounds are full-HD,
-        // uploaded to the GPU on first draw; without freeing the previous one, GPU
-        // memory climbs every wave (new sky each stage) until the mobile browser kills
-        // the tab mid-run (~wave 4-5). Stage progression is forward-only, so dropping
-        // the previous photo is safe. CRITICAL: only free the previous photo AFTER the
-        // new one is applied to the sprite — freeing it while the sprite still shows it
-        // (new one not loaded yet — slow on phones) nulls the texture source mid-render.
-        void Assets.load<Texture>(url)
-          .then((tex) => {
-            if (backdropUrl !== url || !tex) return; // a newer stage already superseded this
-            backdropSprite.texture = tex;
-            fitBackdrop();
-            if (prevUrl && prevUrl !== url) void Assets.unload(prevUrl).catch(() => {});
-          })
-          .catch(() => { /* missing/slow — the procedural sky + backstop still show */ });
+        // Phones: load a DOWNSCALED copy (own canvas-backed texture, not the Assets cache)
+        // and explicitly destroy the previous one's GPU memory the moment the new is shown.
+        // Only swap if this request is still current — a newer stage may have superseded it.
+        // Destroying after the swap is critical: freeing while the sprite still shows the old
+        // texture nulls its source mid-render (Pixi crash). Keeps just ONE small photo live.
+        void loadDownscaledBackdropTexture(url).then((tex) => {
+          if (!tex) return;
+          if (backdropUrl !== url) { try { tex.destroy(true); } catch { /* ignore */ } return; }
+          const old = backdropSprite.texture;
+          backdropSprite.texture = tex;
+          fitBackdrop();
+          if (old && old !== tex && old !== Texture.EMPTY) { try { old.destroy(true); } catch { /* ignore */ } }
+          if (prevUrl && prevUrl !== url) void Assets.unload(prevUrl).catch(() => {});
+        });
       } else {
         backdropSprite.texture = Texture.from(url);
       }
