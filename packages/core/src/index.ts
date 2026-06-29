@@ -34,3 +34,8 @@ export * from './run/pick-offer.js';
 export * from './run/run-summary.js';
 export * from './run/faction.js';
 export * from './run/wolf-comet.js';
+// === New 32-perk run system (lives alongside the legacy pool; toggleable) ===
+export * from './run/perks.js';
+export * from './run/perk-pool.js';
+export * from './run/perk-run-state.js';
+export * from './run/apply-perk.js';

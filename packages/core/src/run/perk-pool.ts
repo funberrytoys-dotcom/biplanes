@@ -20,7 +20,7 @@ import {
 } from './perks.js';
 
 /** Uniform [0,1) source (createRng's Rng satisfies this). */
-export interface PickRng {
+export interface PerkPickRng {
   next(): number;
 }
 
@@ -89,7 +89,7 @@ function weightOf(perk: PerkDef, affinity: PerkAffinity): number {
 }
 
 /** Weighted sample WITHOUT replacement from `pool` into `out`, up to `need`. Deterministic. */
-function sampleWeighted(pool: PerkDef[], affinity: PerkAffinity, rng: PickRng, need: number, out: PerkDef[]): void {
+function sampleWeighted(pool: PerkDef[], affinity: PerkAffinity, rng: PerkPickRng, need: number, out: PerkDef[]): void {
   const work = pool.slice();
   for (let k = 0; k < need && work.length > 0; k++) {
     const weights = work.map((p) => weightOf(p, affinity));
@@ -114,7 +114,7 @@ export function rollPerkOffer(
   owned: readonly PerkId[],
   wave: number,
   affinity: PerkAffinity,
-  rng: PickRng,
+  rng: PerkPickRng,
   count = 3,
 ): PerkDef[] {
   const available = availablePerks(faction, owned, wave);
