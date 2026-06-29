@@ -184,10 +184,12 @@ export function createPerkPickScreen(
     const iconCx = cw / 2;
     const iconRegionH = ch * 0.34;
     const iconCy = 14 + iconRegionH / 2 + 8;
-    if (card.icon.texture && card.icon.texture !== Texture.EMPTY) {
-      const tw = card.icon.texture.width || 1, th = card.icon.texture.height || 1;
+    const tex = card.icon.texture;
+    if (tex && tex !== Texture.EMPTY && (tex.width || 0) > 1) {
       const target = Math.min(cw * 0.62, iconRegionH * 1.5);
-      card.icon.scale.set(target / Math.max(tw, th));
+      card.icon.scale.set(target / Math.max(tex.width, tex.height));
+    } else {
+      card.icon.scale.set(0); // texture not loaded yet; update() sizes it once it resolves
     }
     card.icon.x = iconCx; card.icon.y = iconCy;
     // top-left category chip + tier text
@@ -222,9 +224,10 @@ export function createPerkPickScreen(
       if (!card.container.visible) return;
       const bounds = cardLayout.cards[vi]!;
       vi++;
-      // give perk cards extra height for the icon
+      // give perk cards extra height for the icon (clamped ≥120 so a degenerate tiny
+      // viewport can't produce negative roundRect geometry)
       card.width = bounds.width;
-      card.height = Math.min(h - 40, bounds.height + 56);
+      card.height = Math.max(120, Math.min(h - 40, bounds.height + 56));
       card.container.pivot.set(card.width / 2, card.height / 2);
       card.targetX = bounds.x; card.targetY = Math.min(h - card.height / 2 - 16, bounds.y + 20);
       layoutCard(card);
@@ -303,7 +306,15 @@ export function createPerkPickScreen(
     update(dt: number) {
       if (!c.visible) return;
       for (const card of cards) {
-        if (!card.container.visible || card.animTimer >= 1.0) continue;
+        if (!card.container.visible) continue;
+        // Re-fit the icon once its async (Texture.from) texture resolves — sizing against an
+        // unloaded 1×1 texture would otherwise leave a giant icon covering the whole card.
+        const tex = card.icon.texture;
+        if (tex && tex !== Texture.EMPTY && (tex.width || 0) > 1 && card.icon.scale.x === 0) {
+          const target = Math.min(card.width * 0.62, (card.height * 0.34) * 1.5);
+          card.icon.scale.set(target / Math.max(tex.width, tex.height));
+        }
+        if (card.animTimer >= 1.0) continue;
         card.animTimer += dt * 4.2;
         if (card.animTimer > 0) {
           const t = Math.min(1.0, card.animTimer);

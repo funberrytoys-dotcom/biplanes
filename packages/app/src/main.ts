@@ -62,6 +62,8 @@ import {
   createPerkRunState,
   recordPerkPick,
   recordStartingCore,
+  recordPerkSkip,
+  buildPerkRunSummary,
   startingCoresForFaction,
   getPerk,
   type PerkDef,
@@ -2275,6 +2277,7 @@ export async function startGame(container: HTMLElement) {
         try {
           if (!runSession) return;
           runSession = recordSkip(runSession);
+          if (perkRun) perkRun = recordPerkSkip(perkRun); // keep perk-run skip count for the debrief
           perkPickScreen.hide();
           choicesShowing = false;
           updateArenaDirector();
@@ -2688,7 +2691,7 @@ export async function startGame(container: HTMLElement) {
   const runSummaryScreen = createRunSummaryScreen(
     app.screen.width,
     app.screen.height,
-    () => { startRun(); },       // ЗАНОВО — straight into a fresh run
+    () => { startRun(); showStartingCoreChoice(); }, // ЗАНОВО — fresh run + starting-core choice (no-op for legacy)
     () => { resetToMenu(); },    // В АНГАР
   );
   uiLayer.addChild(runSummaryScreen.container);
@@ -2727,12 +2730,12 @@ export async function startGame(container: HTMLElement) {
   function endRun(outcome: 'won' | 'lost') {
     if (!runSession || runOver) return;
     runOver = true;
-    const summary = buildRunSummary(
-      { ...runSession, wave: arenaRound },
-      outcome,
-      { kills: state.playerScore, timeSec: state.timeSec },
-      chosenFaction,
-    );
+    const stats = { kills: state.playerScore, timeSec: state.timeSec };
+    // New system records picks on perkRun (legacy runSession.picks stays empty), so its
+    // debrief must read perkRun or it would mis-report 0 picks / an empty build.
+    const summary = (USE_NEW_PERKS && perkRun)
+      ? buildPerkRunSummary(perkRun, arenaRound, outcome, stats, chosenFaction)
+      : buildRunSummary({ ...runSession, wave: arenaRound }, outcome, stats, chosenFaction);
     gameRunning = false;
     choicesShowing = true; // pauses the sim while the debrief is up
     levelUpScreen.hide();
@@ -2819,6 +2822,10 @@ export async function startGame(container: HTMLElement) {
 
   function startArena() {
     runMode = 'arena';
+    // Defensive: a fresh arena/run must never inherit a paused sim. endRun() sets
+    // choicesShowing=true for the debrief; without this reset, «ЗАНОВО» would restart into a
+    // frozen game (frameGate='pause') with no overlay. The run path re-sets it via the core screen.
+    choicesShowing = false;
     wolfCometDemo = false; // normal arena/run keep the ground; the demo turns this on after
     wolfCometGroup.visible = false; // airship shows only in the wolf-comet demo
     wolfCometIsland.visible = false; // our island base shows only in the wolf-comet demo

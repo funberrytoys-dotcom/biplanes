@@ -74,9 +74,10 @@ export function applyPerk(state: WorldState, id: PerkId): WorldState {
   let hasFlameTrail = state.hasFlameTrail;
   let hasHeavyCannon = state.hasHeavyCannon;
 
-  const bumpHp = (mult: number, healToFull = true) => {
+  // Raise max HP and top off to the new max — matches the legacy applyUpgrade HP behaviour.
+  const bumpHp = (mult: number) => {
     const newMax = player.maxHp * mult;
-    player = { ...player, maxHp: newMax, hp: healToFull ? newMax : Math.max(player.hp, player.hp) };
+    player = { ...player, maxHp: newMax, hp: newMax };
   };
   const addWingman = () => {
     if (wingmanCount < WINGMAN_MAX_COUNT) {
@@ -89,10 +90,10 @@ export function applyPerk(state: WorldState, id: PerkId): WorldState {
   switch (id) {
     // ============================ С.О.В. — Пулемёт ============================
     case 'raskrutka': m.fireRateMultiplier *= 1.22; break;                 // approx: ramp → flat tempo
-    case 'sparennyy-stvol': m.multishotExtra += 1; m.damageMultiplier *= 0.95; break; // REAL fan
+    case 'sparennyy-stvol': m.multishotExtra += 1; m.damageMultiplier *= 0.85; break; // REAL fan (2 pellets ×0.85 = +70% per spec)
     case 'trassiruyuschiy-zamok': m.damageMultiplier *= 1.18; break;       // approx: focus-mark → flat dmg
     case 'radiator-turbina': m.fireRateMultiplier *= 1.12; m.boostPowerMultiplier *= 1.05; break; // approx: speed→tempo
-    case 'gatling-shtorm': m.damageMultiplier *= 1.4; m.fireRateMultiplier *= 1.7; break; // approx: windowed → sustained
+    case 'gatling-shtorm': m.damageMultiplier *= 1.25; m.fireRateMultiplier *= 1.4; break; // approx: windowed burst → modest sustained (toned from 1.4/1.7)
     // ============================ С.О.В. — Ракеты / Звено / Пилотаж ============================
     case 'osinyy-zalp': hasHomingRockets = true; m.salvoCooldownMultiplier *= 0.82; break; // approx: 6 micro → homing+fast
     case 'osinoe-gnezdo': hasDrone = true; droneCount = Math.max(droneCount, 2); break;     // REAL drones
@@ -104,7 +105,7 @@ export function applyPerk(state: WorldState, id: PerkId): WorldState {
     // ============================ Шакалы — Пушка ============================
     case 'domna': m.damageMultiplier *= 1.2; break;                        // approx: heat resource → hot shots
     case 'peregrev-zalp': m.damageMultiplier *= 1.18; break;               // approx: overheat blast → flat dmg
-    case 'dvustvolka-kartech': m.multishotExtra += 2; m.damageMultiplier *= 0.9; hasFlameTrail = true; break; // REAL-ish fan+luji
+    case 'dvustvolka-kartech': m.multishotExtra += 2; m.damageMultiplier *= 0.6; hasFlameTrail = true; break; // REAL-ish fan+luji (3 pellets ×0.6 = +80% per spec)
     case 'grom-pushka': hasHeavyCannon = true; m.damageMultiplier *= 1.3; break; // REAL pierce (heavy cannon)
     // ============================ Шакалы — Ракеты ============================
     case 'chugunnyy-gostinets': m.salvoCooldownMultiplier *= 1.15; m.damageMultiplier *= 1.12; break; // approx: one heavy rocket
@@ -119,7 +120,7 @@ export function applyPerk(state: WorldState, id: PerkId): WorldState {
     // ============================ Общие — Корпус ============================
     case 'broneplastiny': bumpHp(1.25); break;                             // REAL +HP (stacks ×3)
     case 'polevoy-remont': m.hpRegenPerSec += HP_REGEN_PER_SEC; bumpHp(1.05); break; // REAL regen
-    case 'feniks': m.lifestealPerKill += 6; bumpHp(1.1); break;            // approx: revive → survival (lifesteal)
+    case 'feniks': m.lifestealPerKill += 4; bumpHp(1.1); break;            // approx: revive → survival (lifesteal); true 1-shot revive is the deepening pass
     // ============================ Общие — Пилотаж ============================
     case 'chistyy-sryv': m.boostPowerMultiplier *= 1.12; m.boostCoolingMultiplier *= 1.1; break; // approx: stall speed-burst
     case 'egida': m.collisionDamageMultiplier *= 0.9; bumpHp(1.05); break; // approx: 1-hit shield

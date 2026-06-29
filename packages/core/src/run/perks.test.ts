@@ -60,13 +60,18 @@ describe('perk catalog', () => {
 
   it('each faction has a starting core in every category (a real choice of direction)', () => {
     for (const f of ['sov', 'jackals'] as const) {
-      const cats = new Set<PerkCategory>(startingCoresForFaction(f).map((p) => p.category));
+      const cores = startingCoresForFaction(f);
+      const cats = new Set<PerkCategory>(cores.map((p) => p.category));
       // Every faction can open gun / rocket / squad / hull / aerobatics from the start.
       expect(cats.has('gun')).toBe(true);
       expect(cats.has('rocket')).toBe(true);
       expect(cats.has('squad')).toBe(true);
       expect(cats.has('hull')).toBe(true);
       expect(cats.has('aerobatics')).toBe(true);
+      // The pick screen has 5 card slots — a faction must not expose more cores than fit
+      // (regression guard: Jackals previously exposed 6, silently dropping the Пилотаж core).
+      expect(cores.length).toBeLessThanOrEqual(5);
+      expect(cores.length).toBe(cats.size); // exactly one core per category, no dup-category overflow
     }
   });
 

@@ -81,7 +81,9 @@ function pendingCrowns(available: readonly PerkDef[]): PerkDef[] {
   return available
     .filter((p) => p.tier === 'legend' || p.tier === 'node')
     .slice()
-    .sort((a, b) => (order[a.tier]! - order[b.tier]!) || (a.minWave - b.minWave) || a.id.localeCompare(b.id));
+    // Deterministic byte-order tiebreak (NOT localeCompare — it's locale-sensitive and would
+    // make the replay-critical offer roll non-deterministic across locales).
+    .sort((a, b) => (order[a.tier]! - order[b.tier]!) || (a.minWave - b.minWave) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
 
 function weightOf(perk: PerkDef, affinity: PerkAffinity): number {

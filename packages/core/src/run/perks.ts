@@ -192,7 +192,7 @@ const ROWS: PerkRow[] = [
     icon: '16-domna.png',
   },
   {
-    id: 'peregrev-zalp', name: 'Перегрев = залп', faction: 'jackals', category: 'gun', tier: 'node',
+    id: 'peregrev-zalp', name: 'Перегрев=залп', faction: 'jackals', category: 'gun', tier: 'node',
     synergies: ['domna', 'grom-pushka', 'chugunnyy-gostinets'],
     human: 'Переворачивает перегрев из наказания в награду. Догнал ствол до пика — выпускаешь сокрушительный огненный ЗАЛП.',
     effect: 'На 100 домны (или штатном перегреве) — авто-выброс: огнешар ×3 урона + поджог R140, сброс жара в 0 + 1.2с «продув».',
@@ -267,7 +267,7 @@ const ROWS: PerkRow[] = [
   },
   {
     id: 'bronenos', name: 'Броненос', faction: 'jackals', category: 'hull', tier: 'module',
-    startingCore: true, synergies: ['bratskaya-bronya', 'tarannyy-kil', 'broneplastiny'],
+    synergies: ['bratskaya-bronya', 'tarannyy-kil', 'broneplastiny'],
     human: 'Навешиваешь броню до предела: самолёт становится летающим дотом — почти не пробить, но ползёт как утюг.',
     effect: '+40% макс HP и −25% входящего урона. Цена: −18% скорости, −15% поворота. Таран об тебя враги получают +50% урона.',
     note: 'Становишься медленной мишенью, кайт почти невозможен. Против луж не спасает.',
