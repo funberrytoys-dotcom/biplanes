@@ -56,19 +56,6 @@ import {
   runEnemyHpMultiplierForWave,
   RUN_WAVE_COUNT,
   type RunState,
-  // === New 32-perk run system (toggleable; legacy pool stays for rollback) ===
-  rollPerkOffer,
-  applyPerk,
-  createPerkRunState,
-  recordPerkPick,
-  recordStartingCore,
-  recordPerkSkip,
-  buildPerkRunSummary,
-  startingCoresForFaction,
-  getPerk,
-  type PerkDef,
-  type PerkId,
-  type PerkRunState,
 } from '@biplanes/core';
 import {
   createPixiApp,
@@ -113,7 +100,6 @@ import {
 import { createStartScreen } from './screens/start-screen.js';
 import { createCampaignSelect } from './screens/campaign-select.js';
 import { createLevelUpScreen } from './screens/level-up-screen.js';
-import { createPerkPickScreen, type PerkCardVM } from './screens/perk-pick-screen.js';
 import { createDeathScreen } from './screens/death-screen.js';
 import { createRunSummaryScreen } from './screens/run-summary-screen.js';
 import { createDialogueOverlay, createRadioPopup, type DialogueLine } from './campaign/dialogue-overlay.js';
@@ -892,7 +878,7 @@ const SKIP_BRIEFING = URL_PARAMS.has('skipBriefing');
 const DEBUG_HUD_ON_BOOT = URL_PARAMS.has('debug');
 // Bump every deploy. Shown always-on bottom-left so a home-screen iPhone app (no
 // address bar for ?debug) can confirm WHICH build is live + read FPS/counts on a freeze.
-const BUILD_TAG = 'v25-perks-32';
+const BUILD_TAG = 'v24-mobile-clouds';
 // Phones are fill-rate bound (many big semi-transparent clouds + explosions = overdraw).
 // Lighten those on touch devices only; PC/Steam keep full quality.
 const IS_MOBILE = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
@@ -1994,16 +1980,6 @@ export async function startGame(container: HTMLElement) {
   // «Забег»: non-null while a run is active. The run reuses the arena pipeline;
   // every run-specific branch is gated on this being set, so arena/story are untouched.
   let runSession: RunState | null = null;
-  // === New 32-perk system: ON by default, toggleable for rollback (?perks=old or the
-  // in-game settings flag biplanes.newPerks=off → falls back to the legacy upgrade pool). ===
-  const USE_NEW_PERKS = (() => {
-    const q = URL_PARAMS.get('perks');
-    if (q === 'old') return false;
-    if (q === 'new') return true;
-    try { return localStorage.getItem('biplanes.newPerks') !== 'off'; } catch { return true; }
-  })();
-  let perkRun: PerkRunState | null = null;  // new-system per-run state (owned perks + affinity)
-  let perkPickKind: 'wave' | 'core' = 'wave'; // how the next perk-screen pick is recorded
   let runOver = false;        // true once the run-summary screen is up (one-shot guard)
   let runBossSpawned = false; // boss (wave 15) has entered this run
   let storyCompleted = false;
@@ -2028,10 +2004,8 @@ export async function startGame(container: HTMLElement) {
     setFaction(f);
     const mode = pendingFactionMode;
     pendingFactionMode = null;
-    if (mode === 'run') {
-      startRun();
-      showStartingCoreChoice(); // new system: pick a starting core before wave 1 (no-op if legacy)
-    } else { runSession = null; perkRun = null; startArena(); }
+    if (mode === 'run') startRun();
+    else { runSession = null; startArena(); }
   });
 
   function createFactionSelect(host: HTMLElement, onConfirm: (f: 'sov' | 'jackals') => void) {
@@ -2239,68 +2213,6 @@ export async function startGame(container: HTMLElement) {
   );
   uiLayer.addChild(levelUpScreen.container);
 
-  // === New 32-perk pick screen (icon-hero cards, 5-colour rarity, synergy highlights). ===
-  // Drives the per-wave «1 из 3», the run-start core choice, and bonus «КАРТА» cards when
-  // USE_NEW_PERKS is on. The legacy levelUpScreen stays wired for arena + rollback.
-  const perkToVM = (p: PerkDef, owned: readonly PerkId[]): PerkCardVM => ({
-    id: p.id, name: p.name, rarity: p.rarity, category: p.category, tier: p.tier,
-    icon: p.icon, human: p.human,
-    synergies: p.synergies.map((sid) => ({ name: getPerk(sid).name, owned: owned.includes(sid) })),
-  });
-  const perkPickScreen = createPerkPickScreen(
-    app.screen.width,
-    app.screen.height,
-    (id: string) => {
-      try {
-        audio.playUpgradePick();
-        const pid = id as PerkId;
-        state = applyPerk(state, pid);
-        if (perkRun) {
-          perkRun = perkPickKind === 'core' ? recordStartingCore(perkRun, pid) : recordPerkPick(perkRun, pid);
-        }
-        perkPickScreen.hide();
-        choicesShowing = false;
-        updateArenaDirector();
-      } catch (err) {
-        choicesShowing = true;
-        handleFrameError(err);
-      }
-    },
-    {
-      onReroll: () => {
-        if (!runSession || runSession.rerollsRemaining <= 0) return;
-        runSession = recordReroll(runSession);
-        audio.playUpgradeOpen();
-        showRunPickChoices();
-      },
-      onSkip: () => {
-        try {
-          if (!runSession) return;
-          runSession = recordSkip(runSession);
-          if (perkRun) perkRun = recordPerkSkip(perkRun); // keep perk-run skip count for the debrief
-          perkPickScreen.hide();
-          choicesShowing = false;
-          updateArenaDirector();
-        } catch (err) {
-          choicesShowing = true;
-          handleFrameError(err);
-        }
-      },
-      resolveIcon: (file: string) => Texture.from(assetUrl(`assets/run/perk-icons/${file}`)),
-    },
-  );
-  uiLayer.addChild(perkPickScreen.container);
-
-  // Run-start «выбор стартового ядра»: the faction's branch-opener cores, granted free.
-  function showStartingCoreChoice() {
-    if (!USE_NEW_PERKS || !perkRun) return;
-    const cores = startingCoresForFaction(chosenFaction);
-    if (cores.length === 0) return;
-    perkPickKind = 'core';
-    choicesShowing = true;
-    perkPickScreen.show(cores.map((p) => perkToVM(p, perkRun!.picks)), { kind: 'core' });
-  }
-
   let arenaShownStage = 0;
   let arenaRound = 1;
   let currentWeather: WeatherGameplay = weatherGameplay('clear');
@@ -2476,23 +2388,6 @@ export async function startGame(container: HTMLElement) {
 
   function showRunPickChoices() {
     if (!runSession) return;
-    // NEW 32-perk system: roll a foundation/wave-gated offer with the recipe guarantee.
-    if (USE_NEW_PERKS && perkRun) {
-      const psalt =
-        ((arenaRound * 0x9e3779b9) ^ (perkRun.picks.length * 0x85ebca6b) ^ (runSession.rerollsRemaining * 0xc2b2ae35)) >>> 0;
-      const prng = createRng((state.rngState ^ psalt ^ state.tickCount) >>> 0);
-      const offer = rollPerkOffer(chosenFaction, perkRun.picks, arenaRound, perkRun.affinity, prng);
-      arenaRoundPhase = 'upgrade';
-      state = { ...state, pendingLevelUp: false };
-      if (offer.length > 0) {
-        choicesShowing = true;
-        perkPickKind = 'wave';
-        perkPickScreen.show(offer.map((p) => perkToVM(p, perkRun!.picks)), { kind: 'wave', rerollsRemaining: runSession.rerollsRemaining });
-      } else {
-        choicesShowing = false;
-      }
-      return;
-    }
     // Child seed for the pick roll — never consumes the combat RNG stream (§13.6).
     // Salted by reroll budget so a reroll yields a different, replayable offer.
     const salt =
@@ -2532,15 +2427,6 @@ export async function startGame(container: HTMLElement) {
   function showBonusPick() {
     if (choicesShowing || !gameRunning || state.gameOver) return;
     if (!state.player.alive || state.player.state !== 'flying') return;
-    if (USE_NEW_PERKS && runSession && perkRun) {
-      const prng = createRng((state.rngState ^ 0x5a17b3 ^ (state.tickCount * 0x9e3779b9)) >>> 0);
-      const offer = rollPerkOffer(chosenFaction, perkRun.picks, arenaRound, perkRun.affinity, prng);
-      if (offer.length === 0) return;
-      choicesShowing = true;
-      perkPickKind = 'wave';
-      perkPickScreen.show(offer.map((p) => perkToVM(p, perkRun!.picks)), { kind: 'bonus' });
-      return;
-    }
     const rng = createRng((state.rngState ^ 0x5a17b3 ^ (state.tickCount * 0x9e3779b9)) >>> 0);
     const pool = factionUpgradePool(chosenFaction);
     const choices = runSession
@@ -2691,7 +2577,7 @@ export async function startGame(container: HTMLElement) {
   const runSummaryScreen = createRunSummaryScreen(
     app.screen.width,
     app.screen.height,
-    () => { startRun(); showStartingCoreChoice(); }, // ЗАНОВО — fresh run + starting-core choice (no-op for legacy)
+    () => { startRun(); },       // ЗАНОВО — straight into a fresh run
     () => { resetToMenu(); },    // В АНГАР
   );
   uiLayer.addChild(runSummaryScreen.container);
@@ -2730,16 +2616,15 @@ export async function startGame(container: HTMLElement) {
   function endRun(outcome: 'won' | 'lost') {
     if (!runSession || runOver) return;
     runOver = true;
-    const stats = { kills: state.playerScore, timeSec: state.timeSec };
-    // New system records picks on perkRun (legacy runSession.picks stays empty), so its
-    // debrief must read perkRun or it would mis-report 0 picks / an empty build.
-    const summary = (USE_NEW_PERKS && perkRun)
-      ? buildPerkRunSummary(perkRun, arenaRound, outcome, stats, chosenFaction)
-      : buildRunSummary({ ...runSession, wave: arenaRound }, outcome, stats, chosenFaction);
+    const summary = buildRunSummary(
+      { ...runSession, wave: arenaRound },
+      outcome,
+      { kills: state.playerScore, timeSec: state.timeSec },
+      chosenFaction,
+    );
     gameRunning = false;
     choicesShowing = true; // pauses the sim while the debrief is up
     levelUpScreen.hide();
-    perkPickScreen.hide();
     if (outcome === 'won') audio.playVictory(); else audio.playDefeat();
     runSummaryScreen.show(summary);
   }
@@ -2807,7 +2692,6 @@ export async function startGame(container: HTMLElement) {
     screenFx.setVignette(0);
     screenFx.disableDeathTint();
     levelUpScreen.hide();
-    perkPickScreen.hide();
     deathScreen.hide();
     radioPopup.hide();
     dialogueOverlay.hide();
@@ -2822,10 +2706,6 @@ export async function startGame(container: HTMLElement) {
 
   function startArena() {
     runMode = 'arena';
-    // Defensive: a fresh arena/run must never inherit a paused sim. endRun() sets
-    // choicesShowing=true for the debrief; without this reset, «ЗАНОВО» would restart into a
-    // frozen game (frameGate='pause') with no overlay. The run path re-sets it via the core screen.
-    choicesShowing = false;
     wolfCometDemo = false; // normal arena/run keep the ground; the demo turns this on after
     wolfCometGroup.visible = false; // airship shows only in the wolf-comet demo
     wolfCometIsland.visible = false; // our island base shows only in the wolf-comet demo
@@ -2960,7 +2840,6 @@ export async function startGame(container: HTMLElement) {
   // «Забег»: a fresh run on the arena pipeline, gated by runSession.
   function startRun() {
     runSession = createRunState();
-    perkRun = USE_NEW_PERKS ? createPerkRunState() : null;
     runOver = false;
     runBossSpawned = false;
     startArena();
@@ -3430,7 +3309,6 @@ export async function startGame(container: HTMLElement) {
     // 2. Update UI overlays (Level Up Card entries & Death Telegram Typewriter)
     startScreen.update(dt);
     levelUpScreen.update(dt);
-    perkPickScreen.update(dt);
     deathScreen.update(dt);
     runSummaryScreen.update(dt);
     radioPopup.update(dt);
@@ -4610,7 +4488,6 @@ export async function startGame(container: HTMLElement) {
     screenFx.setVignette(0);
     screenFx.disableDeathTint();
     levelUpScreen.hide();
-    perkPickScreen.hide();
     deathScreen.hide();
     radioPopup.hide();
     dialogueOverlay.hide();
@@ -4679,7 +4556,6 @@ export async function startGame(container: HTMLElement) {
     startScreen.resize(w, h);
     campaignSelect.resize(w, h);
     levelUpScreen.resize(w, h);
-    perkPickScreen.resize(w, h);
     deathScreen.resize(w, h);
     runSummaryScreen.resize(w, h);
     dialogueOverlay.resize(w, h);
