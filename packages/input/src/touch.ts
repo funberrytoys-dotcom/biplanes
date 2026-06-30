@@ -34,11 +34,6 @@ export interface TouchController {
   setThrottleEngaged(engaged: boolean): void;
   /** Snap the lever (and reported throttle) back to zero — e.g. at a round start. */
   resetThrottle(): void;
-  /** 'analog' (default): proportional + screen-relative steering. 'classic': the old tristate. */
-  setSteerMode(mode: 'analog' | 'classic'): void;
-  /** Host feeds the player's facing (1 = right, -1 = left) so analog steering stays
-   *  screen-relative ("up" = nose toward the top of the screen regardless of heading). */
-  setPlaneFacing(facing: 1 | -1): void;
   updateZones(viewportW: number, viewportH: number): void;
 }
 
@@ -102,24 +97,6 @@ export function resolveJoystickRotate(
   return 0;
 }
 
-/**
- * ANALOG steering (new default). Reads how FAR the thumb is pushed vertically and returns
- * a smooth pitch value in [-1,1] — push up = +1 (nose up), down = -1 — so small nudges give
- * gentle corrections and full deflection gives a sharp turn. Vertical-only (a side-view plane
- * pitches); horizontal is ignored, removing the confusing 2-axis collapse. The host multiplies
- * this by the plane's facing to keep "up = nose toward the top of the screen" both ways.
- */
-export function resolveAnalogPitch(stick: RoundZone, point: TouchPoint | null): number {
-  if (!point || stick.r <= 0) return 0;
-  const raw = -(point.y - stick.y); // up (dy<0) → positive pitch-up intent
-  const dead = stick.r * JOYSTICK_DEADZONE_RATIO;
-  if (Math.abs(raw) < dead) return 0;
-  const maxTravel = stick.r * 0.72; // matches the knob clamp
-  const sign = raw < 0 ? -1 : 1;
-  const mag = Math.min(1, (Math.abs(raw) - dead) / Math.max(1, maxTravel - dead));
-  return sign * Math.pow(mag, 1.25); // mild expo → finer control near centre
-}
-
 export function resolveJoystickKnob(
   joystick: RoundZone,
   point: TouchPoint | null,
@@ -153,8 +130,6 @@ export function createTouchController(canvas: HTMLElement): TouchController {
     eject: false,
     throttleValue: DEFAULT_THROTTLE,
     throttleEngaged: false,
-    steerMode: 'analog' as 'analog' | 'classic',
-    planeFacing: 1 as 1 | -1,
   };
   let zones: TouchZones = resolveTouchZones(0, 0);
   let viewW = 0;
@@ -252,12 +227,8 @@ export function createTouchController(canvas: HTMLElement): TouchController {
 
   return {
     current(): PlayerCommand {
-      // Analog (default): proportional pitch, made screen-relative via the plane's facing so
-      // "push up" always tips the nose toward the top of the screen. Classic: the old tristate.
       const rotate = state.joystickOrigin
-        ? (state.steerMode === 'classic'
-            ? resolveJoystickRotate(stickZone(), state.joystickPoint)
-            : -state.planeFacing * resolveAnalogPitch(stickZone(), state.joystickPoint))
+        ? resolveJoystickRotate(stickZone(), state.joystickPoint)
         : 0;
       return {
         rotate,
@@ -288,8 +259,6 @@ export function createTouchController(canvas: HTMLElement): TouchController {
     throttleValue() { return state.throttleValue; },
     setThrottleEngaged(engaged: boolean) { state.throttleEngaged = engaged; },
     resetThrottle() { state.throttleValue = 0; },
-    setSteerMode(mode: 'analog' | 'classic') { state.steerMode = mode; },
-    setPlaneFacing(facing: 1 | -1) { state.planeFacing = facing; },
     updateZones,
   };
 }

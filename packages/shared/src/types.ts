@@ -6,7 +6,7 @@ export interface Vec2 {
 }
 
 export interface PlayerCommand {
-  rotate: number;           // analog steer in [-1,1]: -1 = full CCW, 0 = none, +1 = full CW
+  rotate: -1 | 0 | 1;       // -1 = CCW, 0 = none, 1 = CW
   fire: boolean;
   bomb: boolean;
   special?: boolean;         // air special weapon (rocket salvo) — dedicated button / key

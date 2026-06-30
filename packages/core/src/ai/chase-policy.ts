@@ -433,7 +433,7 @@ export function aiCommand(
   let diff = normalizeAngle(targetHeading - self.kinematic.heading);
   diff += noise(newState.wobbleSeed, currentTime) * params.errorWobbleRad;
 
-  let rotate = 0; // AI steers at full ±1 deflection (heading-relative); analog is player-only
+  let rotate: -1 | 0 | 1 = 0;
   if (diff > params.turnDeadzoneRad) rotate = 1;
   else if (diff < -params.turnDeadzoneRad) rotate = -1;
 

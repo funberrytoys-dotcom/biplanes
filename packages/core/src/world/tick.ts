@@ -148,7 +148,7 @@ function resetToRunway(p: Plane, worldWidth: number = WORLD_WIDTH, worldHeight: 
 
 function stepPlaneByState(
   p: Plane,
-  cmd: { rotate: number; boost?: boolean; boostMultiplier?: number },
+  cmd: { rotate: -1 | 0 | 1; boost?: boolean; boostMultiplier?: number },
   dt: number,
   worldWidth: number = WORLD_WIDTH,
   softFloor: boolean = false,
@@ -402,7 +402,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
       respawnTimer: Math.max(state.player.respawnTimer, 1.0),
     };
 
-    const pilotInput = { rotate: Math.sign(playerCommand.rotate) as -1 | 0 | 1, jump: playerCommand.jump };
+    const pilotInput = { rotate: playerCommand.rotate, jump: playerCommand.jump };
     let pp = pilots[playerPilotIdx]!;
     if (pp.state === 'parachute') {
       pp = stepPilotParachute(pp, pilotInput, TICK_DT, worldWidth, worldHeight);

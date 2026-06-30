@@ -1,42 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveJoystickKnob, resolveJoystickRotate, resolveAnalogPitch, resolveThrottleValue, resolveTouchZones } from './touch.js';
-
-describe('analog steering (new default stick)', () => {
-  const stick = { x: 200, y: 300, r: 100 };
-
-  it('returns 0 at centre and inside the deadzone', () => {
-    expect(resolveAnalogPitch(stick, null)).toBe(0);
-    expect(resolveAnalogPitch(stick, { x: stick.x, y: stick.y })).toBe(0);
-    expect(resolveAnalogPitch(stick, { x: stick.x, y: stick.y - stick.r * 0.04 })).toBe(0); // below deadzone
-  });
-
-  it('push UP gives positive pitch (nose-up intent), push DOWN gives negative', () => {
-    expect(resolveAnalogPitch(stick, { x: stick.x, y: stick.y - stick.r * 0.5 })).toBeGreaterThan(0);
-    expect(resolveAnalogPitch(stick, { x: stick.x, y: stick.y + stick.r * 0.5 })).toBeLessThan(0);
-  });
-
-  it('is PROPORTIONAL and monotonic — a bigger push gives a bigger value (the whole point)', () => {
-    const small = resolveAnalogPitch(stick, { x: stick.x, y: stick.y - stick.r * 0.2 });
-    const mid = resolveAnalogPitch(stick, { x: stick.x, y: stick.y - stick.r * 0.45 });
-    const big = resolveAnalogPitch(stick, { x: stick.x, y: stick.y - stick.r * 0.72 });
-    expect(small).toBeGreaterThan(0);
-    expect(mid).toBeGreaterThan(small);
-    expect(big).toBeGreaterThan(mid);
-  });
-
-  it('caps at full deflection (magnitude never exceeds 1)', () => {
-    const past = resolveAnalogPitch(stick, { x: stick.x, y: stick.y - stick.r * 5 });
-    expect(past).toBeLessThanOrEqual(1);
-    expect(past).toBeGreaterThan(0.9);
-  });
-
-  it('host makes it screen-relative: rotate = -facing * pitch keeps "up = nose up" both ways', () => {
-    const pitchUp = resolveAnalogPitch(stick, { x: stick.x, y: stick.y - stick.r * 0.6 }); // > 0
-    // Facing right (1): nose-up = CCW = negative rotate. Facing left (-1): nose-up = CW = positive.
-    expect(-1 * pitchUp).toBeLessThan(0);   // facing right → CCW
-    expect(-(-1) * pitchUp).toBeGreaterThan(0); // facing left → CW (the inversion fix)
-  });
-});
+import { resolveJoystickKnob, resolveJoystickRotate, resolveThrottleValue, resolveTouchZones } from './touch.js';
 
 describe('touch control layout', () => {
   it('keeps the flight stick alone on the left and combat buttons on the right', () => {

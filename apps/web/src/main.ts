@@ -10,7 +10,7 @@ import {
 // the live version (cache-busted, no-store) and, if it's newer than this bundle,
 // reload ONCE to it. Guarded against reload loops via sessionStorage. Bump in BOTH
 // this constant AND apps/web/public/version.json (and BUILD_TAG in the app) per deploy.
-const THIS_VERSION = 'v26-analog-stick';
+const THIS_VERSION = 'v24-mobile-clouds';
 void (async () => {
   try {
     const res = await fetch(`version.json?t=${Date.now()}`, { cache: 'no-store' });
