@@ -2632,6 +2632,15 @@ export async function startGame(container: HTMLElement) {
   const kb = createKeyboardController();
   const touch = createTouchController(app.canvas);
   touch.updateZones(app.screen.width, app.screen.height);
+  // Steering scheme: analog + screen-relative (default) vs the legacy tristate. Rollback via
+  // ?steer=classic in the URL or localStorage biplanes.steer='classic'.
+  const steerMode: 'analog' | 'classic' = (() => {
+    const q = URL_PARAMS.get('steer');
+    if (q === 'classic') return 'classic';
+    if (q === 'analog') return 'analog';
+    try { return localStorage.getItem('biplanes.steer') === 'classic' ? 'classic' : 'analog'; } catch { return 'analog'; }
+  })();
+  touch.setSteerMode(steerMode);
   const touchGuide = createTouchGuide(touch);
   uiLayer.addChild(touchGuide.container);
   touchGuide.layout(app.screen.width, app.screen.height);
@@ -2645,10 +2654,12 @@ export async function startGame(container: HTMLElement) {
   }
 
   function currentCommand(): PlayerCommand {
+    // Feed the player's facing so analog steering stays screen-relative (push up = nose up).
+    touch.setPlaneFacing(state.player?.kinematic?.facing === -1 ? -1 : 1);
     const k = kb.current();
     const t = touch.current();
     return {
-      rotate: (k.rotate || t.rotate) as -1 | 0 | 1,
+      rotate: k.rotate || t.rotate,
       fire: k.fire || t.fire,
       bomb: k.bomb || t.bomb,
       special: k.special === true || t.special === true || k.bomb === true,

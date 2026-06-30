@@ -32,9 +32,15 @@ export interface PlaneKinematic {
 }
 
 export interface PhysicsInput {
-  rotate: -1 | 0 | 1;
+  rotate: number; // analog [-1,1]; -1 = full CCW … +1 = full CW (clamped + NaN-guarded in stepPlane)
   boost?: boolean;
   boostMultiplier?: number;
+}
+
+/** Clamp steer to [-1,1] and scrub NaN/Infinity — a bad value here would corrupt the
+ *  deterministic heading stream permanently (Math.min/max don't clear NaN). */
+function safeRotate(r: number): number {
+  return Number.isFinite(r) ? Math.max(-1, Math.min(1, r)) : 0;
 }
 
 export function isStalling(p: PlaneKinematic): boolean {
@@ -51,10 +57,10 @@ export function stepPlane(
   speedMult: number = 1, // <1 = heavier airframe with a lower top speed (Алые Шакалы)
 ): PlaneKinematic {
   const groundY = worldHeight - 90;
-  // 1) Continuous rotation
-  // rotate=-1 → CCW (nose toward up when facing right)
-  // rotate=+1 → CW (nose toward down when facing right)
-  let heading = p.heading + input.rotate * PLANE_TURN_RATE * dt;
+  // 1) Continuous rotation — analog: magnitude scales the turn rate (small push = gentle
+  // correction, full deflection = the old fixed rate). rotate=-1 → CCW (nose up when facing
+  // right); rotate=+1 → CW (nose down when facing right).
+  let heading = p.heading + safeRotate(input.rotate) * PLANE_TURN_RATE * dt;
 
   // Normalize to [-π, π]
   while (heading > Math.PI) heading -= 2 * Math.PI;
@@ -228,7 +234,7 @@ export function stepPlaneTaxi(
   g = Math.min(G_MAX_LEVEL, g);
 
   // Rotation — same input semantics as in flight (rotate=-1 tips nose up when facing right).
-  let heading = p.heading + input.rotate * PLANE_TURN_RATE * dt;
+  let heading = p.heading + safeRotate(input.rotate) * PLANE_TURN_RATE * dt;
   while (heading > Math.PI) heading -= 2 * Math.PI;
   while (heading < -Math.PI) heading += 2 * Math.PI;
 

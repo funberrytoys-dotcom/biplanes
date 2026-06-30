@@ -12,7 +12,7 @@ export interface KeyboardController {
 export function commandFromKeys(keys: ReadonlySet<string>): PlayerCommand {
   const left = keys.has('KeyA') || keys.has('ArrowLeft');
   const right = keys.has('KeyD') || keys.has('ArrowRight');
-  let rotate: -1 | 0 | 1 = 0;
+  let rotate = 0; // analog-compatible; keyboard still steers at full ±1 deflection
   if (left && !right) rotate = -1;
   else if (right && !left) rotate = 1;
 
