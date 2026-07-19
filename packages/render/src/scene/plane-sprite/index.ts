@@ -59,10 +59,13 @@ export interface PlaneSpriteHandle {
 export function createPlaneSprite(
   faction: 'player' | 'enemy',
   visual: 'player' | 'enemy' = faction,
+  // Hero planes (the player's own + bosses) get the faction HERO in the cockpit
+  // (Chico / Baron); everyone else gets the rank-and-file pilot (cat / jackal).
+  heroPilot = false,
 ): PlaneSpriteHandle {
   const c = new Container();
 
-  const body = createPlaneBody(visual);
+  const body = createPlaneBody(visual, heroPilot);
   const {
     fuselageContainer,
     wingContainer,

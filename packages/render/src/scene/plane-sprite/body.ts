@@ -24,6 +24,10 @@ const PLANE_ART = {
     frameCount: 50,
     columns: 10,
     fps: 24,
+    // Cockpit opening in FRAME pixels (art faces left): bust bottom-center sits
+    // here, tucked behind the painted rim. h = bust display HEIGHT — normalizing
+    // by height keeps heads level across busts with different aspect ratios.
+    cockpit: { x: 274, y: 132, h: 58 },
   },
   enemy: {
     url: assetUrl('assets/biplanes/plane_enemy_crimson_sheet.png'),
@@ -34,6 +38,20 @@ const PLANE_ART = {
     frameCount: 17,
     columns: 6,
     fps: 12,
+    cockpit: { x: 302, y: 134, h: 73 },
+  },
+} as const;
+
+// Cockpit pilot busts (Codex art, face left like the plane sheets). Heroes fly
+// hero planes: the player's own plane and bosses; everyone else is a grunt.
+const COCKPIT_PILOT_ART = {
+  player: {
+    hero: assetUrl('assets/biplanes/pilot_cockpit_chico.png'),
+    grunt: assetUrl('assets/biplanes/pilot_cockpit_cat.png'),
+  },
+  enemy: {
+    hero: assetUrl('assets/biplanes/pilot_cockpit_baron.png'),
+    grunt: assetUrl('assets/biplanes/pilot_cockpit_jackal.png'),
   },
 } as const;
 
@@ -62,7 +80,7 @@ function createAnimatedPlaneArt(art: typeof PLANE_ART.player | typeof PLANE_ART.
   };
 }
 
-export function createPlaneBody(faction: 'player' | 'enemy'): PlaneBodyHandle {
+export function createPlaneBody(faction: 'player' | 'enemy', heroPilot = false): PlaneBodyHandle {
   const wingContainer = new Container();
   const fuselageContainer = new Container();
   const propellerContainer = new Container();
@@ -74,7 +92,17 @@ export function createPlaneBody(faction: 'player' | 'enemy'): PlaneBodyHandle {
   planeArt.anchor.set(0.5);
   const artScale = 104 / art.width;
   planeArt.scale.set(-artScale, artScale);
-  fuselageContainer.addChild(planeArt);
+
+  // Cockpit pilot bust — layered UNDER the painted fuselage so the cockpit rim
+  // covers the lower torso and the pilot genuinely sits inside the opening.
+  // Same left-facing orientation + mirror as the plane sheet itself.
+  const pilotSprite = Sprite.from(heroPilot ? COCKPIT_PILOT_ART[faction].hero : COCKPIT_PILOT_ART[faction].grunt);
+  pilotSprite.anchor.set(0.5, 1);
+  const cockpit = art.cockpit;
+  pilotSprite.x = (cockpit.x - art.frameWidth / 2) * -artScale;
+  pilotSprite.y = (cockpit.y - art.frameHeight / 2) * artScale;
+  pilotSprite.visible = false; // shown once the texture has real dimensions (see update below)
+  fuselageContainer.addChild(pilotSprite, planeArt);
 
   const primaryColor = isPlayer ? 0xf4d35e : 0xc0392b;    // Warm yellow / Crimson red
   const secondaryColor = isPlayer ? 0xeab308 : 0x962d22;  // Golden ochre / Dark burgundy
@@ -237,6 +265,16 @@ export function createPlaneBody(faction: 'player' | 'enemy'): PlaneBodyHandle {
     wingShadow,
     fuselageGlint,
     propellerX: noseX,
-    updateArt: artHandle.update,
+    updateArt(dt: number) {
+      artHandle.update(dt);
+      if (!pilotSprite.visible) {
+        const tex = pilotSprite.texture;
+        if (tex && tex !== Texture.EMPTY && tex.width > 2) {
+          const s = (cockpit.h * artScale) / tex.height;
+          pilotSprite.scale.set(-s, s); // mirrored together with the plane art
+          pilotSprite.visible = true;
+        }
+      }
+    },
   };
 }

@@ -113,6 +113,7 @@ import {
   THROTTLE_CAREFUL_FRAC_LEGACY,
 } from './throttle-gauge.js';
 import { resolveStallWarning, STALL_WARNING_TEXT, type StallWarning } from './stall-warning.js';
+import { runLostThisFrame } from './run-life.js';
 import {
   resolveFirstTimeHint,
   hintsAlreadySeen,
@@ -230,6 +231,12 @@ const VISUAL_ASSET_URLS = [
   assetUrl('assets/biplanes/supply_balloon_chest.png'),
   assetUrl('assets/biplanes/supply_balloon_chest_red.png'),
   ...Object.values(PILOT_CHUTE_ART_URLS),
+  // Cockpit pilot busts (drawn inside the plane sprites — must be preloaded or
+  // Pixi renders them invisible).
+  assetUrl('assets/biplanes/pilot_cockpit_chico.png'),
+  assetUrl('assets/biplanes/pilot_cockpit_cat.png'),
+  assetUrl('assets/biplanes/pilot_cockpit_baron.png'),
+  assetUrl('assets/biplanes/pilot_cockpit_jackal.png'),
   assetUrl('assets/biplanes/hud/lever_knob.png'),
   assetUrl('assets/hud/throttle_jackal.png'),
   // «Забег» branch emblems (shown on the run-summary screen).
@@ -962,7 +969,7 @@ const DEBUG_HUD_ON_BOOT = URL_PARAMS.has('debug');
 let CONTROLS_CONFIG = getControlsConfig();
 // Bump every deploy. Shown always-on bottom-left so a home-screen iPhone app (no
 // address bar for ?debug) can confirm WHICH build is live + read FPS/counts on a freeze.
-const BUILD_TAG = 'v30-parachutists';
+const BUILD_TAG = 'v31-cockpit-pilots';
 // Phones are fill-rate bound (many big semi-transparent clouds + explosions = overdraw).
 // Lighten those on touch devices only; PC/Steam keep full quality.
 const IS_MOBILE = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
@@ -1380,8 +1387,9 @@ export async function startGame(container: HTMLElement) {
   const wcDeckPlanes: WCDeckPlane[] = [];
   {
     const deckSpots: Array<[number, number]> = [[-780, 150], [-230, 140], [330, 140], [880, 150]];
-    for (const [x, y] of deckSpots) {
-      const handle = createPlaneSprite('enemy', 'enemy'); // red Jackal airframe
+    for (const [i, [x, y]] of deckSpots.entries()) {
+      // Red Jackal airframes; the 4th parked plane is the boss «Шрам» — Baron himself.
+      const handle = createPlaneSprite('enemy', 'enemy', i === deckSpots.length - 1);
       handle.container.position.set(x, y);
       handle.container.scale.x = -1; // face left — the launch direction (toward the incoming player)
       wcGondola.addChild(handle.container);
@@ -1509,7 +1517,7 @@ export async function startGame(container: HTMLElement) {
   const playerVisual = (): 'player' | 'enemy' => (chosenFaction === 'jackals' ? 'enemy' : 'player');
   const enemyVisual = (): 'player' | 'enemy' => (chosenFaction === 'jackals' ? 'player' : 'enemy');
 
-  let playerSprite = createPlaneSprite('player', playerVisual());
+  let playerSprite = createPlaneSprite('player', playerVisual(), true);
   planeLayer.addChild(playerSprite.container, playerSprite.hpBar);
   groundShadowLayer.addChild(playerSprite.shadow);
 
@@ -1519,7 +1527,7 @@ export async function startGame(container: HTMLElement) {
     planeLayer.removeChild(playerSprite.container);
     planeLayer.removeChild(playerSprite.hpBar);
     groundShadowLayer.removeChild(playerSprite.shadow);
-    playerSprite = createPlaneSprite('player', playerVisual());
+    playerSprite = createPlaneSprite('player', playerVisual(), true);
     planeLayer.addChild(playerSprite.container, playerSprite.hpBar);
     groundShadowLayer.addChild(playerSprite.shadow);
   }
@@ -4087,8 +4095,14 @@ export async function startGame(container: HTMLElement) {
       screenFx.enableDeathTint();
       clock.slowMo(SLOW_MO_SCALE, SLOW_MO_DURATION_SEC, SLOW_MO_RECOVERY_SEC);
     }
-    // «Забег» is one life: the moment the player's plane is destroyed, the run ends.
-    if (runSession && !runOver && prevPlayerAlive && !state.player.alive) {
+    // «Забег» is one life — the PILOT's life, not the airframe's (see run-life.ts):
+    // a parachute bail keeps the run going; walking home respawns the plane.
+    if (runSession && !runOver && runLostThisFrame({
+      prevPlayerAlive,
+      playerAlive: state.player.alive,
+      pilotOut: playerPilotActive,
+      pilotDead: state.pilots.some(p => p.faction === 'player' && p.state === 'dead'),
+    })) {
       endRun('lost');
     }
     if (!prevPlayerAlive && state.player.alive) {
@@ -4516,7 +4530,7 @@ export async function startGame(container: HTMLElement) {
       }
       let s = enemySprites.get(e.id);
       if (!s) {
-        s = createPlaneSprite('enemy', enemyVisual());
+        s = createPlaneSprite('enemy', enemyVisual(), e.isBoss === true);
         planeLayer.addChild(s.container, s.hpBar);
         groundShadowLayer.addChild(s.shadow);
         enemySprites.set(e.id, s);
