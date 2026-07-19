@@ -23,3 +23,16 @@ coverage/
 /INTRO1/
 /SOV fraction/
 /intro 2/
+
+# Heavy raw ART dumps (imagegen sources, upscale batches, reference sheets).
+# The game only ships the processed copies under apps/web/public/assets.
+/WOLF COMET ASSETS/
+/output/
+docs/perk-icons/
+docs/references/CLOUDS FOR USE/
+docs/references/clouds-*/
+docs/references/generated-clouds-*/
+docs/references/explosions-spritesheets-*/
+docs/references/new-clouds/
+docs/u6964384989_*.png
+tools/assets/_cloud_contact_sheet.png

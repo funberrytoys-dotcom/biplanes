@@ -106,8 +106,10 @@ export function createArenaWeather(width: number, height: number, initialPreset:
       flash.alpha = 0;
       return;
     }
-    flash.rect(0, 0, w, h).fill({ color: 0xdfeeff, alpha: 0.52 });
-    flash.rect(0, h * 0.06, w, h * 0.28).fill({ color: 0xffffff, alpha: 0.22 });
+    // Softer weather-flash (was 0.52/0.22 near-white) + spaced out far more (see cooldowns) so
+    // storm stages don't strobe the whole screen every couple of seconds = eye strain.
+    flash.rect(0, 0, w, h).fill({ color: 0xdfeeff, alpha: 0.25 });
+    flash.rect(0, h * 0.06, w, h * 0.28).fill({ color: 0xffffff, alpha: 0.12 });
     flash.alpha = Math.min(1, lightningLife / 0.12);
   }
 
@@ -118,7 +120,7 @@ export function createArenaWeather(width: number, height: number, initialPreset:
     redrawTint();
     rain.clear();
     snow.clear();
-    lightningCooldown = config.lightning ? 1.8 + Math.random() * 2.5 : 9999;
+    lightningCooldown = config.lightning ? 7 + Math.random() * 7 : 9999;
     lightningLife = 0;
     drawLightning();
   }
@@ -184,7 +186,7 @@ export function createArenaWeather(width: number, height: number, initialPreset:
           lightningCooldown -= dt;
           if (lightningCooldown <= 0) {
             lightningLife = 0.12;
-            lightningCooldown = 2.5 + Math.random() * 5.0;
+            lightningCooldown = 8 + Math.random() * 8; // far more spacing (was 2.5–7.5s)
           }
         }
       } else {

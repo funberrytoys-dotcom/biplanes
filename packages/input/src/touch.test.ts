@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { resolveJoystickKnob, resolveJoystickRotate, resolveThrottleValue, resolveTouchZones } from './touch.js';
+import {
+  classifyPointerState,
+  createStickState,
+  resolveJoystickKnob,
+  resolveJoystickRotate,
+  resolveThrottleValue,
+  resolveTouchZones,
+  type PointerSample,
+} from './touch.js';
 
 describe('touch control layout', () => {
   it('keeps the flight stick alone on the left and combat buttons on the right', () => {
@@ -85,5 +93,55 @@ describe('touch control layout', () => {
     });
 
     expect(Math.hypot(knob.x - joystick.x, knob.y - joystick.y)).toBeLessThanOrEqual(joystick.r * 0.72);
+  });
+});
+
+describe('pointer classification (input-freshness core)', () => {
+  const W = 932;
+  const H = 430;
+  const zones = resolveTouchZones(W, H);
+  const ctx = { zones, viewW: W };
+
+  function classify(pointers: PointerSample[], prev = createStickState()) {
+    return classifyPointerState(prev, pointers, ctx);
+  }
+
+  it('a thumb landing on the left pad claims the floating stick at that spot', () => {
+    const s = classify([{ id: 1, x: 200, y: 300 }]);
+    expect(s.joystickId).toBe(1);
+    expect(s.joystickOrigin).toEqual({ x: 200, y: 300 });
+    expect(s.joystickPoint).toEqual({ x: 200, y: 300 });
+  });
+
+  it('the claimed stick follows its pointer and the origin stays put', () => {
+    const claimed = classify([{ id: 1, x: 200, y: 300 }]);
+    const moved = classify([{ id: 1, x: 230, y: 260 }], claimed);
+    expect(moved.joystickOrigin).toEqual({ x: 200, y: 300 }); // origin pinned to landing spot
+    expect(moved.joystickPoint).toEqual({ x: 230, y: 260 }); // freshest finger position
+  });
+
+  it('releasing the stick pointer clears the floating stick', () => {
+    const claimed = classify([{ id: 1, x: 200, y: 300 }]);
+    const released = classify([], claimed);
+    expect(released.joystickId).toBeNull();
+    expect(released.joystickOrigin).toBeNull();
+  });
+
+  it('a second pointer on the fire button fires WITHOUT stealing the stick', () => {
+    const claimed = classify([{ id: 1, x: 200, y: 300 }]);
+    const s = classify([
+      { id: 1, x: 230, y: 260 },
+      { id: 2, x: zones.fire.x, y: zones.fire.y },
+    ], claimed);
+    expect(s.fire).toBe(true);
+    expect(s.joystickId).toBe(1); // stick still owned by the first thumb
+  });
+
+  it('a pointer on the lever sets + engages the throttle, and the value persists on release', () => {
+    const onLever = classify([{ id: 9, x: zones.throttle.x, y: zones.throttle.yTop }]);
+    expect(onLever.throttleEngaged).toBe(true);
+    expect(onLever.throttleValue).toBeCloseTo(1, 2);
+    const released = classify([], onLever);
+    expect(released.throttleValue).toBeCloseTo(1, 2); // lever holds its position
   });
 });

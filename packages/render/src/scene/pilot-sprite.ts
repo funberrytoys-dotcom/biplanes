@@ -1,4 +1,4 @@
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Sprite, Texture } from 'pixi.js';
 import type { Pilot } from '@biplanes/core';
 
 interface PilotColors {
@@ -18,12 +18,20 @@ const ENEMY_COLORS: PilotColors = {
   canopyStroke: 0x666666,
 };
 
+// Full parachutist art (canopy + straps + pilot in one image). Sized so the
+// canopy footprint stays close to the old 60px vector chute; the anchor puts
+// the pilot figure roughly where the vector body sat (local y ≈ +22..36).
+const CHUTE_ART_HEIGHT = 84;
+const CHUTE_ART_ANCHOR_Y = 0.55;
+
 /**
  * Renders an ejected pilot in four visual states. Faction determines colors:
  * player = brown jacket / white canopy, enemy = darker jacket / grey canopy.
+ * When `parachuteTexUrl` is given (Chico / Baron parachutist art), the PNG
+ * replaces the vector chute once loaded; vector stays as an instant fallback.
  * Adds Chico's signature yellow scarf trailing and waving dynamically in the wind under parachute.
  */
-export function createPilotSprite(faction: 'player' | 'enemy' = 'player'): {
+export function createPilotSprite(faction: 'player' | 'enemy' = 'player', parachuteTexUrl?: string): {
   container: Container;
   update: (p: Pilot) => void;
   destroy: () => void;
@@ -36,6 +44,12 @@ export function createPilotSprite(faction: 'player' | 'enemy' = 'player'): {
 
   // --- Parachute group ---
   const parachuteGroup = new Container();
+  const vectorChute = new Container();
+  const chuteSprite = parachuteTexUrl ? Sprite.from(parachuteTexUrl) : null;
+  if (chuteSprite) {
+    chuteSprite.anchor.set(0.5, CHUTE_ART_ANCHOR_Y);
+    chuteSprite.visible = false;
+  }
   const canopy = new Graphics()
     .moveTo(-30, 0)
     .arc(0, 0, 30, Math.PI, 0, false)
@@ -55,7 +69,9 @@ export function createPilotSprite(faction: 'player' | 'enemy' = 'player'): {
   // Parachute Scarf node (only for player Captain Chico)
   const parachuteScarf = new Graphics();
   
-  parachuteGroup.addChild(canopy, lineL, lineR, lineM1, lineM2, bodyP, headP, parachuteScarf);
+  vectorChute.addChild(canopy, lineL, lineR, lineM1, lineM2, bodyP, headP, parachuteScarf);
+  parachuteGroup.addChild(vectorChute);
+  if (chuteSprite) parachuteGroup.addChild(chuteSprite);
 
   // --- Walking group ---
   const walkingGroup = new Container();
@@ -103,8 +119,27 @@ export function createPilotSprite(faction: 'player' | 'enemy' = 'player'): {
       // Animate timers
       animTime += 0.15;
 
-      // Chico's dynamic scarf under parachute
-      if (isPlayer && isParachuting) {
+      // Prefer the parachutist art once its texture has real dimensions
+      // (same pattern as the supply balloon: vector stays until then).
+      let artActive = false;
+      if (chuteSprite) {
+        const tex = chuteSprite.texture;
+        if (tex && tex !== Texture.EMPTY && tex.width > 2) {
+          if (!chuteSprite.visible) {
+            chuteSprite.visible = true;
+            vectorChute.visible = false;
+            chuteSprite.scale.set(CHUTE_ART_HEIGHT / tex.height);
+          }
+          artActive = true;
+        }
+      }
+      if (artActive && isParachuting && chuteSprite) {
+        // Gentle pendulum sway so the descent doesn't look frozen.
+        chuteSprite.rotation = Math.sin(animTime * 0.4) * 0.055;
+      }
+
+      // Chico's dynamic scarf under parachute (vector fallback only — the art has its own look)
+      if (isPlayer && isParachuting && !artActive) {
         parachuteScarf.clear();
         const neckX = 0;
         const neckY = 24;

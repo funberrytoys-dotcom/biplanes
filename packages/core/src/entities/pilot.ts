@@ -21,6 +21,7 @@ export interface Pilot {
   hp: number;                     // pilot has tiny HP — one-hit kill from any bullet
   deathTimer: number;             // seconds remaining in 'dead' state before removal
   groundedJumpCooldown: number;   // seconds until pilot can jump again (only when grounded)
+  fromBoss?: boolean;             // ejected from a boss plane — render uses the enemy HERO art
 }
 
 /** Find the (at most one) pilot of a given faction in the pilots array. */

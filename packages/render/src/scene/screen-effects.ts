@@ -100,9 +100,13 @@ export function createScreenEffects(width: number, height: number): ScreenEffect
     container: c,
     flash(color, alpha, durSec) {
       flashG.clear().rect(0, 0, w, h).fill(color);
-      flashAlpha = alpha;
-      flashLife = durSec;
-      flashMaxLife = durSec;
+      // Don't RE-STACK overlapping flashes into a continuous bright wash (rapid fire / rapid
+      // kills used to keep re-arming the overlay before it decayed → a constant ~8 Hz full-screen
+      // luminance ripple = eye strain). Keep the STRONGER of current vs incoming so it still
+      // decays back to zero between events.
+      flashAlpha = Math.max(flashAlpha, alpha);
+      flashLife = Math.max(flashLife, durSec);
+      flashMaxLife = Math.max(flashMaxLife, durSec);
     },
     setVignette(pct) {
       baseVignette = Math.max(0, Math.min(1, pct));
@@ -131,7 +135,7 @@ export function createScreenEffects(width: number, height: number): ScreenEffect
     triggerHitGlitch() {
       glitchLife = GLITCH_DURATION;
     },
-    update(dt, timeSec, worldRoot) {
+    update(dt, _timeSec, worldRoot) {
       if (flashLife > 0) {
         flashLife = Math.max(0, flashLife - dt);
         flashG.alpha = (flashLife / flashMaxLife) * flashAlpha;
@@ -139,26 +143,24 @@ export function createScreenEffects(width: number, height: number): ScreenEffect
         flashG.alpha = 0;
       }
 
-      // Pulse radial vignette on low HP (Task 1.7)
-      const pulse = 0.8 + 0.2 * Math.sin(timeSec * 12);
+      // Low-HP vignette held STEADY. It used to throb at 0.8+0.2*sin(timeSec*12) (~1.9 Hz), which
+      // ran for whole rounds while damaged (esp. one-life «Забег») = a persistent peripheral
+      // brightness oscillation. The steady red ring still clearly reads as "low HP".
       if (vignetteSprite) {
-        vignetteSprite.alpha = baseVignette * pulse;
+        vignetteSprite.alpha = baseVignette;
       }
 
-      // Chromatic Aberration RGB split visual trick (Phase 2.3)
+      // Hit-glitch chromatic split — CALMED. It used a ~22 Hz sine strobe (sin(timeSec*140)) that,
+      // retriggered on every hit in a firefight, became a near-constant high-saturation colour
+      // flicker. Now it just fades out smoothly (monotonic decay, smaller offset + alpha).
       if (glitchLife > 0) {
         glitchLife -= dt;
         glitchG.visible = true;
         glitchG.clear();
-        
-        // High frequency flicker offset
-        const phase = Math.sin(timeSec * 140);
-        const shiftX = phase * 6.5;
-        const alphaFrac = glitchLife / GLITCH_DURATION;
-
-        // Draw neon magenta shifted left, neon cyan shifted right
-        glitchG.rect(shiftX, 0, w, h).fill({ color: 0xff0066, alpha: 0.16 * alphaFrac });
-        glitchG.rect(-shiftX, 0, w, h).fill({ color: 0x00ffcc, alpha: 0.16 * alphaFrac });
+        const alphaFrac = Math.max(0, glitchLife / GLITCH_DURATION);
+        const shiftX = alphaFrac * 3;
+        glitchG.rect(shiftX, 0, w, h).fill({ color: 0xff0066, alpha: 0.08 * alphaFrac });
+        glitchG.rect(-shiftX, 0, w, h).fill({ color: 0x00ffcc, alpha: 0.08 * alphaFrac });
       } else {
         glitchG.visible = false;
       }

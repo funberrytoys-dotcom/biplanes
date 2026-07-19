@@ -49,12 +49,13 @@ export function stepPlane(
   softFloor: boolean = false,
   worldHeight: number = WORLD_HEIGHT,
   speedMult: number = 1, // <1 = heavier airframe with a lower top speed (Алые Шакалы)
+  turnRate: number = PLANE_TURN_RATE, // rad/sec at full deflection; injectable ONLY for tuning sims
 ): PlaneKinematic {
   const groundY = worldHeight - 90;
   // 1) Continuous rotation
   // rotate=-1 → CCW (nose toward up when facing right)
   // rotate=+1 → CW (nose toward down when facing right)
-  let heading = p.heading + input.rotate * PLANE_TURN_RATE * dt;
+  let heading = p.heading + input.rotate * turnRate * dt;
 
   // Normalize to [-π, π]
   while (heading > Math.PI) heading -= 2 * Math.PI;

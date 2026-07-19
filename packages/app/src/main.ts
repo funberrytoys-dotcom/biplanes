@@ -1,4 +1,4 @@
-import { Assets, Container, Graphics, Sprite, Text, TextStyle, Texture } from 'pixi.js';
+import { Assets, Container, Graphics, Sprite, Text, TextStyle, Texture, ColorMatrixFilter } from 'pixi.js';
 import type { Bullet } from '@biplanes/core';
 import { assetUrl } from './asset-url.js';
 import {
@@ -96,7 +96,29 @@ import {
 import {
   createKeyboardController,
   createTouchController,
+  getControlsConfig,
 } from '@biplanes/input';
+import {
+  stepScreenRelativeSteer,
+  INITIAL_SCREEN_STEER_STATE,
+  type ScreenSteerState,
+} from './screen-relative-steer.js';
+import {
+  resolveThrottleZone,
+  THROTTLE_ZONE_COLOR,
+  THROTTLE_STALL_LINE_FRAC,
+  THROTTLE_HOLD_FRAC,
+  THROTTLE_CAREFUL_FRAC,
+  THROTTLE_HOLD_FRAC_LEGACY,
+  THROTTLE_CAREFUL_FRAC_LEGACY,
+} from './throttle-gauge.js';
+import { resolveStallWarning, STALL_WARNING_TEXT, type StallWarning } from './stall-warning.js';
+import {
+  resolveFirstTimeHint,
+  hintsAlreadySeen,
+  markHintsSeen,
+  type HintMode,
+} from './first-time-hints.js';
 import { createStartScreen } from './screens/start-screen.js';
 import { createCampaignSelect } from './screens/campaign-select.js';
 import { createLevelUpScreen } from './screens/level-up-screen.js';
@@ -149,6 +171,16 @@ import { fitMobileZoom, getMobileViewportInfo } from './mobile-viewport.js';
 // mp4+mp3 drifted out of sync and the 7.5 MB video loaded slowly (often blank).
 const MENU_VIDEO_URL = assetUrl('assets/menu/intro2av.mp4');
 const CHICO_PORTRAIT_URL = assetUrl('assets/campaign/portrait_chico.png');
+// Parachutist art — full canopy+pilot images, four heroes (утв. Сергеем):
+// the player bails as their faction HERO (С.О.В. → Chico, Шакалы → Baron),
+// regular enemies bail as the opposing GRUNT (jackal grunt / owl-cat),
+// and the enemy BOSS bails as the opposing hero (Baron / Chico).
+const PILOT_CHUTE_ART_URLS = {
+  chico: assetUrl('assets/biplanes/pilot_parachute_chico.png'),
+  baron: assetUrl('assets/biplanes/pilot_parachute_baron.png'),
+  cat: assetUrl('assets/biplanes/pilot_parachute_cat.png'),
+  jackal: assetUrl('assets/biplanes/pilot_parachute_jackal.png'),
+};
 const ISLAND_BRYNN_FRAME_URLS = Array.from({ length: 50 }, (_, i) => assetUrl(`assets/campaign/island_brynn/frame_${String(i + 1).padStart(4, '0')}.png`));
 const ARENA_WORLD_WIDTH = WORLD_WIDTH * 5;
 const ARENA_WORLD_HEIGHT = WORLD_HEIGHT * 3;
@@ -197,6 +229,7 @@ const VISUAL_ASSET_URLS = [
   assetUrl('assets/biplanes/plane_chico_blue.png'),
   assetUrl('assets/biplanes/supply_balloon_chest.png'),
   assetUrl('assets/biplanes/supply_balloon_chest_red.png'),
+  ...Object.values(PILOT_CHUTE_ART_URLS),
   assetUrl('assets/biplanes/hud/lever_knob.png'),
   assetUrl('assets/hud/throttle_jackal.png'),
   // «Забег» branch emblems (shown on the run-summary screen).
@@ -467,15 +500,35 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
     const s = touch.zones.throttle;
     const left = s.x - s.w / 2;
     const span = s.yBottom - s.yTop;
-    const fillTopY = s.yBottom - value * span;
-    const gasColor = value > 0.66 ? 0x7cff8f : value > 0.33 ? 0xffd34a : 0xff8c5a;
+    const yAt = (f: number) => s.yBottom - Math.max(0, Math.min(1, f)) * span;
+    const fillTopY = yAt(value);
+    // Colour-zoned gauge: green = holds altitude, amber = careful, red = too low / stalling.
+    // The honest gauge ties green to the real physics stall line (≈0.91), so the colour never
+    // claims you hold altitude where you'd actually sink; ?gauge=legacy reverts to the old
+    // 0.66/0.33 split. (Readability only — throttle behaviour is unchanged.)
+    const holdFrac = CONTROLS_CONFIG.honestGauge ? THROTTLE_HOLD_FRAC : THROTTLE_HOLD_FRAC_LEGACY;
+    const carefulFrac = CONTROLS_CONFIG.honestGauge ? THROTTLE_CAREFUL_FRAC : THROTTLE_CAREFUL_FRAC_LEGACY;
+    const gasColor = THROTTLE_ZONE_COLOR[resolveThrottleZone(value, holdFrac, carefulFrac)];
+    const holdY = yAt(holdFrac);
+    const carefulY = yAt(carefulFrac);
     rings.throttleTrack.clear()
       .roundRect(left, s.yTop, s.w, span, s.w / 2)
       .fill({ color: 0x081523, alpha: 0.5 })
-      .stroke({ color: 0x57ddff, width: 2.5, alpha: 0.5 });
+      .rect(left + 2, s.yTop, s.w - 4, holdY - s.yTop)
+      .fill({ color: THROTTLE_ZONE_COLOR.hold, alpha: 0.1 })
+      .rect(left + 2, holdY, s.w - 4, carefulY - holdY)
+      .fill({ color: THROTTLE_ZONE_COLOR.careful, alpha: 0.1 })
+      .rect(left + 2, carefulY, s.w - 4, s.yBottom - carefulY)
+      .fill({ color: THROTTLE_ZONE_COLOR.stall, alpha: 0.12 })
+      .roundRect(left, s.yTop, s.w, span, s.w / 2)
+      .stroke({ color: 0x57ddff, width: 2.5, alpha: 0.5 })
+      // Stall line: below this gas, level-cruise speed dips under the stall threshold.
+      .moveTo(left - 3, yAt(THROTTLE_STALL_LINE_FRAC))
+      .lineTo(left + s.w + 3, yAt(THROTTLE_STALL_LINE_FRAC))
+      .stroke({ color: THROTTLE_ZONE_COLOR.stall, width: 2, alpha: 0.7 });
     rings.throttleFill.clear()
       .roundRect(left + 3, fillTopY, s.w - 6, s.yBottom - fillTopY, Math.max(2, (s.w - 6) / 2))
-      .fill({ color: gasColor, alpha: 0.42 });
+      .fill({ color: gasColor, alpha: 0.5 });
     rings.throttleKnob.clear();
     // Art knob slides along the track to the current throttle position. Uses the texture's
     // own aspect so the С.О.В. brass handle AND the Jackal skull grip both sit right.
@@ -500,6 +553,31 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
         .circle(p.x, p.y, z.r * 0.34)
         .fill({ color: 0x9fe8ff, alpha: 0.4 })
         .stroke({ color: 0xffffff, width: 2.5, alpha: 0.7 });
+      // Honest feedback: the knob slides smoothly but the OUTPUT is a switch. Show which
+      // discrete direction is engaged with a bright arrow at the ring edge, so the stick reads
+      // as the tri-state it really is. Use the SAME vector + deadzone the command does, mirroring
+      // resolveJoystickRotate exactly, so the arrow lights precisely when the turn engages.
+      const v = touch.joystickVector();
+      let ax = 0;
+      let ay = 0;
+      if (v) {
+        if (Math.abs(v.dy) > Math.abs(v.dx) * 0.92) {
+          if (Math.hypot(v.dx, v.dy) >= v.deadzone) ay = v.dy < 0 ? -1 : 1;
+        } else if (v.dx < -v.deadzone) ax = -1;
+        else if (v.dx > v.deadzone) ax = 1;
+      }
+      if (ax !== 0 || ay !== 0) {
+        const cx = o.x + ax * z.r * 0.9;
+        const cy = o.y + ay * z.r * 0.9;
+        const ang = Math.atan2(ay, ax);
+        const t = z.r * 0.18;
+        rings.stickKnob
+          .moveTo(cx + Math.cos(ang) * t, cy + Math.sin(ang) * t)
+          .lineTo(cx + Math.cos(ang + Math.PI * 0.5) * t * 0.7, cy + Math.sin(ang + Math.PI * 0.5) * t * 0.7)
+          .lineTo(cx + Math.cos(ang - Math.PI * 0.5) * t * 0.7, cy + Math.sin(ang - Math.PI * 0.5) * t * 0.7)
+          .closePath()
+          .fill({ color: 0xfff0b0, alpha: 0.92 });
+      }
     } else {
       // Idle: a faint hint at the rest spot so the thumb knows where to land.
       drawStick(rings.stick, z.x, z.y, z.r, 0.5);
@@ -876,9 +954,15 @@ const AUTO_FLIGHT_LAB = URL_PARAMS.has('flightLab');
 const AUTO_OIL_SHOT = URL_PARAMS.has('oilshot');
 const SKIP_BRIEFING = URL_PARAMS.has('skipBriefing');
 const DEBUG_HUD_ON_BOOT = URL_PARAMS.has('debug');
+// Control-scheme toggles (input freshness, screen-relative steering, stall haptics).
+// Resolved from URL params + localStorage so the owner can A/B on a real phone with NO
+// redeploy. Defaults are the safe ones; `?controls=classic` reverts the whole scheme.
+// `let`, not `const`: the in-menu РУЛЬ toggle flips screenRelativeSteer/honestGauge live (these
+// are read per-frame). freshInput is fixed at controller-creation time and isn't toggled live.
+let CONTROLS_CONFIG = getControlsConfig();
 // Bump every deploy. Shown always-on bottom-left so a home-screen iPhone app (no
 // address bar for ?debug) can confirm WHICH build is live + read FPS/counts on a freeze.
-const BUILD_TAG = 'v24-mobile-clouds';
+const BUILD_TAG = 'v30-parachutists';
 // Phones are fill-rate bound (many big semi-transparent clouds + explosions = overdraw).
 // Lighten those on touch devices only; PC/Steam keep full quality.
 const IS_MOBILE = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
@@ -1496,6 +1580,11 @@ export async function startGame(container: HTMLElement) {
   // Airframe recoil buck (render-only): each player shot nudges the plane sprite
   // back along the nose; it decays fast so it reads as a per-shot jolt, not drift.
   const playerBodyKick = { x: 0, y: 0 };
+  // Whole-SCREEN shot feedback (camera shake/punch + flash) is THROTTLED to this cadence, not
+  // fired every bullet. At ~8 shots/sec each effect decayed over ~its own fire interval → the
+  // viewport rippled in brightness+position at ~8 Hz the whole time you held fire (eye strain).
+  let lastShotCamTick = -100;
+  const SHOT_CAM_THROTTLE_TICKS = 18; // ~0.3s → a calm periodic kick (≤~3 Hz), not an 8 Hz wash
 
   function emitGunfeelShotVfx(
     x: number,
@@ -1543,15 +1632,21 @@ export async function startGame(container: HTMLElement) {
       });
     }
     if (ownerFaction === 'player') {
-      // Arena/run dampens camera motion (busy screen) — but less than before, and the
-      // airframe buck below is NOT dampened, so each shot still reads as a hard "бах".
       const cameraFeel = runMode === 'arena' ? 0.6 : 1;
+      // Airframe buck stays PER-SHOT — it's local (only the plane sprite moves), so it sells each
+      // shot's punch WITHOUT modulating the whole viewport. This is what keeps firing feeling hard.
       playerBodyKick.x = Math.max(-8, Math.min(8, playerBodyKick.x + shotFeel.bodyKick.x));
       playerBodyKick.y = Math.max(-8, Math.min(8, playerBodyKick.y + shotFeel.bodyKick.y));
-      camera.shake(shotFeel.cameraShake * cameraFeel);
-      camera.punch(shotFeel.recoil.x, shotFeel.recoil.y, shotFeel.cameraPunch * cameraFeel);
-      camera.zoomPunch(1 + (shotFeel.zoomPunch - 1) * cameraFeel, shotFeel.flashDuration);
-      screenFx.flash(isHeavy ? 0xffb24a : 0xffd98a, isHeavy ? 0.08 : 0.045, shotFeel.flashDuration);
+      // Whole-SCREEN effects are throttled to a periodic kick (see SHOT_CAM_THROTTLE_TICKS), and
+      // the per-shot ZOOM-punch is dropped entirely — a ~2% zoom wobble every shot re-aliased every
+      // thin edge (bullets, cloud rims, plane outlines) each frame = the "ряб"/shimmer. Kills/heavy
+      // impacts still zoom-punch via their own (infrequent) path.
+      if (state.tickCount - lastShotCamTick >= SHOT_CAM_THROTTLE_TICKS) {
+        lastShotCamTick = state.tickCount;
+        camera.shake(shotFeel.cameraShake * cameraFeel * 0.7);
+        camera.punch(shotFeel.recoil.x, shotFeel.recoil.y, shotFeel.cameraPunch * cameraFeel);
+        screenFx.flash(isHeavy ? 0xffb24a : 0xffd98a, isHeavy ? 0.06 : 0.03, shotFeel.flashDuration);
+      }
     }
   }
 
@@ -1571,6 +1666,18 @@ export async function startGame(container: HTMLElement) {
   const wcDarkOverlay = new Graphics();
   wcDarkOverlay.visible = false;
   uiLayer.addChildAt(wcDarkOverlay, 0); // backmost UI element → dims the world, not the instruments
+
+  // Eye-comfort: gently DESATURATE just the photo backdrop (the saturated blue→pink sunset was the
+  // eye-strain source: pure-blue-top + pure-pink-bottom = chromostereopsis, + white clouds going
+  // translucent over pink). A colour filter softens the acid saturation WITHOUT a grey film or
+  // dimming (an overlay looked "серо, под плёнкой"), and it touches ONLY the backdrop — the planes,
+  // clouds and HUD stay fully vivid. Toggle in the menu («ГЛАЗА»).
+  const comfortGrade = new ColorMatrixFilter();
+  comfortGrade.saturate(-0.22, true);
+  function applyEyeComfort() {
+    backdropLayer.filters = CONTROLS_CONFIG.eyeComfort ? [comfortGrade] : null;
+  }
+  applyEyeComfort();
   const wcDarkWarning = new Text({
     text: 'НЕДОСТАТОЧНО ТЯГИ — ТЯНИ ВВЕРХ!',
     style: new TextStyle({
@@ -1718,6 +1825,33 @@ export async function startGame(container: HTMLElement) {
   });
   arenaStatus.visible = false;
   uiLayer.addChild(arenaStatus);
+
+  // Flight-feedback banner (Arena/«Забег»): pre-stall warning + first-time control hints.
+  // One centred line; the stall warning takes priority over the onboarding hint.
+  const flightHint = new Text({
+    text: '',
+    style: new TextStyle({
+      fontFamily: 'monospace',
+      fontSize: 18,
+      fontWeight: 'bold',
+      fill: 0xfff4dc,
+      stroke: { color: 0x05080e, width: 4 },
+      letterSpacing: 1,
+      align: 'center',
+    }),
+  });
+  flightHint.anchor.set(0.5, 0);
+  flightHint.visible = false;
+  uiLayer.addChild(flightHint);
+  function showFlightHint(text: string, color: number) {
+    if (flightHint.text !== text) flightHint.text = text;
+    flightHint.style.fill = color;
+    flightHint.style.fontSize = Math.max(15, Math.min(22, app.screen.width * 0.022));
+    flightHint.x = app.screen.width / 2;
+    flightHint.y = Math.max(58, app.screen.height * 0.24);
+    flightHint.visible = true;
+  }
+  function hideFlightHint() { flightHint.visible = false; }
 
   // === Weather indicator (top-right): icon + name + hazard warning ===
   const weatherPanel = new Container();
@@ -2140,6 +2274,23 @@ export async function startGame(container: HTMLElement) {
     {
       musicEnabled: menuBackdrop.isMusicEnabled(),
       onMusicToggle: (on) => { menuBackdrop.setMusicEnabled(on); },
+      steerScreen: CONTROLS_CONFIG.screenRelativeSteer,
+      onSteerToggle: (screen) => {
+        // Apply live (currentCommand reads CONTROLS_CONFIG each frame) + persist so it sticks
+        // across reloads. This is the owner's no-URL-params way to A/B steering by feel.
+        CONTROLS_CONFIG = { ...CONTROLS_CONFIG, screenRelativeSteer: screen };
+        screenSteerState = INITIAL_SCREEN_STEER_STATE;
+        try { localStorage.setItem('biplanes.steer', screen ? 'screen' : 'classic'); } catch { /* private mode */ }
+        audio.playUiSelect();
+      },
+      eyeComfort: CONTROLS_CONFIG.eyeComfort,
+      onEyeToggle: (comfort) => {
+        // Live-toggle the backdrop grade so the owner can A/B the eye-strain fix by feel.
+        CONTROLS_CONFIG = { ...CONTROLS_CONFIG, eyeComfort: comfort };
+        applyEyeComfort();
+        try { localStorage.setItem('biplanes.eyes', comfort ? 'comfort' : 'vivid'); } catch { /* private mode */ }
+        audio.playUiSelect();
+      },
     },
   );
   uiLayer.addChild(startScreen.container);
@@ -2630,7 +2781,10 @@ export async function startGame(container: HTMLElement) {
   }
 
   const kb = createKeyboardController();
-  const touch = createTouchController(app.canvas);
+  const touch = createTouchController(app.canvas, { pointer: CONTROLS_CONFIG.freshInput });
+  // Screen-relative steering latch (opt-in via ?steer=screen). Input-layer only — the
+  // recorded PlayerCommand stays a tristate, so replay/determinism is untouched.
+  let screenSteerState: ScreenSteerState = INITIAL_SCREEN_STEER_STATE;
   touch.updateZones(app.screen.width, app.screen.height);
   const touchGuide = createTouchGuide(touch);
   uiLayer.addChild(touchGuide.container);
@@ -2647,8 +2801,27 @@ export async function startGame(container: HTMLElement) {
   function currentCommand(): PlayerCommand {
     const k = kb.current();
     const t = touch.current();
+    // Opt-in screen-relative steering: re-derive the touch turn so "stick up = nose toward
+    // the top of the screen" regardless of facing, while preserving instant full-rate loops
+    // (see screen-relative-steer.ts). Only while actually flying; keyboard is unaffected.
+    let touchRotate: -1 | 0 | 1 = t.rotate;
+    if (CONTROLS_CONFIG.screenRelativeSteer && state.player.state === 'flying') {
+      const v = touch.joystickVector();
+      if (v) {
+        const r = stepScreenRelativeSteer(screenSteerState, {
+          dx: v.dx,
+          dy: v.dy,
+          deadzone: v.deadzone,
+          facing: state.player.kinematic.facing,
+        });
+        screenSteerState = r.state;
+        touchRotate = r.rotate;
+      } else {
+        screenSteerState = INITIAL_SCREEN_STEER_STATE;
+      }
+    }
     return {
-      rotate: (k.rotate || t.rotate) as -1 | 0 | 1,
+      rotate: (k.rotate || touchRotate) as -1 | 0 | 1,
       fire: k.fire || t.fire,
       bomb: k.bomb || t.bomb,
       special: k.special === true || t.special === true || k.bomb === true,
@@ -2671,6 +2844,8 @@ export async function startGame(container: HTMLElement) {
     prevPlayerState = state.player.state;
     prevTickCount = state.tickCount;
     prevPlayerHp = state.player.hp;
+    // Re-arm the screen-relative steering latch for EVERY mode (story/labs too), not just arena.
+    screenSteerState = INITIAL_SCREEN_STEER_STATE;
     // Reset rising-edge VFX/audio detectors so a fresh mode doesn't fire a phantom
     // one-frame cue (reload-ready chime, enemy-rocket hiss, boost kick…) carried over
     // from the previous session, and so stale per-enemy HP-diff numbers can't mis-spawn.
@@ -2730,6 +2905,15 @@ export async function startGame(container: HTMLElement) {
     // The core reads state.playerFaction for the player's heavy cannon (tick.ts). С.О.В. = light.
     state.playerFaction = chosenFaction === 'jackals' ? 'jackals' : 'sov';
     touch.resetThrottle(); // start the run sitting still — the player gives gas
+    // First-time control hints: «Забег» (runSession set) vs plain Arena get their own
+    // "seen" flag, so a hint shows once per mode and never nags a returning player.
+    hintMode = runSession !== null ? 'run' : 'arena';
+    hintActive = !hintsAlreadySeen(hintMode);
+    hintElapsed = 0;
+    hintHasTurned = false;
+    hintHasDived = false;
+    prevPlayerG = state.player.kinematic.g;
+    prevStallWarn = 'none';
     state.worldWidth = ARENA_WORLD_WIDTH;
     state.worldHeight = ARENA_WORLD_HEIGHT;
     state.disableAutoEnemySpawn = true;
@@ -3165,6 +3349,67 @@ export async function startGame(container: HTMLElement) {
   let flightLabFiredAfterRecovery = false;
   let lastPublishedDebugState = '';
   let arenaThunderTimer = 3.5;
+  // Flight feedback (Arena/«Забег»): pre-stall warning trend + first-time control hints.
+  let prevPlayerG = 0;
+  let prevStallWarn: StallWarning = 'none';
+  let hintMode: HintMode = 'arena';
+  let hintActive = false;
+  let hintElapsed = 0;
+  let hintHasTurned = false;
+  let hintHasDived = false;
+
+  function buzz(ms: number) {
+    if (!CONTROLS_CONFIG.haptics) return;
+    try {
+      (navigator as Navigator & { vibrate?: (p: number | number[]) => boolean }).vibrate?.(ms);
+    } catch {
+      /* unsupported (iOS Safari) — silently ignore */
+    }
+  }
+
+  // Arena/«Забег» flight feedback: an EARLY stall warning (before the plane is sinking hard)
+  // plus a short, self-dismissing first-time control-hint sequence. Both surface on the same
+  // centred banner; the stall warning wins. The first-time hints are gated by a per-mode
+  // "seen" flag so veterans are never nagged.
+  function updateFlightFeedback(dt: number, steering: boolean) {
+    if (runMode !== 'arena') return;
+    const g = state.player.kinematic.g;
+    const airborne = state.player.state === 'flying';
+
+    const warn: StallWarning = airborne ? resolveStallWarning(g, prevPlayerG) : 'none';
+    // Buzz once on the rising edge into a worse state (none→near, none/near→stall).
+    if (warn !== 'none' && warn !== prevStallWarn
+      && (prevStallWarn === 'none' || (warn === 'stall' && prevStallWarn === 'near'))) {
+      buzz(warn === 'stall' ? 35 : 18);
+    }
+    prevStallWarn = warn;
+    prevPlayerG = g;
+
+    let hintText: string | null = null;
+    if (hintActive) {
+      hintElapsed += dt;
+      if (airborne && steering) hintHasTurned = true;
+      if (airborne && Math.sin(state.player.kinematic.heading) > 0.25) hintHasDived = true;
+      const res = resolveFirstTimeHint({
+        elapsedSec: hintElapsed,
+        airborne,
+        hasTurned: hintHasTurned,
+        hasDived: hintHasDived,
+        touch: touchGuide.isTouchLikely(),
+      });
+      if (res.done) {
+        hintActive = false;
+        markHintsSeen(hintMode);
+      } else {
+        hintText = res.text;
+      }
+    }
+
+    if (warn === 'stall') showFlightHint(STALL_WARNING_TEXT.stall, THROTTLE_ZONE_COLOR.stall);
+    else if (warn === 'near') showFlightHint(STALL_WARNING_TEXT.near, THROTTLE_ZONE_COLOR.careful);
+    else if (hintText) showFlightHint(hintText, 0xfff4dc);
+    else hideFlightHint();
+  }
   function publishDebugState() {
     if (!DEBUG_HUD_ON_BOOT) return;
     const arenaStage = runMode === 'arena' ? currentArenaStage() : 0;
@@ -3324,6 +3569,9 @@ export async function startGame(container: HTMLElement) {
       }
     }
     touchGuide.setActive(runMode !== 'skytest' && runMode !== 'gunfeelLab' && runMode !== 'oilshot' && gameRunning && !choicesShowing && !state.gameOver);
+    // Hide the flight-feedback banner by default each frame; the active arena tick re-shows
+    // it. This keeps it off the menu, the upgrade screen and other paused states.
+    if (runMode !== 'arena' || choicesShowing || !gameRunning || state.gameOver) hideFlightHint();
     // On real touch devices the lever owns the throttle; desktop keeps keyboard W/S.
     touch.setThrottleEngaged(navigator.maxTouchPoints > 0);
     touchGuide.update(Math.max(0, Math.min(1, (state.player.specialCooldown ?? 0) / SALVO_COOLDOWN)));
@@ -3340,7 +3588,7 @@ export async function startGame(container: HTMLElement) {
         if (arenaThunderTimer <= 0) {
           audio.playThunder();
           if (location.weather === 'thunder') {
-            screenFx.flash(0xdceeff, 0.12, 0.16);
+            screenFx.flash(0xdceeff, 0.06, 0.14); // gentler ambient thunder flash (was 0.12)
           }
           arenaThunderTimer = 4.5 + Math.random() * 8.5;
         }
@@ -3417,6 +3665,9 @@ export async function startGame(container: HTMLElement) {
       safety--;
       if ((state.pendingLevelUp && !state.suppressCoreLevelUps) || state.gameOver) break;
     }
+
+    // Arena/«Забег»: early stall warning + first-time control hints (no-op in other modes).
+    updateFlightFeedback(dt, Math.abs(inputCmd.rotate) > 0);
 
     if (runMode === 'story') {
       const stallingNow = isStalling(state.player.kinematic);
@@ -3741,8 +3992,9 @@ export async function startGame(container: HTMLElement) {
         if (lightningStrikeTimer <= 0) {
           lightningStrikeTimer = 5 + Math.random() * 6;
           const highOpen = state.player.kinematic.position.y < ARENA_WORLD_HEIGHT * 0.42;
-          screenFx.flash(0xeaf4ff, 0.6, 0.22);
-          camera.shake(highOpen ? 15 : 6);
+          // Softer, shorter strike flash (was 0.6/0.22 near-white strobe) — still reads as lightning.
+          screenFx.flash(0xeaf4ff, 0.28, 0.15);
+          camera.shake(highOpen ? 10 : 5);
           audio.playThunder();
           if (highOpen) {
             state.player = { ...state.player, hp: Math.max(1, state.player.hp - 14) };
@@ -3813,13 +4065,14 @@ export async function startGame(container: HTMLElement) {
     }
 
     if (state.playerScore > prevPlayerScore) {
-      // Kill confirmation — a brief lens kick on top of the explosion already firing.
-      screenFx.flash(0xffffff, 0.25, 0.12);
+      // Kill confirmation — a brief lens kick on top of the explosion already firing. Softer +
+      // warmer than the old harsh white 0.25 flash, since kills are frequent in a survivor loop.
+      screenFx.flash(0xfff2d0, 0.13, 0.12);
       camera.zoomPunch(1.02, 0.16);
     }
     if (state.level > prevLevel) {
       // Level-up should feel like a power surge: gold flash + zoom + spark burst + chime.
-      screenFx.flash(0xffd86a, 0.5, 0.32);
+      screenFx.flash(0xffd86a, 0.3, 0.32);
       camera.zoomPunch(1.05, 0.4);
       camera.shake(4);
       const lp = state.player.kinematic.position;
@@ -4309,7 +4562,13 @@ export async function startGame(container: HTMLElement) {
       seenPilot.add(p.id);
       let s = pilotSprites.get(p.id);
       if (!s) {
-        s = createPilotSprite(p.faction);
+        const jk = chosenFaction === 'jackals';
+        const chuteArt = p.faction === 'player'
+          ? (jk ? PILOT_CHUTE_ART_URLS.baron : PILOT_CHUTE_ART_URLS.chico)   // you bail as your hero
+          : p.fromBoss
+            ? (jk ? PILOT_CHUTE_ART_URLS.chico : PILOT_CHUTE_ART_URLS.baron) // boss bails as the enemy hero
+            : (jk ? PILOT_CHUTE_ART_URLS.cat : PILOT_CHUTE_ART_URLS.jackal); // grunts bail as grunts
+        s = createPilotSprite(p.faction, chuteArt);
         planeLayer.addChild(s.container);
         pilotSprites.set(p.id, s);
       }

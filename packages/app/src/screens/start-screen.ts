@@ -5,6 +5,12 @@ import { getStartMenuOptions, type MenuAction } from './start-menu-options.js';
 export interface StartScreenOpts {
   musicEnabled?: boolean;
   onMusicToggle?: (enabled: boolean) => void;
+  /** Steering mode: true = screen-relative ("up = screen-up"), false = classic heading-relative. */
+  steerScreen?: boolean;
+  onSteerToggle?: (screen: boolean) => void;
+  /** Eye-comfort: true = muted backdrop (softer on the eyes), false = vivid. */
+  eyeComfort?: boolean;
+  onEyeToggle?: (comfort: boolean) => void;
 }
 
 export function createStartScreen(
@@ -190,6 +196,75 @@ export function createStartScreen(
   });
   c.addChild(musicBtn);
 
+  // Steering-mode toggle — lets the owner A/B classic vs screen-relative steering by FEEL on a
+  // phone, with no URL params. Persists via main.ts (localStorage) and applies live.
+  let steerScreen = opts.steerScreen ?? false;
+  const steerBtn = new Container();
+  steerBtn.eventMode = 'static';
+  steerBtn.cursor = 'pointer';
+  const steerBg = new Graphics();
+  const steerText = new Text({
+    text: '',
+    style: new TextStyle({ fontFamily: 'monospace', fontSize: 15, fontWeight: 'bold', fill: 0xffe0a4, stroke: { color: 0x05080e, width: 3 } }),
+  });
+  const steerBtnW = 224;
+  const steerBtnH = 42;
+  function drawSteer(hovered: boolean) {
+    const color = steerScreen ? 0x6ee0a0 : 0x8390a8;
+    steerBg.clear()
+      .roundRect(-steerBtnW / 2, -steerBtnH / 2, steerBtnW, steerBtnH, 8)
+      .fill({ color: 0x0a1320, alpha: hovered ? 0.9 : 0.72 })
+      .stroke({ color, width: hovered ? 3 : 2, alpha: hovered ? 1 : 0.82 });
+    steerText.text = steerScreen ? 'РУЛЬ: ЭКРАН' : 'РУЛЬ: КЛАССИКА';
+    steerText.style.fill = steerScreen ? 0xffe0a4 : 0x9ca6ba;
+    steerText.x = -steerText.width / 2;
+    steerText.y = -steerText.height / 2 - 1;
+  }
+  drawSteer(false);
+  steerBtn.addChild(steerBg, steerText);
+  steerBtn.on('pointerover', () => { steerBtn.scale.set(1.04); drawSteer(true); });
+  steerBtn.on('pointerout', () => { steerBtn.scale.set(1); drawSteer(false); });
+  steerBtn.on('pointerdown', () => {
+    steerScreen = !steerScreen;
+    drawSteer(false);
+    opts.onSteerToggle?.(steerScreen);
+  });
+  c.addChild(steerBtn);
+
+  // Eye-comfort toggle — mutes the vivid backdrop (the saturated pink sunset was hard on the eyes).
+  let eyeComfort = opts.eyeComfort ?? true;
+  const eyeBtn = new Container();
+  eyeBtn.eventMode = 'static';
+  eyeBtn.cursor = 'pointer';
+  const eyeBg = new Graphics();
+  const eyeText = new Text({
+    text: '',
+    style: new TextStyle({ fontFamily: 'monospace', fontSize: 15, fontWeight: 'bold', fill: 0xffe0a4, stroke: { color: 0x05080e, width: 3 } }),
+  });
+  const eyeBtnW = 224;
+  const eyeBtnH = 42;
+  function drawEye(hovered: boolean) {
+    const color = eyeComfort ? 0x6ee0a0 : 0x8390a8;
+    eyeBg.clear()
+      .roundRect(-eyeBtnW / 2, -eyeBtnH / 2, eyeBtnW, eyeBtnH, 8)
+      .fill({ color: 0x0a1320, alpha: hovered ? 0.9 : 0.72 })
+      .stroke({ color, width: hovered ? 3 : 2, alpha: hovered ? 1 : 0.82 });
+    eyeText.text = eyeComfort ? 'ГЛАЗА: КОМФОРТ' : 'ГЛАЗА: ЯРКО';
+    eyeText.style.fill = eyeComfort ? 0xffe0a4 : 0x9ca6ba;
+    eyeText.x = -eyeText.width / 2;
+    eyeText.y = -eyeText.height / 2 - 1;
+  }
+  drawEye(false);
+  eyeBtn.addChild(eyeBg, eyeText);
+  eyeBtn.on('pointerover', () => { eyeBtn.scale.set(1.04); drawEye(true); });
+  eyeBtn.on('pointerout', () => { eyeBtn.scale.set(1); drawEye(false); });
+  eyeBtn.on('pointerdown', () => {
+    eyeComfort = !eyeComfort;
+    drawEye(false);
+    opts.onEyeToggle?.(eyeComfort);
+  });
+  c.addChild(eyeBtn);
+
   function layout(w: number, h: number) {
     // Just a whisper of darkening for overall contrast — the menu video stays visible.
     dim.clear().rect(0, 0, w, h).fill({ color: 0x040b14, alpha: 0.2 });
@@ -246,6 +321,10 @@ export function createStartScreen(
     // Top-right corner, clear of the title (top-left).
     musicBtn.x = w - musicBtnW / 2 - 20;
     musicBtn.y = musicBtnH / 2 + 18;
+    steerBtn.x = w - steerBtnW / 2 - 20;
+    steerBtn.y = musicBtn.y + musicBtnH / 2 + steerBtnH / 2 + 10;
+    eyeBtn.x = w - eyeBtnW / 2 - 20;
+    eyeBtn.y = steerBtn.y + steerBtnH / 2 + eyeBtnH / 2 + 10;
   }
   layout(width, height);
   statusPanel.visible = false;

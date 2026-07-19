@@ -96,6 +96,48 @@ describe('eject + pilot lifecycle', () => {
   });
 });
 
+describe('enemy eject marks pilot origin', () => {
+  const burningHp = Math.floor(PLANE_INITIAL_HP * FIRE_THRESHOLD);
+
+  function makeBurningEnemy(isBoss: boolean) {
+    return {
+      ...makePlayerFlying(burningHp),
+      id: 2,
+      faction: 'enemy' as const,
+      kinematic: {
+        ...makePlayerFlying().kinematic,
+        position: { x: 700, y: 300 },
+      },
+      ...(isBoss ? { isBoss: true } : {}),
+    };
+  }
+
+  function tickUntilEnemyPilot(isBoss: boolean) {
+    let s: WorldState = {
+      ...createWorldState(42, makePlayerFlying()),
+      enemies: [makeBurningEnemy(isBoss)],
+    };
+    for (let i = 0; i < 900; i++) {
+      s = tick(s, NO_OP);
+      const pilot = findPilot(s.pilots, 'enemy');
+      if (pilot) return pilot;
+    }
+    return undefined;
+  }
+
+  it('a burning BOSS ejects a pilot carrying fromBoss', () => {
+    const pilot = tickUntilEnemyPilot(true);
+    expect(pilot).toBeDefined();
+    expect(pilot!.fromBoss).toBe(true);
+  });
+
+  it('a burning regular enemy ejects a plain pilot (no fromBoss)', () => {
+    const pilot = tickUntilEnemyPilot(false);
+    expect(pilot).toBeDefined();
+    expect(pilot!.fromBoss).toBe(false);
+  });
+});
+
 describe('fire burn damage', () => {
   it('burn HP at FIRE_BURN_RATE when below FIRE_THRESHOLD', () => {
     const lowHp = Math.floor(PLANE_INITIAL_HP * FIRE_THRESHOLD);

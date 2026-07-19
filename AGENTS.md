@@ -2,11 +2,13 @@
 
 ## Что это за проект
 
-Дизельпанк-roguelike-survivor в Telegram Mini App. 2D side-view dogfight + Vampire Survivors-цикл билд-крафта. Современная переработка J2ME-игры BT Biplanes.
+Дизельпанк-roguelike-survivor — игра под **iOS, Android и Steam (ПК)**. 2D side-view dogfight + Vampire Survivors-цикл билд-крафта. Современная переработка J2ME-игры BT Biplanes.
+
+> **ПЛАТФОРМЫ (КАНОН, утв. Сергеем 2026-06-25): iOS · Android · Steam. НИКАКОГО Telegram Mini App.** Ядро — TS/PixiJS/Vite; под сторы — нативная обёртка веб-сборки. Старые упоминания «TMA / Telegram / Stars» — устаревшие.
 
 **Главный документ**: [docs/superpowers/specs/2026-05-21-biplanes-design.md](docs/superpowers/specs/2026-05-21-biplanes-design.md) — полная дизайн-спека, прочти прежде чем что-либо делать.
 
-**Монетизация**: [docs/monetization-analysis.md](docs/monetization-analysis.md) — экономика, Stars, реклама.
+**Монетизация**: [docs/monetization-analysis.md](docs/monetization-analysis.md) — ⚠️ УСТАРЕЛ (был под Telegram Stars). Переделать под App Store / Google Play IAP + Steam.
 
 ## Профиль владельца
 
@@ -18,7 +20,7 @@
 
 **Дизайн утверждён → следующий шаг = `writing-plans` для плана реализации прототипа боёвки.**
 
-Прототип scope — см. раздел 6 спеки. Только боёвка, один самолёт, один арена, базовый билд-крафт. Без хаба, кампании, мета-прогрессии, Supabase, TMA-обёртки, монетизации. Цель — валидировать «вкатывает ли игра» за ~2 недели работы.
+Прототип scope — см. раздел 6 спеки. Только боёвка, один самолёт, один арена, базовый билд-крафт. Без хаба, кампании, мета-прогрессии, Supabase, нативной обёртки под сторы, монетизации. Цель — валидировать «вкатывает ли игра» за ~2 недели работы.
 
 ## Принципы
 
@@ -30,7 +32,7 @@
 
 ## Стек (зафиксирован)
 
-TypeScript · PixiJS · Vite · pnpm workspaces · Supabase (после прототипа) · Telegram Mini Apps SDK (после прототипа)
+TypeScript · PixiJS · Vite · pnpm workspaces · Supabase (после прототипа) · нативная обёртка под iOS/Android/Steam (после прототипа — НЕ Telegram)
 
 ## Связь с другими проектами Сергея
 
@@ -50,4 +52,4 @@ TypeScript · PixiJS · Vite · pnpm workspaces · Supabase (после прот
 2. **Если Сергей сказал «строй прототип»** — следующий шаг это `writing-plans` skill для детального плана. Не начинай код без плана.
 3. **Если Сергей просит уточнить спеку** — обнови файл, инкрементируй версию в заголовке, дату.
 4. **Перед стартом кода** — клонировать https://github.com/TheRealPinkie/BT_Biplanes_src в `vendor/bt-biplanes-reference/` (в `.gitignore`). Изучить физику. Не копировать как шаблон.
-5. **Output по умолчанию (когда будет UI)**: landscape, 16:9, любое разрешение. Mobile: TMA fullscreen + orientation lock.
+5. **Output по умолчанию (когда будет UI)**: landscape, 16:9, любое разрешение. Mobile (iOS/Android): fullscreen + orientation lock; Steam (ПК): окно/полный экран + геймпад.

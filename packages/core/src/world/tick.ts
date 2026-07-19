@@ -353,7 +353,7 @@ function spawnEnemy(
 }
 
 /** Build a fresh pilot under canopy at the given position for the given faction. */
-function spawnPilot(id: number, x: number, y: number, faction: Faction): Pilot {
+function spawnPilot(id: number, x: number, y: number, faction: Faction, fromBoss = false): Pilot {
   return {
     id,
     faction,
@@ -364,6 +364,7 @@ function spawnPilot(id: number, x: number, y: number, faction: Faction): Pilot {
     hp: 1,
     deathTimer: 0,
     groundedJumpCooldown: 0,
+    fromBoss,
   };
 }
 
@@ -736,7 +737,7 @@ export function tick(state: WorldState, playerCommand: PlayerCommand): WorldStat
       if (roll.value < baseParams.ejectChancePerSec * TICK_DT) {
         const ejectX = stepped.kinematic.position.x;
         const ejectY = stepped.kinematic.position.y;
-        const newPilot = spawnPilot(nextEntityId, ejectX, ejectY, 'enemy');
+        const newPilot = spawnPilot(nextEntityId, ejectX, ejectY, 'enemy', stepped.isBoss === true);
         nextEntityId++;
         ejectedThisTick.push(newPilot);
         stepped = {
