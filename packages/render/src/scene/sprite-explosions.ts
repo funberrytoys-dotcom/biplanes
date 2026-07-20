@@ -71,9 +71,27 @@ export class SpriteExplosions {
         }
       }
       this.frames[tier] = frames;
+      this.prewarm(frames);
     } catch {
       /* asset missing/slow — explosions just don't show; the game keeps running */
     }
+  }
+
+  /**
+   * The GPU uploads a texture the first time it is DRAWN — for these 1024×1536
+   * sheets that upload used to land mid-dogfight on the first kill and read as a
+   * lag spike. Render one invisible throwaway sprite per sheet right after load
+   * (usually still in the menu) so the upload cost is paid off-screen.
+   */
+  private prewarm(frames: Texture[]): void {
+    const first = frames[0];
+    if (!first) return;
+    const s = new Sprite(first);
+    s.alpha = 0.001;
+    s.scale.set(0.01);
+    s.position.set(-99999, -99999);
+    this.container.addChild(s);
+    this.active.push({ sprite: s, frames: [first], t: 0, dur: 0.05 });
   }
 
   /** tier: 'small' (turrets) | 'medium' (planes) | 'large' (objects). scale multiplies the tier base. */

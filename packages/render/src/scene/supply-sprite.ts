@@ -202,7 +202,7 @@ interface FxItem {
   ttl: number;
 }
 
-const LABEL_STYLE = new TextStyle({ fontFamily: 'monospace', fontSize: 16, fontWeight: 'bold', fill: 0xffffff, stroke: { color: 0x000000, width: 4 } });
+const LABEL_STYLE = new TextStyle({ fontFamily: 'BiplanesMono, monospace', fontSize: 16, fontWeight: 'bold', fill: 0xffffff, stroke: { color: 0x000000, width: 4 } });
 
 /** Pop bursts (golden ring) and collect flashes (colored ring + rising label). */
 export class SupplyFx {

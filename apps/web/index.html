@@ -15,6 +15,7 @@
   <meta name="apple-mobile-web-app-title" content="Biplanes" />
   <meta name="application-name" content="Biplanes" />
   <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="assets/fonts/biplanes-mono.css" />
   <link rel="icon" type="image/png" href="favicon.png" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <title>Biplanes Prototype</title>
@@ -194,8 +195,10 @@
       inset: 0;
       z-index: 50;
       display: none;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
+      gap: 6px;
       padding: 28px;
       box-sizing: border-box;
       color: #f7e6c6;
@@ -213,10 +216,127 @@
       text-shadow: 0 2px 14px rgba(0, 0, 0, 0.7);
     }
 
+    /* Самолётик: вертикальная свеча → дуга → горизонтальный полёт (просьба Сергея). */
+    #rotate-plane-stage {
+      width: min(74vw, 300px);
+      height: min(74vw, 300px);
+      position: relative;
+    }
+
+    /* Арт самолёта смотрит влево: rotate(90deg) = свеча носом вверх, rotate(0) =
+       горизонтальный полёт влево. Дуга собрана из простых transform-кейфреймов —
+       работает в любом браузере. */
+    #rotate-plane-stage img {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 84px;
+      height: auto;
+      animation: rotate-plane-fly 3.2s ease-in-out infinite;
+      filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.45));
+    }
+
+    @keyframes rotate-plane-fly {
+      0%   { transform: translate(210px, 250px) rotate(90deg); opacity: 0; }
+      12%  { transform: translate(210px, 205px) rotate(90deg); opacity: 1; }
+      42%  { transform: translate(210px, 80px)  rotate(90deg); }
+      58%  { transform: translate(178px, 28px)  rotate(58deg); }
+      72%  { transform: translate(120px, 8px)   rotate(22deg); }
+      88%  { transform: translate(40px, 14px)   rotate(0deg); opacity: 1; }
+      100% { transform: translate(-50px, 18px)  rotate(0deg); opacity: 0; }
+    }
+
     @media (orientation: portrait) and (max-width: 720px) {
       body.phone-runtime #rotate-phone {
         display: flex;
       }
+    }
+
+    /* === Экран загрузки: лого TOYSBERRY + С.О.В. гонится за Шакалом === */
+    #boot-loader {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(10px, 3vh, 26px);
+      background:
+        radial-gradient(circle at 24% 16%, rgba(96, 150, 220, 0.18), transparent 42%),
+        radial-gradient(circle at 78% 80%, rgba(255, 158, 64, 0.10), transparent 38%),
+        linear-gradient(180deg, #0d1a33 0%, #0a1428 55%, #071020 100%);
+      overflow: hidden;
+      transition: opacity 0.35s ease;
+    }
+
+    #boot-loader.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #boot-loader .brand {
+      width: clamp(120px, 26vh, 220px);
+      height: auto;
+      filter: drop-shadow(0 8px 26px rgba(0, 0, 0, 0.5));
+      animation: boot-logo-breathe 3.2s ease-in-out infinite;
+    }
+
+    @keyframes boot-logo-breathe {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.035); }
+    }
+
+    #boot-chase {
+      position: relative;
+      width: 100%;
+      height: clamp(64px, 15vh, 110px);
+    }
+
+    #boot-chase .chase-strip {
+      position: absolute;
+      inset: 0;
+      animation: boot-chase-fly 7s linear infinite;
+    }
+
+    #boot-chase img {
+      position: absolute;
+      top: 0;
+      width: clamp(72px, 14vh, 118px);
+      height: auto;
+      filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.4));
+    }
+
+    /* Шакал удирает первым, Чико догоняет — вся связка летит справа налево. */
+    #boot-chase .jackal { left: 0; animation: boot-bob-a 1.7s ease-in-out infinite; }
+    #boot-chase .sov { left: clamp(96px, 19vh, 160px); animation: boot-bob-b 1.35s ease-in-out infinite; }
+
+    @keyframes boot-chase-fly {
+      from { transform: translateX(100vw); }
+      to   { transform: translateX(calc(-19vh - 220px)); }
+    }
+
+    @keyframes boot-bob-a {
+      0%, 100% { margin-top: 0; rotate: 2deg; }
+      50% { margin-top: -12px; rotate: -3deg; }
+    }
+
+    @keyframes boot-bob-b {
+      0%, 100% { margin-top: -8px; rotate: -2deg; }
+      50% { margin-top: 5px; rotate: 3deg; }
+    }
+
+    #boot-loader .boot-text {
+      color: #cfd8ea;
+      font: 600 14px/1.2 Inter, ui-sans-serif, system-ui, sans-serif;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      animation: boot-text-pulse 1.6s ease-in-out infinite;
+    }
+
+    @keyframes boot-text-pulse {
+      0%, 100% { opacity: 0.45; }
+      50% { opacity: 1; }
     }
 
     body.device-preview::after {
@@ -240,7 +360,20 @@
       <div id="game"></div>
     </div>
   </div>
-  <div id="rotate-phone"><span>Поверни телефон горизонтально</span></div>
+  <div id="boot-loader">
+    <img class="brand" src="assets/brand/logo_toysberry.webp" alt="TOYSBERRY" />
+    <div id="boot-chase">
+      <div class="chase-strip">
+        <img class="jackal" src="assets/biplanes/plane_enemy_red.png" alt="" />
+        <img class="sov" src="assets/biplanes/plane_chico_blue.png" alt="" />
+      </div>
+    </div>
+    <div class="boot-text">Загрузка…</div>
+  </div>
+  <div id="rotate-phone">
+    <div id="rotate-plane-stage"><img src="assets/biplanes/plane_chico_blue.png" alt="" /></div>
+    <span>Держите экран горизонтально</span>
+  </div>
   <script defer src="https://telegram.org/js/telegram-web-app.js"></script>
   <script type="module" src="/src/main.ts"></script>
 </body>

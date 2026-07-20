@@ -39,7 +39,7 @@ export function createCampaignSelect(
   const hint = new Text({
     text: 'Выбери миссию',
     style: new TextStyle({
-      fontFamily: 'monospace', fontSize: 16, fill: 0xf7d8a0,
+      fontFamily: 'BiplanesMono, monospace', fontSize: 16, fill: 0xf7d8a0,
       stroke: { color: 0x000000, width: 3 },
     }),
   });
@@ -64,14 +64,14 @@ export function createCampaignSelect(
     const label = new Text({
       text: lvl.label,
       style: new TextStyle({
-        fontFamily: 'monospace', fontSize: 22, fontWeight: 'bold',
+        fontFamily: 'BiplanesMono, monospace', fontSize: 22, fontWeight: 'bold',
         fill: lvl.enabled ? 0xffd07a : 0x9ca6ba, stroke: { color: 0x05080e, width: 4 },
       }),
     });
     const note = new Text({
       text: lvl.note,
       style: new TextStyle({
-        fontFamily: 'monospace', fontSize: 12, fill: lvl.enabled ? 0xcdd6e6 : 0x7a8398,
+        fontFamily: 'BiplanesMono, monospace', fontSize: 12, fill: lvl.enabled ? 0xcdd6e6 : 0x7a8398,
         stroke: { color: 0x000000, width: 2 }, wordWrap: true, wordWrapWidth: ROW_W - 40,
       }),
     });
@@ -92,7 +92,7 @@ export function createCampaignSelect(
   const backBg = new Graphics();
   const backTxt = new Text({
     text: '‹ НАЗАД',
-    style: new TextStyle({ fontFamily: 'monospace', fontSize: 18, fontWeight: 'bold', fill: 0xffd07a, stroke: { color: 0x05080e, width: 4 } }),
+    style: new TextStyle({ fontFamily: 'BiplanesMono, monospace', fontSize: 18, fontWeight: 'bold', fill: 0xffd07a, stroke: { color: 0x05080e, width: 4 } }),
   });
   function drawBack(hovered: boolean) {
     backBg.clear().roundRect(-90, -24, 180, 48, 8)

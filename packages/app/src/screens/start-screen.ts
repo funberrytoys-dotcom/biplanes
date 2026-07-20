@@ -46,7 +46,7 @@ export function createStartScreen(
   const subtitle = new Text({
     text: 'ОГНИ МАЯКОВ',
     style: new TextStyle({
-      fontFamily: 'monospace',
+      fontFamily: 'BiplanesMono, monospace',
       fontSize: 26,
       fontWeight: 'bold',
       fill: 0xffb44a,
@@ -57,7 +57,7 @@ export function createStartScreen(
   const tagline = new Text({
     text: 'Пока горят огни маяков, архипелаг помнит дорогу домой...',
     style: new TextStyle({
-      fontFamily: 'monospace',
+      fontFamily: 'BiplanesMono, monospace',
       fontSize: 14,
       fill: 0xf7d8a0,
       align: 'center',
@@ -71,7 +71,7 @@ export function createStartScreen(
   const statusText = new Text({
     text: '',
     style: new TextStyle({
-      fontFamily: 'monospace',
+      fontFamily: 'BiplanesMono, monospace',
       fontSize: 15,
       fill: 0xe7eaf4,
       align: 'center',
@@ -123,7 +123,7 @@ export function createStartScreen(
     const text = new Text({
       text: def.label,
       style: new TextStyle({
-        fontFamily: 'monospace',
+        fontFamily: 'BiplanesMono, monospace',
         fontSize: 22,
         fill: def.enabled ? 0xffd07a : 0x9ca6ba,
         fontWeight: 'bold',
@@ -165,7 +165,7 @@ export function createStartScreen(
   const musicText = new Text({
     text: '',
     style: new TextStyle({
-      fontFamily: 'monospace',
+      fontFamily: 'BiplanesMono, monospace',
       fontSize: 15,
       fontWeight: 'bold',
       fill: 0xffe0a4,
@@ -205,7 +205,7 @@ export function createStartScreen(
   const steerBg = new Graphics();
   const steerText = new Text({
     text: '',
-    style: new TextStyle({ fontFamily: 'monospace', fontSize: 15, fontWeight: 'bold', fill: 0xffe0a4, stroke: { color: 0x05080e, width: 3 } }),
+    style: new TextStyle({ fontFamily: 'BiplanesMono, monospace', fontSize: 15, fontWeight: 'bold', fill: 0xffe0a4, stroke: { color: 0x05080e, width: 3 } }),
   });
   const steerBtnW = 224;
   const steerBtnH = 42;
@@ -239,7 +239,7 @@ export function createStartScreen(
   const eyeBg = new Graphics();
   const eyeText = new Text({
     text: '',
-    style: new TextStyle({ fontFamily: 'monospace', fontSize: 15, fontWeight: 'bold', fill: 0xffe0a4, stroke: { color: 0x05080e, width: 3 } }),
+    style: new TextStyle({ fontFamily: 'BiplanesMono, monospace', fontSize: 15, fontWeight: 'bold', fill: 0xffe0a4, stroke: { color: 0x05080e, width: 3 } }),
   });
   const eyeBtnW = 224;
   const eyeBtnH = 42;

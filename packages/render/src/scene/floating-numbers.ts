@@ -13,7 +13,7 @@ const MAX_ACTIVE = 30;
 // style. Coloring per-instance is done with `tint`, which is GPU-cheap and does
 // NOT re-rasterize the atlas.
 const STYLE = new TextStyle({
-  fontFamily: 'monospace',
+  fontFamily: 'BiplanesMono, monospace',
   fontSize: 14,
   fontWeight: 'bold',
   stroke: { color: 0x000000, width: 2 },

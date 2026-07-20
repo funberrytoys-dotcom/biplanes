@@ -54,7 +54,7 @@ export function createDeathScreen(width: number, height: number, onRestart: () =
   const headerSub = new Text({
     text: '--- WAR OFFICE TELEGRAPH ---',
     style: new TextStyle({
-      fontFamily: 'monospace',
+      fontFamily: 'BiplanesMono, monospace',
       fontSize: 12,
       fontWeight: 'bold',
       fill: 0x735738,
@@ -67,7 +67,7 @@ export function createDeathScreen(width: number, height: number, onRestart: () =
   const headerTitle = new Text({
     text: 'PILOT DEBRIEF & MISSION LOG',
     style: new TextStyle({
-      fontFamily: 'Courier New, monospace',
+      fontFamily: 'BiplanesMono, Courier New, monospace',
       fontSize: 22,
       fontWeight: 'bold',
       fill: 0x3d2611,
@@ -81,7 +81,7 @@ export function createDeathScreen(width: number, height: number, onRestart: () =
 
   // 4. Typewritten Stats Box
   const statsStyle = new TextStyle({
-    fontFamily: 'Courier New, monospace',
+    fontFamily: 'BiplanesMono, Courier New, monospace',
     fontSize: 15,
     fontWeight: 'bold',
     fill: 0x24180d,
@@ -128,7 +128,7 @@ export function createDeathScreen(width: number, height: number, onRestart: () =
   const btnText = new Text({
     text: 'RETURN TO HANGAR',
     style: new TextStyle({
-      fontFamily: 'monospace',
+      fontFamily: 'BiplanesMono, monospace',
       fontSize: 20,
       fill: btnColor,
       fontWeight: 'bold',

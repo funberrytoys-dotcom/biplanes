@@ -62,7 +62,14 @@ const COCKPIT_PILOT_ART = {
   },
 } as const;
 
-function createAnimatedPlaneArt(art: typeof PLANE_ART.player | typeof PLANE_ART.enemy): { sprite: Sprite; update: (dt: number) => number } {
+// Frame slices are shared across ALL plane sprites of a faction — re-slicing 50
+// Texture objects for every enemy (re)spawn was per-kill garbage and a mid-fight
+// hitch on phones.
+const planeFrameCache = new Map<string, Texture[]>();
+
+function getPlaneFrames(art: typeof PLANE_ART.player | typeof PLANE_ART.enemy): Texture[] {
+  const cached = planeFrameCache.get(art.url);
+  if (cached) return cached;
   const sheet = Texture.from(art.url);
   const frames = Array.from({ length: art.frameCount }, (_, i) => {
     const x = (i % art.columns) * art.frameWidth;
@@ -72,6 +79,12 @@ function createAnimatedPlaneArt(art: typeof PLANE_ART.player | typeof PLANE_ART.
       frame: new Rectangle(x, y, art.frameWidth, art.frameHeight),
     });
   });
+  planeFrameCache.set(art.url, frames);
+  return frames;
+}
+
+function createAnimatedPlaneArt(art: typeof PLANE_ART.player | typeof PLANE_ART.enemy): { sprite: Sprite; update: (dt: number) => number } {
+  const frames = getPlaneFrames(art);
   const firstFrame = frames[0];
   if (!firstFrame) throw new Error(`Plane spritesheet ${art.url} has no frames`);
   const sprite = new Sprite(firstFrame);

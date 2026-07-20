@@ -607,7 +607,7 @@ function drawHangar(
   c.addChild(shadow, wall, roof, door, rivets, props);
 
   const labelStyle = new TextStyle({
-    fontFamily: 'monospace',
+    fontFamily: 'BiplanesMono, monospace',
     fontSize: opts.faction === 'player' ? 36 : 34,
     fill: opts.labelColor,
     fontWeight: 'bold',

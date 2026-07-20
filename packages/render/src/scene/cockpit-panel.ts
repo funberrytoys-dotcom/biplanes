@@ -103,7 +103,7 @@ export function createCockpitPanel(width: number, height: number): CockpitPanelH
 
   // Текстовые табло.
   const digitStyle = () => new TextStyle({
-    fontFamily: 'monospace', fontSize: 18, fontWeight: 'bold',
+    fontFamily: 'BiplanesMono, monospace', fontSize: 18, fontWeight: 'bold',
     fill: 0xffb340, stroke: { color: 0x1a0d00, width: 2 },
   });
   const readoutRpm = new Text({ text: '0000', style: digitStyle() });
@@ -118,7 +118,7 @@ export function createCockpitPanel(width: number, height: number): CockpitPanelH
 
   const radioText = new Text({
     text: '',
-    style: new TextStyle({ fontFamily: 'monospace', fontSize: 13, fontWeight: 'bold', fill: 0x33ff33 }),
+    style: new TextStyle({ fontFamily: 'BiplanesMono, monospace', fontSize: 13, fontWeight: 'bold', fill: 0x33ff33 }),
   });
   radioText.anchor.set(0, 0);
   container.addChild(radioText);

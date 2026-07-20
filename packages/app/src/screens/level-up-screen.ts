@@ -45,7 +45,7 @@ export function createLevelUpScreen(
     stroke: { color: 0x1a0f08, width: 3 },
   });
   const subtitleStyle = new TextStyle({
-    fontFamily: 'monospace',
+    fontFamily: 'BiplanesMono, monospace',
     fontSize: 12,
     fill: 0x9fb5c4,
     letterSpacing: 0,
@@ -99,14 +99,14 @@ export function createLevelUpScreen(
     letterSpacing: 0,
   });
   const labelStyle = new TextStyle({
-    fontFamily: 'monospace',
+    fontFamily: 'BiplanesMono, monospace',
     fontSize: 10,
     fill: 0x251307,
     fontWeight: 'bold',
     letterSpacing: 0,
   });
   const rarityStyle = new TextStyle({
-    fontFamily: 'monospace',
+    fontFamily: 'BiplanesMono, monospace',
     fontSize: 9,
     fill: 0xffe7ad,
     fontWeight: 'bold',
@@ -114,14 +114,14 @@ export function createLevelUpScreen(
     stroke: { color: 0x120804, width: 2 },
   });
   const pickStyle = new TextStyle({
-    fontFamily: 'monospace',
+    fontFamily: 'BiplanesMono, monospace',
     fontSize: 11,
     fill: 0x0d141a,
     fontWeight: 'bold',
     letterSpacing: 0,
   });
   const branchTextStyle = new TextStyle({
-    fontFamily: 'monospace',
+    fontFamily: 'BiplanesMono, monospace',
     fontSize: 10,
     fill: 0xffffff,
     fontWeight: 'bold',
@@ -256,7 +256,7 @@ export function createLevelUpScreen(
     const txt = new Text({
       text: label,
       style: new TextStyle({
-        fontFamily: 'monospace',
+        fontFamily: 'BiplanesMono, monospace',
         fontSize: 14,
         fill: accent,
         fontWeight: 'bold',

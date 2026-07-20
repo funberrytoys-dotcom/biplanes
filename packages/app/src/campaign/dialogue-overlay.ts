@@ -38,7 +38,7 @@ export function createDialogueOverlay(width: number, height: number) {
   const portraitFallback = new Text({
     text: '',
     style: new TextStyle({
-      fontFamily: 'monospace',
+      fontFamily: 'BiplanesMono, monospace',
       fontSize: 34,
       fontWeight: 'bold',
       fill: 0x1b2338,
@@ -49,7 +49,7 @@ export function createDialogueOverlay(width: number, height: number) {
   const speakerText = new Text({
     text: '',
     style: new TextStyle({
-      fontFamily: 'monospace',
+      fontFamily: 'BiplanesMono, monospace',
       fontSize: 21,
       fontWeight: 'bold',
       fill: 0xffd07a,
@@ -71,7 +71,7 @@ export function createDialogueOverlay(width: number, height: number) {
   const hintText = new Text({
     text: 'Нажми, чтобы продолжить',
     style: new TextStyle({
-      fontFamily: 'monospace',
+      fontFamily: 'BiplanesMono, monospace',
       fontSize: 15,
       fill: 0xc6d2ee,
       stroke: { color: 0x05080e, width: 3 },
@@ -203,7 +203,7 @@ export function createRadioPopup(width: number, height: number) {
   const nameText = new Text({
     text: '',
     style: new TextStyle({
-      fontFamily: 'monospace',
+      fontFamily: 'BiplanesMono, monospace',
       fontSize: 14,
       fontWeight: 'bold',
       fill: 0xffd07a,

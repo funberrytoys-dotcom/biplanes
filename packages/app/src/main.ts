@@ -445,7 +445,7 @@ function createTouchGuide(touch: ReturnType<typeof createTouchController>) {
     throttleKnob: new Graphics(),
   };
   const labelStyle = new TextStyle({
-    fontFamily: 'monospace',
+    fontFamily: 'BiplanesMono, monospace',
     fontSize: 12,
     fontWeight: 'bold',
     fill: 0xffffff,
@@ -969,7 +969,7 @@ const DEBUG_HUD_ON_BOOT = URL_PARAMS.has('debug');
 let CONTROLS_CONFIG = getControlsConfig();
 // Bump every deploy. Shown always-on bottom-left so a home-screen iPhone app (no
 // address bar for ?debug) can confirm WHICH build is live + read FPS/counts on a freeze.
-const BUILD_TAG = 'v33-android-proto';
+const BUILD_TAG = 'v34-ui-perf';
 // Phones are fill-rate bound (many big semi-transparent clouds + explosions = overdraw).
 // Lighten those on touch devices only; PC/Steam keep full quality.
 const IS_MOBILE = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
@@ -1689,7 +1689,7 @@ export async function startGame(container: HTMLElement) {
   const wcDarkWarning = new Text({
     text: 'НЕДОСТАТОЧНО ТЯГИ — ТЯНИ ВВЕРХ!',
     style: new TextStyle({
-      fontFamily: 'monospace', fontSize: 30, fontWeight: 'bold', fill: 0xffe05a,
+      fontFamily: 'BiplanesMono, monospace', fontSize: 30, fontWeight: 'bold', fill: 0xffe05a,
       stroke: { color: 0x2a0a05, width: 6 }, align: 'center',
     }),
   });
@@ -1704,7 +1704,7 @@ export async function startGame(container: HTMLElement) {
   const ammoBg = new Graphics();
   const ammoIcon = new Graphics();
   const ammoBar = new Graphics();
-  const ammoText = new Text({ text: '', style: new TextStyle({ fontFamily: 'monospace', fontSize: 22, fontWeight: 'bold', fill: 0xffffff, stroke: { color: 0x05080e, width: 4 } }) });
+  const ammoText = new Text({ text: '', style: new TextStyle({ fontFamily: 'BiplanesMono, monospace', fontSize: 22, fontWeight: 'bold', fill: 0xffffff, stroke: { color: 0x05080e, width: 4 } }) });
   ammoHud.addChild(ammoBg, ammoBar, ammoIcon, ammoText);
   ammoHud.visible = false;
   uiLayer.addChild(ammoHud);
@@ -1795,7 +1795,7 @@ export async function startGame(container: HTMLElement) {
   const caravanGaugeLabel = new Text({
     text: 'КАРАВАН',
     style: new TextStyle({
-      fontFamily: 'monospace',
+      fontFamily: 'BiplanesMono, monospace',
       fontSize: 13,
       fontWeight: 'bold',
       fill: 0xffd07a,
@@ -1809,7 +1809,7 @@ export async function startGame(container: HTMLElement) {
   const missionObjective = new Text({
     text: '',
     style: new TextStyle({
-      fontFamily: 'monospace',
+      fontFamily: 'BiplanesMono, monospace',
       fontSize: 18,
       fontWeight: 'bold',
       fill: 0xfff4dc,
@@ -1823,7 +1823,7 @@ export async function startGame(container: HTMLElement) {
   const arenaStatus = new Text({
     text: '',
     style: new TextStyle({
-      fontFamily: 'monospace',
+      fontFamily: 'BiplanesMono, monospace',
       fontSize: 18,
       fontWeight: 'bold',
       fill: 0xfff4dc,
@@ -1833,13 +1833,26 @@ export async function startGame(container: HTMLElement) {
   });
   arenaStatus.visible = false;
   uiLayer.addChild(arenaStatus);
+  // Fit the round/score line to the screen: on phones the 18px line ran under the
+  // cockpit panel and clipped at the right edge (owner: «надписи нагромождаются»).
+  function layoutArenaStatus() {
+    const w = app.screen.width;
+    let size = w < 900 ? 15 : 18;
+    arenaStatus.style.fontSize = size;
+    while (arenaStatus.width > w - 28 && size > 11) {
+      size -= 1;
+      arenaStatus.style.fontSize = size;
+    }
+    arenaStatus.x = Math.max(14, (w - arenaStatus.width) / 2);
+    arenaStatus.y = w < 900 ? 8 : 12;
+  }
 
   // Flight-feedback banner (Arena/«Забег»): pre-stall warning + first-time control hints.
   // One centred line; the stall warning takes priority over the onboarding hint.
   const flightHint = new Text({
     text: '',
     style: new TextStyle({
-      fontFamily: 'monospace',
+      fontFamily: 'BiplanesMono, monospace',
       fontSize: 18,
       fontWeight: 'bold',
       fill: 0xfff4dc,
@@ -1854,9 +1867,17 @@ export async function startGame(container: HTMLElement) {
   function showFlightHint(text: string, color: number) {
     if (flightHint.text !== text) flightHint.text = text;
     flightHint.style.fill = color;
-    flightHint.style.fontSize = Math.max(15, Math.min(22, app.screen.width * 0.022));
-    flightHint.x = app.screen.width / 2;
-    flightHint.y = Math.max(58, app.screen.height * 0.24);
+    const w = app.screen.width;
+    let size = Math.max(15, Math.min(22, w * 0.022));
+    flightHint.style.fontSize = size;
+    // Never clip at the edges — shrink until the line fits.
+    while (flightHint.width > w - 32 && size > 12) {
+      size -= 1;
+      flightHint.style.fontSize = size;
+    }
+    flightHint.x = w / 2;
+    // Below the weather badge zone (badge bottom ≈ y94) so the two never stack.
+    flightHint.y = Math.max(98, app.screen.height * 0.27);
     flightHint.visible = true;
   }
   function hideFlightHint() { flightHint.visible = false; }
@@ -1868,14 +1889,14 @@ export async function startGame(container: HTMLElement) {
   const weatherLabel = new Text({
     text: '',
     style: new TextStyle({
-      fontFamily: 'monospace', fontSize: 14, fontWeight: 'bold',
+      fontFamily: 'BiplanesMono, monospace', fontSize: 14, fontWeight: 'bold',
       fill: 0xeaf4ff, stroke: { color: 0x05080e, width: 3 },
     }),
   });
   const weatherHazard = new Text({
     text: '',
     style: new TextStyle({
-      fontFamily: 'monospace', fontSize: 10, fontWeight: 'bold',
+      fontFamily: 'BiplanesMono, monospace', fontSize: 10, fontWeight: 'bold',
       fill: 0xffd27a, stroke: { color: 0x05080e, width: 3 },
     }),
   });
@@ -1942,8 +1963,18 @@ export async function startGame(container: HTMLElement) {
   }
 
   let weatherIconKind: WeatherIcon | null = null;
+  let weatherShownAt = -999;
   function updateWeatherIndicator(weather: WeatherGameplay, t: number) {
+    if (weatherLabel.text !== weather.label) weatherShownAt = t;
     weatherLabel.text = weather.label;
+    // Phones: the badge sits mid-top where hints/toasts live — show it for a few
+    // seconds when the weather CHANGES, then fade out. Desktop keeps it persistent.
+    if (app.screen.width < 960) {
+      const age = t - weatherShownAt;
+      weatherPanel.alpha = age < 5 ? 1 : Math.max(0, 1 - (age - 5) / 0.8);
+    } else {
+      weatherPanel.alpha = 1;
+    }
     if (weatherIconKind !== weather.icon) {
       weatherIconKind = weather.icon;
       drawWeatherIcon(weatherIcon, weather.icon, 24, 24, 13);
@@ -1973,7 +2004,7 @@ export async function startGame(container: HTMLElement) {
   const arenaToastSub = new Text({
     text: '',
     style: new TextStyle({
-      fontFamily: 'monospace',
+      fontFamily: 'BiplanesMono, monospace',
       fontSize: 13,
       fill: 0xcde7f4,
       fontWeight: 'bold',
@@ -2018,7 +2049,7 @@ export async function startGame(container: HTMLElement) {
   const flightLabStatus = new Text({
     text: '',
     style: new TextStyle({
-      fontFamily: 'monospace',
+      fontFamily: 'BiplanesMono, monospace',
       fontSize: 24,
       fill: 0xfff0b8,
       fontWeight: 'bold',
@@ -2037,8 +2068,7 @@ export async function startGame(container: HTMLElement) {
     missionObjective.y = missionLayout.objectiveY;
     missionObjective.style.fontSize = missionLayout.objectiveFontSize;
     if (arenaStatus.visible) {
-      arenaStatus.x = Math.max(12, (w - arenaStatus.width) / 2);
-      arenaStatus.y = 12;
+      layoutArenaStatus();
     }
     if (arenaToast.visible) layoutArenaToast(w, h);
     if (flightLabStatus.visible) {
@@ -2072,7 +2102,7 @@ export async function startGame(container: HTMLElement) {
   const bossMarkerLabel = new Text({
     text: 'ШРАМ',
     style: new TextStyle({
-      fontFamily: 'monospace',
+      fontFamily: 'BiplanesMono, monospace',
       fontSize: 18,
       fontWeight: 'bold',
       fill: 0xff6060,
@@ -2093,7 +2123,7 @@ export async function startGame(container: HTMLElement) {
   const debugText = new Text({
     text: '',
     style: new TextStyle({
-      fontFamily: 'monospace',
+      fontFamily: 'BiplanesMono, monospace',
       fontSize: 12,
       fill: 0xa8c0ff,
       stroke: { color: 0x000000, width: 2 },
@@ -2104,16 +2134,16 @@ export async function startGame(container: HTMLElement) {
   debugText.visible = DEBUG_HUD_ON_BOOT;
   uiLayer.addChild(debugText);
 
-  // TEMP diagnostics (always-on): build tag + live FPS / plane / bullet / explosion
-  // counts, bottom-left. Lets a home-screen iPhone app confirm the build and show
-  // what spikes on a freeze. Remove once the freeze is resolved.
+  // Bottom-left version tag (how the owner confirms which build his phone runs).
+  // The full FPS/counters diagnostics line only shows with ?debug — for players
+  // it was one more line of clutter (freeze-hunting era is over).
   let diagFps = 60, diagLoCur = 999, diagLo = 60, diagLoT = 0; // smoothed fps + worst-frame (last 2s)
   const diagText = new Text({
     text: BUILD_TAG,
-    style: new TextStyle({ fontFamily: 'monospace', fontSize: 13, fill: 0xffe08a, stroke: { color: 0x000000, width: 3 } }),
+    style: new TextStyle({ fontFamily: 'BiplanesMono, monospace', fontSize: DEBUG_HUD_ON_BOOT ? 13 : 11, fill: 0xffe08a, stroke: { color: 0x000000, width: 3 } }),
   });
   diagText.x = 8;
-  diagText.alpha = 0.9;
+  diagText.alpha = DEBUG_HUD_ON_BOOT ? 0.9 : 0.5;
   uiLayer.addChild(diagText);
 
   let state: WorldState = createWorldState(Math.floor(Math.random() * 1e9), makePlayer());
@@ -2407,8 +2437,7 @@ export async function startGame(container: HTMLElement) {
     arenaStatus.text = runSession
       ? `ЗАБЕГ • ВОЛНА ${Math.min(arenaRound, RUN_WAVE_COUNT)}/${RUN_WAVE_COUNT}  ${phaseText}  СБИТО ${state.playerScore}`
       : `РАУНД ${arenaRound}  ${phaseText}  ЧИКО ${state.playerScore} : ${state.enemyScore} ВРАГ`;
-    arenaStatus.x = Math.max(12, (app.screen.width - arenaStatus.width) / 2);
-    arenaStatus.y = 12;
+    layoutArenaStatus();
     arenaStatus.visible = true;
   }
 
@@ -2754,7 +2783,7 @@ export async function startGame(container: HTMLElement) {
   const exitBg = new Graphics();
   const exitLabel = new Text({
     text: '‹ В МЕНЮ',
-    style: new TextStyle({ fontFamily: 'monospace', fontSize: 15, fill: 0xffd07a, fontWeight: 'bold', stroke: { color: 0x05080e, width: 3 } }),
+    style: new TextStyle({ fontFamily: 'BiplanesMono, monospace', fontSize: 15, fill: 0xffd07a, fontWeight: 'bold', stroke: { color: 0x05080e, width: 3 } }),
   });
   const drawExit = (hover: boolean) => {
     exitBg.clear()
@@ -4670,7 +4699,7 @@ export async function startGame(container: HTMLElement) {
     screenFx.update(dt, renderTimeSec, worldLayer);
     arenaWeather.update(dt, renderTimeSec);
     hud.setArenaRound(runMode === 'arena' ? arenaRound : null);
-    hud.update(state);
+    hud.update(state, { suppressTaxiPrompt: flightHint.visible });
     updateAmmoHud(state);
     ammoHud.visible = (runMode === 'arena' || runMode === 'story')
       && gameRunning && !choicesShowing && !state.gameOver && state.player.alive;
@@ -4697,9 +4726,14 @@ export async function startGame(container: HTMLElement) {
     diagText.y = app.screen.height - 22;
     {
       const fe = (window as unknown as { __biplanesFrameError?: string }).__biplanesFrameError;
-      const errPart = fe ? `  ERR:${(String(fe).split('\n')[0] ?? '').slice(0, 46)}` : '';
-      diagText.text = `${BUILD_TAG}  fps:${diagFps.toFixed(0)} lo:${diagLo.toFixed(0)}  tc:${state.tickCount} hp:${state.player.hp.toFixed(0)} st:${state.player.state.slice(0, 3)} g:${state.player.kinematic.g.toFixed(0)} go:${state.gameOver ? 1 : 0} es:${state.enemyScore} r:${arenaRound}/${arenaRoundPhase.slice(0, 3)} pl:${state.enemies.length + state.allies.length + 1} bu:${state.bullets.length} fx:${spriteExplosions.activeCount}${errPart}`;
-      diagText.style.fill = fe ? 0xff7a7a : 0xffe08a; // turn RED if a frame error is captured
+      if (DEBUG_HUD_ON_BOOT || fe) {
+        const errPart = fe ? `  ERR:${(String(fe).split('\n')[0] ?? '').slice(0, 46)}` : '';
+        diagText.text = `${BUILD_TAG}  fps:${diagFps.toFixed(0)} lo:${diagLo.toFixed(0)}  tc:${state.tickCount} hp:${state.player.hp.toFixed(0)} st:${state.player.state.slice(0, 3)} g:${state.player.kinematic.g.toFixed(0)} go:${state.gameOver ? 1 : 0} es:${state.enemyScore} r:${arenaRound}/${arenaRoundPhase.slice(0, 3)} pl:${state.enemies.length + state.allies.length + 1} bu:${state.bullets.length} fx:${spriteExplosions.activeCount}${errPart}`;
+        diagText.style.fill = fe ? 0xff7a7a : 0xffe08a; // turn RED if a frame error is captured
+      } else if (diagText.text !== BUILD_TAG) {
+        // Players see only the small version tag — the counters were HUD noise.
+        diagText.text = BUILD_TAG;
+      }
     }
 
     publishDebugState();

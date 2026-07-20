@@ -10,7 +10,7 @@ import {
 // the live version (cache-busted, no-store) and, if it's newer than this bundle,
 // reload ONCE to it. Guarded against reload loops via sessionStorage. Bump in BOTH
 // this constant AND apps/web/public/version.json (and BUILD_TAG in the app) per deploy.
-const THIS_VERSION = 'v33-android-proto';
+const THIS_VERSION = 'v34-ui-perf';
 void (async () => {
   try {
     const res = await fetch(`version.json?t=${Date.now()}`, { cache: 'no-store' });
@@ -78,8 +78,30 @@ bindTelegramViewportChange(syncAppHeight);
 const container = document.getElementById('game');
 if (!container) throw new Error('No #game element');
 
+// Экран загрузки (лого + погоня) живёт в index.html и виден с ПЕРВОЙ отрисовки —
+// до скачивания бандла и ассетов. Прячем его, когда игра реально готова.
+function hideBootLoader() {
+  const loader = document.getElementById('boot-loader');
+  if (!loader) return;
+  loader.classList.add('hidden');
+  window.setTimeout(() => loader.remove(), 450);
+}
+
+// Игровой шрифт должен быть ЗАГРУЖЕН до создания первых текстов: Pixi рисует текст
+// в канвас один раз, и системный monospace на Android измеряется неверно (строки
+// обрезались и налезали). Свой шрифт = одинаковая вёрстка на всех платформах.
+try {
+  await Promise.allSettled([
+    document.fonts.load("700 16px BiplanesMono", 'РАУНД АБВ abc 09'),
+    document.fonts.load("400 16px BiplanesMono", 'РАУНД АБВ abc 09'),
+  ]);
+} catch { /* шрифт не загрузился — останется системный monospace */ }
+
 const { startGame } = await import('@biplanes/app');
-startGame(container).catch(err => {
-  console.error('Game failed to start', err);
-  container.innerHTML = `<pre style="color:#f88;padding:20px;font:14px monospace">${String(err)}</pre>`;
-});
+startGame(container)
+  .then(hideBootLoader)
+  .catch(err => {
+    console.error('Game failed to start', err);
+    hideBootLoader();
+    container.innerHTML = `<pre style="color:#f88;padding:20px;font:14px monospace">${String(err)}</pre>`;
+  });

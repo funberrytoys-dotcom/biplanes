@@ -52,7 +52,7 @@ export function createRunSummaryScreen(
   panel.addChild(title);
 
   const subtitleStyle = new TextStyle({
-    fontFamily: 'monospace',
+    fontFamily: 'BiplanesMono, monospace',
     fontSize: 18,
     fontWeight: 'bold',
     fill: 0xf7d8a0,
@@ -62,7 +62,7 @@ export function createRunSummaryScreen(
   panel.addChild(subtitle);
 
   const statStyle = new TextStyle({
-    fontFamily: 'monospace',
+    fontFamily: 'BiplanesMono, monospace',
     fontSize: 14,
     fill: 0x9fb5c4,
     letterSpacing: 1,
@@ -72,7 +72,7 @@ export function createRunSummaryScreen(
 
   const buildHeader = new Text({
     text: 'СОБРАННЫЙ БИЛД',
-    style: new TextStyle({ fontFamily: 'monospace', fontSize: 12, fill: 0x6f8792, letterSpacing: 2, fontWeight: 'bold' }),
+    style: new TextStyle({ fontFamily: 'BiplanesMono, monospace', fontSize: 12, fill: 0x6f8792, letterSpacing: 2, fontWeight: 'bold' }),
   });
   panel.addChild(buildHeader);
 
@@ -86,7 +86,7 @@ export function createRunSummaryScreen(
     const bg = new Graphics();
     const txt = new Text({
       text: label,
-      style: new TextStyle({ fontFamily: 'monospace', fontSize: 17, fill: accent, fontWeight: 'bold', letterSpacing: 1, stroke: { color: 0x05080e, width: 3 } }),
+      style: new TextStyle({ fontFamily: 'BiplanesMono, monospace', fontSize: 17, fill: accent, fontWeight: 'bold', letterSpacing: 1, stroke: { color: 0x05080e, width: 3 } }),
     });
     const bw = 220;
     const bh = 52;
@@ -156,7 +156,7 @@ export function createRunSummaryScreen(
       if (active.length === 0) {
         const none = new Text({
           text: 'Модули не установлены',
-          style: new TextStyle({ fontFamily: 'monospace', fontSize: 14, fill: 0x7d8896, fontStyle: 'italic' }),
+          style: new TextStyle({ fontFamily: 'BiplanesMono, monospace', fontSize: 14, fill: 0x7d8896, fontStyle: 'italic' }),
         });
         buildBox.addChild(none);
       } else {
@@ -176,7 +176,7 @@ export function createRunSummaryScreen(
           const stars = '★'.repeat(b.keystoneTier);
           const head = new Text({
             text: `${b.label}  ×${b.affinity}${stars ? '  ' + stars : ''}`,
-            style: new TextStyle({ fontFamily: 'monospace', fontSize: 15, fill: accent, fontWeight: 'bold', letterSpacing: 1 }),
+            style: new TextStyle({ fontFamily: 'BiplanesMono, monospace', fontSize: 15, fill: accent, fontWeight: 'bold', letterSpacing: 1 }),
           });
           head.x = headX;
           head.y = y;

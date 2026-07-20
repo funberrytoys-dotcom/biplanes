@@ -45,7 +45,7 @@ export function createHud(width: number, height: number) {
   dashboard.addChild(hpGauge);
   const hpGaugeLabel = new Text({
     text: 'OIL',
-    style: new TextStyle({ fontFamily: 'monospace', fontSize: 8, fill: 0x8890a0, fontWeight: 'bold' }),
+    style: new TextStyle({ fontFamily: 'BiplanesMono, monospace', fontSize: 8, fill: 0x8890a0, fontWeight: 'bold' }),
   });
   hpGaugeLabel.x = HP_CX - hpGaugeLabel.width / 2;
   hpGaugeLabel.y = HP_CY + 14;
@@ -59,7 +59,7 @@ export function createHud(width: number, height: number) {
   dashboard.addChild(spdGauge);
   const spdGaugeLabel = new Text({
     text: 'RPM',
-    style: new TextStyle({ fontFamily: 'monospace', fontSize: 8, fill: 0x8890a0, fontWeight: 'bold' }),
+    style: new TextStyle({ fontFamily: 'BiplanesMono, monospace', fontSize: 8, fill: 0x8890a0, fontWeight: 'bold' }),
   });
   spdGaugeLabel.x = SPD_CX - spdGaugeLabel.width / 2;
   spdGaugeLabel.y = SPD_CY + 14;
@@ -99,7 +99,7 @@ export function createHud(width: number, height: number) {
   dashboard.addChild(thrSlot, thrTicks, thrLever);
 
   const thrLabelStyle = new TextStyle({
-    fontFamily: 'monospace',
+    fontFamily: 'BiplanesMono, monospace',
     fontSize: 10,
     fill: 0xa0a5b5,
     fontWeight: 'bold',
@@ -147,7 +147,7 @@ export function createHud(width: number, height: number) {
 
   // Nixie digits text
   const nixieStyle = new TextStyle({
-    fontFamily: 'monospace',
+    fontFamily: 'BiplanesMono, monospace',
     fontSize: 20,
     fontWeight: 'bold',
     fill: 0xff8c19, // Glowing Amber/Neon Orange
@@ -210,7 +210,7 @@ export function createHud(width: number, height: number) {
 
   // 7. Phosphorescent CRT Monitor Terminal Readout (Below dashboard)
   const textStyle = new TextStyle({
-    fontFamily: 'monospace',
+    fontFamily: 'BiplanesMono, monospace',
     fontSize: 12,
     fontWeight: 'bold',
     fill: 0xc8ffb0,
@@ -223,7 +223,7 @@ export function createHud(width: number, height: number) {
 
   // Center overlay
   const overlayStyle = new TextStyle({
-    fontFamily: 'monospace',
+    fontFamily: 'BiplanesMono, monospace',
     fontSize: 42,
     fill: 0xffffff,
     fontWeight: 'bold',
@@ -245,7 +245,7 @@ export function createHud(width: number, height: number) {
 
   // "RAM!" notification — upper-center on player ram-kill survival (Phase 5).
   const ramStyle = new TextStyle({
-    fontFamily: 'monospace',
+    fontFamily: 'BiplanesMono, monospace',
     fontSize: 32,
     fill: 0xffc24a,
     fontWeight: 'bold',
@@ -410,7 +410,7 @@ export function createHud(width: number, height: number) {
   return {
     container: c,
     setArenaRound(round: number | null) { arenaRoundDisplay = round; },
-    update(s: WorldState) {
+    update(s: WorldState, opts?: { suppressTaxiPrompt?: boolean }) {
       pulseT += 0.15;
       const timeSec = s.timeSec;
 
@@ -650,14 +650,21 @@ export function createHud(width: number, height: number) {
         if (!showCaravanArrow) arrow.visible = false;
         centerOverlay(width, height);
       } else if (s.player.state === 'taxi') {
-        overlay.text = compactHud
-          ? (throttle < 0.15 ? 'ДАЙ ГАЗ' : 'ТЯНИ ВВЕРХ')
-          : (throttle < 0.15 ? 'МОТОР НА ХОЛОСТОМ\nПОДНИМИ РЫЧАГ ГАЗА' : 'РАЗБЕГ\nТЯНИ НОС ВВЕРХ');
-        overlay.style.fontSize = compactHud ? 18 : 24;
-        overlay.visible = true;
-        if (!showCaravanArrow) arrow.visible = false;
-        centerOverlay(width, height);
-        overlay.y = height * (compactHud ? 0.44 : 0.68);
+        if (opts?.suppressTaxiPrompt) {
+          // The onboarding hint line is already telling the player to throttle up —
+          // a second «ДАЙ ГАЗ» on top of it read as UI clutter on phones.
+          overlay.visible = false;
+          if (!showCaravanArrow) arrow.visible = false;
+        } else {
+          overlay.text = compactHud
+            ? (throttle < 0.15 ? 'ДАЙ ГАЗ' : 'ТЯНИ ВВЕРХ')
+            : (throttle < 0.15 ? 'МОТОР НА ХОЛОСТОМ\nПОДНИМИ РЫЧАГ ГАЗА' : 'РАЗБЕГ\nТЯНИ НОС ВВЕРХ');
+          overlay.style.fontSize = compactHud ? 18 : 24;
+          overlay.visible = true;
+          if (!showCaravanArrow) arrow.visible = false;
+          centerOverlay(width, height);
+          overlay.y = height * (compactHud ? 0.44 : 0.68);
+        }
       } else if (stalling) {
         overlay.text = 'СВАЛИВАНИЕ\nПИКИРУЙ ДЛЯ ВЫХОДА';
         overlay.style.fontSize = 24;

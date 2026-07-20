@@ -40,7 +40,7 @@ export function createBlimpSprite(): {
 
   // Score banner — bright readable text
   const bannerStyle = new TextStyle({
-    fontFamily: 'monospace',
+    fontFamily: 'BiplanesMono, monospace',
     fontSize: 22,
     fill: 0x1f1810,
     fontWeight: 'bold',
