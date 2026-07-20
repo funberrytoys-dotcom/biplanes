@@ -22,7 +22,10 @@ export function getStartScreenLayout(width: number, height: number, buttonCount:
   const buttonHalfHeight = 27;
 
   const requiredPanelHeight = buttonStartY + Math.max(0, buttonCount - 1) * buttonGap + buttonHalfHeight;
-  const panelScale = compact ? Math.max(0.72, Math.min(0.82, (height - panelY - 8) / requiredPanelHeight)) : 1;
+  // The min clamp must stay LOW enough that the whole column always fits: at the
+  // old 0.72 floor a 7-button menu overflowed a 360px-tall phone screen (owner:
+  // «меню не влезает полностью в экран телефона»).
+  const panelScale = compact ? Math.max(0.5, Math.min(0.82, (height - panelY - 10) / requiredPanelHeight)) : 1;
 
   const buttonRight = panelX + panelScale * (buttonX + 180);
   const statusHeight = compact ? 72 : 84;

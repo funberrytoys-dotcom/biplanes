@@ -302,8 +302,11 @@ export function createStartScreen(
 
     // Tagline: centred horizontally on the menu, and centred vertically in the gap
     // between the subtitle and the menu frame — so it floats above the menu instead
-    // of sitting on its top edge (and adapts to compact phone layout).
-    tagline.x = screenLayout.buttonX - tagline.width / 2;
+    // of sitting on its top edge. On short phone screens it's pure clutter (and it
+    // clipped off the left edge) — hide it there.
+    tagline.visible = h >= 420;
+    // Never let it start left of the screen edge (panel-local clamp).
+    tagline.x = Math.max(-(screenLayout.panelX / screenLayout.panelScale) + 8, screenLayout.buttonX - tagline.width / 2);
     const gapTop = subtitle.y + subtitle.height;
     tagline.y = gapTop + Math.max(2, (mbY - gapTop - tagline.height) / 2);
 

@@ -10,7 +10,7 @@ import {
 // the live version (cache-busted, no-store) and, if it's newer than this bundle,
 // reload ONCE to it. Guarded against reload loops via sessionStorage. Bump in BOTH
 // this constant AND apps/web/public/version.json (and BUILD_TAG in the app) per deploy.
-const THIS_VERSION = 'v34-ui-perf';
+const THIS_VERSION = 'v35-boot-flow';
 void (async () => {
   try {
     const res = await fetch(`version.json?t=${Date.now()}`, { cache: 'no-store' });
@@ -79,12 +79,17 @@ const container = document.getElementById('game');
 if (!container) throw new Error('No #game element');
 
 // Экран загрузки (лого + погоня) живёт в index.html и виден с ПЕРВОЙ отрисовки —
-// до скачивания бандла и ассетов. Прячем его, когда игра реально готова.
+// до скачивания бандла и ассетов. Прячем его, когда игра готова, но НЕ раньше чем
+// через 3 секунды: владелец хочет, чтобы лого и погоня успели прозвучать.
+const BOOT_LOADER_MIN_MS = 3000;
 function hideBootLoader() {
   const loader = document.getElementById('boot-loader');
   if (!loader) return;
-  loader.classList.add('hidden');
-  window.setTimeout(() => loader.remove(), 450);
+  const wait = Math.max(0, BOOT_LOADER_MIN_MS - performance.now());
+  window.setTimeout(() => {
+    loader.classList.add('hidden');
+    window.setTimeout(() => loader.remove(), 450);
+  }, wait);
 }
 
 // Игровой шрифт должен быть ЗАГРУЖЕН до создания первых текстов: Pixi рисует текст

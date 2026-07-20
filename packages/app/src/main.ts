@@ -969,7 +969,7 @@ const DEBUG_HUD_ON_BOOT = URL_PARAMS.has('debug');
 let CONTROLS_CONFIG = getControlsConfig();
 // Bump every deploy. Shown always-on bottom-left so a home-screen iPhone app (no
 // address bar for ?debug) can confirm WHICH build is live + read FPS/counts on a freeze.
-const BUILD_TAG = 'v34-ui-perf';
+const BUILD_TAG = 'v35-boot-flow';
 // Phones are fill-rate bound (many big semi-transparent clouds + explosions = overdraw).
 // Lighten those on touch devices only; PC/Steam keep full quality.
 const IS_MOBILE = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
@@ -1876,8 +1876,13 @@ export async function startGame(container: HTMLElement) {
       flightHint.style.fontSize = size;
     }
     flightHint.x = w / 2;
-    // Below the weather badge zone (badge bottom ≈ y94) so the two never stack.
-    flightHint.y = Math.max(98, app.screen.height * 0.27);
+    // Below the weather badge zone (badge bottom ≈ y94) so the two never stack;
+    // and if a wave/round toast is up, drop below it too.
+    let hintY = Math.max(98, app.screen.height * 0.27);
+    if (arenaToast.visible) {
+      hintY = Math.max(hintY, arenaToast.y + 96);
+    }
+    flightHint.y = hintY;
     flightHint.visible = true;
   }
   function hideFlightHint() { flightHint.visible = false; }

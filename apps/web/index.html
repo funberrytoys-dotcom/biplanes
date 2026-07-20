@@ -193,7 +193,9 @@
     #rotate-phone {
       position: fixed;
       inset: 0;
-      z-index: 50;
+      /* Выше экрана загрузки (z 60): при вертикальном телефоне СНАЧАЛА просим
+         повернуть экран, и только потом показываем загрузку и меню. */
+      z-index: 70;
       display: none;
       flex-direction: column;
       align-items: center;

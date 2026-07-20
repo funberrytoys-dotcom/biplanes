@@ -11,6 +11,15 @@ describe('getStartScreenLayout', () => {
     expect(lastButtonY + buttonHalfHeight).toBeLessThanOrEqual(430 - 8);
   });
 
+  it('fits a 7-button menu on a short 740×360 phone screen', () => {
+    const layout = getStartScreenLayout(740, 360, 7);
+
+    const buttonHalfHeight = 27 * layout.panelScale;
+    const lastButtonY = layout.panelY + layout.panelScale * (layout.buttonStartY + 6 * layout.buttonGap);
+
+    expect(lastButtonY + buttonHalfHeight).toBeLessThanOrEqual(360 - 8);
+  });
+
   it('places compact status copy away from the button column', () => {
     const layout = getStartScreenLayout(932, 430, 6);
     const buttonRight = layout.panelX + layout.panelScale * (layout.buttonX + 180);
