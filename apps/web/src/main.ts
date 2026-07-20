@@ -10,7 +10,7 @@ import {
 // the live version (cache-busted, no-store) and, if it's newer than this bundle,
 // reload ONCE to it. Guarded against reload loops via sessionStorage. Bump in BOTH
 // this constant AND apps/web/public/version.json (and BUILD_TAG in the app) per deploy.
-const THIS_VERSION = 'v35-boot-flow';
+const THIS_VERSION = 'v36-rotate-loops';
 void (async () => {
   try {
     const res = await fetch(`version.json?t=${Date.now()}`, { cache: 'no-store' });
@@ -78,18 +78,29 @@ bindTelegramViewportChange(syncAppHeight);
 const container = document.getElementById('game');
 if (!container) throw new Error('No #game element');
 
-// Экран загрузки (лого + погоня) живёт в index.html и виден с ПЕРВОЙ отрисовки —
-// до скачивания бандла и ассетов. Прячем его, когда игра готова, но НЕ раньше чем
-// через 3 секунды: владелец хочет, чтобы лого и погоня успели прозвучать.
-const BOOT_LOADER_MIN_MS = 3000;
+// Экран загрузки (лого + погоня со стрельбой) живёт в index.html и виден с ПЕРВОЙ
+// отрисовки. Прячем его, когда игра готова, но не раньше чем через 5 секунд ПОКАЗА:
+// если телефон держали вертикально, отсчёт начинается с момента поворота (__bootT0
+// сбрасывает скрипт в index.html) — так игрок всегда видит лого и погоню целиком.
+const BOOT_LOADER_MIN_MS = 5000;
 function hideBootLoader() {
   const loader = document.getElementById('boot-loader');
   if (!loader) return;
-  const wait = Math.max(0, BOOT_LOADER_MIN_MS - performance.now());
-  window.setTimeout(() => {
-    loader.classList.add('hidden');
-    window.setTimeout(() => loader.remove(), 450);
-  }, wait);
+  const attempt = () => {
+    const portraitMq = window.matchMedia('(orientation: portrait)');
+    if (portraitMq.matches) {
+      // Экран «поверни телефон» сверху — ждём поворота, потом начинаем отсчёт.
+      portraitMq.addEventListener('change', attempt, { once: true });
+      return;
+    }
+    const t0 = (window as unknown as { __bootT0?: number }).__bootT0 ?? 0;
+    const wait = Math.max(0, BOOT_LOADER_MIN_MS - (performance.now() - t0));
+    window.setTimeout(() => {
+      loader.classList.add('hidden');
+      window.setTimeout(() => loader.remove(), 450);
+    }, wait);
+  };
+  attempt();
 }
 
 // Игровой шрифт должен быть ЗАГРУЖЕН до создания первых текстов: Pixi рисует текст
