@@ -1,0 +1,15 @@
+{
+  "appId": "com.toysberry.biplanes",
+  "appName": "Бипланы",
+  "webDir": "../apps/web/dist",
+  "backgroundColor": "#14181f",
+  "android": {
+    "backgroundColor": "#14181f",
+    "adjustMarginsForEdgeToEdge": "disable"
+  },
+  "plugins": {
+    "SystemBars": {
+      "insetsHandling": "disable"
+    }
+  }
+}

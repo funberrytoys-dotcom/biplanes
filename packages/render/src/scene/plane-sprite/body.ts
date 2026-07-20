@@ -22,7 +22,9 @@ const PLANE_ART = {
     frameWidth: 512,
     frameHeight: 286,
     frameCount: 50,
-    columns: 10,
+    // 5×10 grid (2560×2860): the old 10-column sheet was 5120px wide, which is
+    // over the 4096 GPU max-texture limit on weak mobile chips → black plane.
+    columns: 5,
     fps: 24,
     // Cockpit opening in FRAME pixels (art faces left): bust bottom-center sits
     // here, tucked behind the painted rim. h = bust display HEIGHT — normalizing

@@ -24,6 +24,12 @@ coverage/
 /SOV fraction/
 /intro 2/
 
+# Android wrapper (mobile/) — secrets and local artifacts. КЛЮЧ ПОДПИСИ НЕ КОММИТИМ.
+mobile/node_modules/
+mobile/biplanes-release.jks
+mobile/keystore.properties
+КЛЮЧИ_РЕЛИЗА_БИПЛАНЫ_НЕ_ТЕРЯТЬ.md
+
 # Heavy raw ART dumps (imagegen sources, upscale batches, reference sheets).
 # The game only ships the processed copies under apps/web/public/assets.
 /WOLF COMET ASSETS/
