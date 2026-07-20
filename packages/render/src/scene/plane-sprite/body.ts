@@ -28,6 +28,10 @@ const PLANE_ART = {
     // here, tucked behind the painted rim. h = bust display HEIGHT — normalizing
     // by height keeps heads level across busts with different aspect ratios.
     cockpit: { x: 274, y: 132, h: 58 },
+    // Per-frame drift of the airframe INSIDE the sheet frames (alpha-centroid of
+    // the aft fuselage, measured offline). The pilot follows it so he trembles
+    // with the plane instead of hovering still while the art bobs.
+    bob: [[0.0, 0.0], [0.3, 0.8], [0.5, 2.3], [0.7, 3.1], [0.8, 3.9], [0.7, 5.1], [0.6, 5.7], [0.3, 6.8], [0.1, 7.4], [-0.2, 7.8], [-0.6, 8.5], [-0.9, 8.9], [-1.4, 9.7], [-1.8, 10.3], [-2.1, 9.9], [-1.9, 7.6], [-2.0, 5.7], [-1.6, 3.1], [-1.4, 1.6], [-1.2, -0.1], [-0.8, -2.6], [-0.6, -4.1], [-0.1, -6.4], [0.1, -7.7], [0.4, -8.5], [0.7, -7.7], [0.7, -7.0], [0.8, -6.0], [0.6, -5.6], [0.5, -4.8], [0.2, -4.7], [-0.1, -5.1], [-0.5, -5.6], [-0.9, -6.1], [-1.1, -6.3], [-1.4, -6.7], [-1.5, -6.7], [-1.1, -5.7], [-0.8, -4.8], [-0.7, -3.5], [-0.3, -2.1], [0.0, -1.0], [0.2, 0.6], [0.4, 1.3], [0.6, 2.3], [0.7, 3.5], [0.7, 3.5], [0.5, 2.5], [0.5, 1.4], [0.2, 0.5]],
   },
   enemy: {
     url: assetUrl('assets/biplanes/plane_enemy_crimson_sheet.png'),
@@ -38,7 +42,8 @@ const PLANE_ART = {
     frameCount: 17,
     columns: 6,
     fps: 12,
-    cockpit: { x: 302, y: 134, h: 73 },
+    cockpit: { x: 270, y: 135, h: 73 },
+    bob: [[0.0, 0.0], [-1.6, 6.2], [-1.8, 8.3], [-1.6, 6.3], [-0.7, 1.9], [0.0, -1.4], [-1.6, 6.3], [-1.9, 9.2], [-1.8, 9.3], [-1.8, 7.7], [-0.7, 1.7], [0.7, -4.2], [1.0, -5.4], [-0.1, -0.9], [-1.1, 4.0], [-1.7, 7.2], [-1.4, 5.4]],
   },
 } as const;
 
@@ -55,7 +60,7 @@ const COCKPIT_PILOT_ART = {
   },
 } as const;
 
-function createAnimatedPlaneArt(art: typeof PLANE_ART.player | typeof PLANE_ART.enemy): { sprite: Sprite; update: (dt: number) => void } {
+function createAnimatedPlaneArt(art: typeof PLANE_ART.player | typeof PLANE_ART.enemy): { sprite: Sprite; update: (dt: number) => number } {
   const sheet = Texture.from(art.url);
   const frames = Array.from({ length: art.frameCount }, (_, i) => {
     const x = (i % art.columns) * art.frameWidth;
@@ -72,10 +77,12 @@ function createAnimatedPlaneArt(art: typeof PLANE_ART.player | typeof PLANE_ART.
 
   return {
     sprite,
-    update(dt: number) {
+    // Returns the frame index shown this tick (the pilot bob table is keyed on it).
+    update(dt: number): number {
       time += dt;
       const frame = Math.floor(time * art.fps) % frames.length;
       sprite.texture = frames[frame] ?? firstFrame;
+      return frame;
     },
   };
 }
@@ -266,7 +273,7 @@ export function createPlaneBody(faction: 'player' | 'enemy', heroPilot = false):
     fuselageGlint,
     propellerX: noseX,
     updateArt(dt: number) {
-      artHandle.update(dt);
+      const frame = artHandle.update(dt);
       if (!pilotSprite.visible) {
         const tex = pilotSprite.texture;
         if (tex && tex !== Texture.EMPTY && tex.width > 2) {
@@ -275,6 +282,10 @@ export function createPlaneBody(faction: 'player' | 'enemy', heroPilot = false):
           pilotSprite.visible = true;
         }
       }
+      // Ride the airframe's baked bob so the pilot trembles WITH the plane.
+      const bob = art.bob[frame] ?? [0, 0];
+      pilotSprite.x = (cockpit.x + bob[0] - art.frameWidth / 2) * -artScale;
+      pilotSprite.y = (cockpit.y + bob[1] - art.frameHeight / 2) * artScale;
     },
   };
 }
