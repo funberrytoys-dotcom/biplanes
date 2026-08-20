@@ -225,7 +225,7 @@ def assemble_prop(m, R, m_wood, m_gold, m_brass, tag="PROP"):
     b.rotation_euler = (math.radians(180), 0, 0)
 
     parts = [a, b]
-    hub_r = 0.165 * R
+    hub_r = 0.115 * R
 
     def prim(kind, nm, loc, **kw):
         getattr(bpy.ops.mesh, kind)(location=loc, **kw)
@@ -237,11 +237,11 @@ def assemble_prop(m, R, m_wood, m_gold, m_brass, tag="PROP"):
 
     # The 2D canon has a flat riveted brass boss, not a spinner cone - keep it low.
     parts.append(prim("primitive_cylinder_add", tag + "_HUB", (0.0, 0, 0), vertices=56,
-                      radius=hub_r, depth=0.075 * R))
-    parts.append(prim("primitive_cone_add", tag + "_BOSS", (0.055 * R, 0, 0), vertices=48,
-                      radius1=0.115 * R, radius2=0.075 * R, depth=0.038 * R))
+                      radius=hub_r, depth=0.060 * R))
+    parts.append(prim("primitive_cone_add", tag + "_BOSS", (0.045 * R, 0, 0), vertices=48,
+                      radius1=0.086 * R, radius2=0.058 * R, depth=0.032 * R))
     before = {o.name for o in bpy.data.objects}
-    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.075 * R, location=(0.074 * R, 0, 0),
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.058 * R, location=(0.058 * R, 0, 0),
                                          segments=36, ring_count=18)
     dome = next(o for o in bpy.data.objects if o.name not in before)
     dome.name = tag + "_DOME"; dome.scale = (0.75, 1, 1)
@@ -249,13 +249,8 @@ def assemble_prop(m, R, m_wood, m_gold, m_brass, tag="PROP"):
     for p in dome.data.polygons: p.use_smooth = True
     parts.append(dome)
 
-    # crankcase disc that closes the engine opening
-    bpy.ops.mesh.primitive_cone_add(vertices=52, radius1=0.50 * m["lip_r"], radius2=0.34 * m["lip_r"],
-                                    depth=0.17, location=(-0.10, 0, 0))
-    ck = bpy.context.active_object; ck.name = tag + "_CRANKCASE"
-    ck.rotation_euler = (0, math.radians(90), 0)
-    ck.data.materials.append(m_brass)
-    for p in ck.data.polygons: p.use_smooth = True
+    # No spinning crankcase plate here: at cowling width it sat in front of the
+    # cylinders as a mirror-bright bell. The hub alone is enough.
 
     piv = bpy.data.objects.new(tag + "_PIVOT", None)
     bpy.context.scene.collection.objects.link(piv)
@@ -264,9 +259,8 @@ def assemble_prop(m, R, m_wood, m_gold, m_brass, tag="PROP"):
     piv.rotation_mode = 'XYZ'
     for ob in parts:
         ob.parent = piv; ob.matrix_parent_inverse = Matrix.Identity(4)
-    ck.parent = piv; ck.matrix_parent_inverse = Matrix.Identity(4)
     bpy.context.view_layer.update()
-    return piv, parts + [ck]
+    return piv, parts
 
 # ---------------------------------------------------------------- rig
 def build_rig(o, m, hinge_frac=0.28, blend=0.10):
@@ -483,10 +477,10 @@ def clean_engine_face(o, m, m_dark, m_brass=None, mode="full"):
         disc("ENGINE_BACKWALL", 0.92 * r_here, 0.08, xw, False)
         disc("ENGINE_HUBCAP", 0.80 * m["lip_r"], 0.34, m["cut_x"] - 0.45, True)
     else:
-        cap_r = max(0.35 * m["lip_r"], 1.02 * m.get("hole_r", 0.0))
-        cap = disc("ENGINE_HUBCAP", cap_r, 0.16, m["cut_x"] - 0.05, True)
-        if m_brass:
-            cap.data.materials.clear(); cap.data.materials.append(m_brass)
+        # One dark wall, sunk well inside the cowling so its rim never shows past
+        # the lip. The brass crankcase that spins with the propeller covers the
+        # middle, so no second cap is needed here.
+        disc("ENGINE_BACKWALL", 0.80 * r_here, 0.08, xw, False)
     return len(kill)
 
 
@@ -696,7 +690,7 @@ def add_fin_bolt(o, m, color=(246, 246, 244), name="FinBolt"):
     # fill the fin: fz0 is clipped by the measuring filter, so reach below it,
     # and stay ahead of the hinge so the rudder does not swing out from under it
     x0, x1 = hinge + 0.01, fn_le - 0.02
-    z0, z1 = fz0 - 0.15, fz1 - 0.01
+    z0, z1 = fz0 - 0.30, fz1 - 0.01
     w, h = (x1 - x0), (z1 - z0)
     # unit lightning bolt, nose of the plane is +X so the bolt leans forward
     UV = [(0.60, 1.00), (0.16, 0.46), (0.46, 0.46), (0.26, 0.00),
