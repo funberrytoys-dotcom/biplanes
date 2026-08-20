@@ -7,9 +7,9 @@ pp = imp("plane_pipeline"); lv = imp("lib_view")
 
 CFG = {
     "sov": dict(src=r"C:\Users\serge\Downloads\vintage airplane 3d model (1).glb",
-                wood=(141, 47, 14), gold=(186, 114, 16), brass=(186, 114, 16), wing=(11, 65, 150)),
+                wood=(141, 47, 14), gold=(186, 114, 16), brass=(186, 114, 16), wing=(11, 65, 150), rim=(176, 106, 14)),
     "jkl": dict(src=r"C:\Users\serge\Downloads\red biplane 3d model (3).glb",
-                wood=(143, 33, 25), gold=(215, 140, 40), brass=(198, 132, 42), wing=(37, 37, 38)),
+                wood=(143, 33, 25), gold=(215, 140, 40), brass=(198, 132, 42), wing=(37, 37, 38), rim=(26, 26, 27)),
 }
 TAG = "%TAG%"
 c = CFG[TAG]
@@ -17,14 +17,14 @@ c = CFG[TAG]
 pp.wipe()
 o = pp.load(c["src"], span=10.0)
 m = pp.measure(o)
-pp.cut_prop(o, m)
+hole_r = pp.cut_prop(o, m)
 m_dark = pp.mat("EngineDark_" + TAG, (0.014, 0.013, 0.013), 0.70, 0.35)
-painted = pp.paint_cut(o, m, m_dark)
-cleaned = pp.clean_engine_face(o, m, m_dark)
-flats = pp.repaint_flats(o, m, c["wing"], name="WingFlat_" + TAG)
+m_brass = pp.mat("PropBrass_" + TAG, pp.rgb(c["brass"]), 0.30, 0.85)
+painted = pp.paint_cut(o, m, m_brass)
+cleaned = pp.clean_engine_face(o, m, m_dark, m_brass, mode="%MODE%")
+flats = pp.repaint_flats(o, m, c["wing"], name="WingFlat_" + TAG, rim=c["rim"])
 m_wood = pp.mat("PropWood_" + TAG, pp.rgb(c["wood"]), 0.44, 0.0)
 m_gold = pp.mat("PropGold_" + TAG, pp.rgb(c["gold"]), 0.32, 0.8)
-m_brass = pp.mat("PropBrass_" + TAG, pp.rgb(c["brass"]), 0.30, 0.85)
 
 # wood grain
 nt = m_wood.node_tree
@@ -57,9 +57,10 @@ piv, parts = pp.assemble_prop(m, R, m_wood, m_gold, m_brass, tag="PROP")
 rig, stats, hinges = pp.build_rig(o, m)
 piv.parent = None
 
-# quick pose so the check renders show everything working
+# quick pose so the check renders show every surface actually moving
 P = rig.pose.bones
-for b in ("ail_lo_L", "ail_lo_R", "ail_up_L", "ail_up_R"): P[b].rotation_euler = (0, math.radians(22), 0)
+for b in ("ail_lo_L", "ail_lo_R", "ail_up_L", "ail_up_R"):
+    P[b].rotation_euler = (0, math.radians(22), 0)
 P["elevator"].rotation_euler = (0, math.radians(18), 0)
 P["rudder"].rotation_euler = (0, math.radians(22), 0)
 piv.rotation_euler = (math.radians(12), 0, 0)
@@ -77,5 +78,5 @@ shots += lv.shoot(TAG + "_chknose", ["nq"], ortho=4.6, target=(m["cut_x"] - 1.6,
 
 bpy.ops.wm.save_as_mainfile(filepath=os.path.join(BASE, "plane_%s.blend" % TAG))
 print(json.dumps({"tag": TAG, "measure": m, "hinges": hinges, "weights": stats,
-                  "painted_cut_faces": painted, "flat_wing_faces": flats, "gun_verts_moved": moved, "engine_core_removed": cleaned, "prop_R": round(R, 3),
+                  "painted_cut_faces": painted, "flat_wing_faces": flats, "gun_verts_moved": moved, "engine_core_removed": cleaned, "hole_r": round(hole_r, 3), "prop_R": round(R, 3),
                   "shots": [os.path.basename(p) for p in shots]}))

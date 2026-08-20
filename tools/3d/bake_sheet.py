@@ -2,7 +2,7 @@ import bpy, math, json, os
 from mathutils import Vector, Matrix
 
 TAG = "%TAG%"
-OUTLINE = True
+OUTLINE = False   # the ink line was what made it read as a cartoon
 BASE = r"C:\Users\serge\AppData\Local\Temp\claude\C--Users-serge-Documents-Playground-Biplanes\882b20d1-942a-41ff-b96c-218c1c8afa45\scratchpad\3d"
 FRAMES = 50
 FW, FH = 512, 310
@@ -47,7 +47,7 @@ ctr = (mn + mx) / 2
 spanx = mx.x - mn.x
 
 # ---- camera: orthographic from +Y so the nose (+X) lands on the LEFT
-AZ, EL = math.radians(4.0), math.radians(5.5)
+AZ, EL = math.radians(8.0), math.radians(10.0)
 tgt = bpy.data.objects.new("BakeTGT", None); sc.collection.objects.link(tgt); tgt.location = ctr
 cam_d = bpy.data.cameras.new("BakeCam")
 cam = bpy.data.objects.new("BakeCam", cam_d)
@@ -65,11 +65,11 @@ for nm in ("K", "F", "R"):
     if o: bpy.data.objects.remove(o, do_unlink=True)
 w = bpy.data.worlds.get("W") or bpy.data.worlds.new("W")
 sc.world = w; w.use_nodes = True
-w.node_tree.nodes["Background"].inputs[0].default_value = (0.82, 0.86, 0.92, 1)
-w.node_tree.nodes["Background"].inputs[1].default_value = 1.30
-for nm, rot, en in (("K", (math.radians(62), 0, math.radians(150)), 1.7),
-                    ("F", (math.radians(74), 0, math.radians(20)), 0.9),
-                    ("R", (math.radians(118), 0, math.radians(255)), 0.6)):
+w.node_tree.nodes["Background"].inputs[0].default_value = (0.46, 0.52, 0.62, 1)
+w.node_tree.nodes["Background"].inputs[1].default_value = 0.55
+for nm, rot, en in (("K", (math.radians(52), 0, math.radians(140)), 3.2),
+                    ("F", (math.radians(80), 0, math.radians(30)), 0.8),
+                    ("R", (math.radians(112), 0, math.radians(250)), 1.5)):
     ld = bpy.data.lights.new(nm, 'SUN'); ld.energy = en; ld.angle = math.radians(20)
     lo = bpy.data.objects.new(nm, ld); sc.collection.objects.link(lo); lo.rotation_euler = rot
 

@@ -1,7 +1,7 @@
 import bpy, math, json, os
 BASE = r"C:\Users\serge\AppData\Local\Temp\claude\C--Users-serge-Documents-Playground-Biplanes\882b20d1-942a-41ff-b96c-218c1c8afa45\scratchpad\3d"
 made = {}
-for tag, tint in (("sov", (0.24, 0.10, 0.05)), ("jkl", (0.22, 0.06, 0.05))):
+for tag, tint in (("sov", (0.09, 0.04, 0.02)), ("jkl", (0.08, 0.02, 0.02))):
     bpy.ops.wm.open_mainfile(filepath=os.path.join(BASE, "plane_%s.blend" % tag))
     piv = bpy.data.objects["PROP_PIVOT"]
     old = bpy.data.objects.get("PROP_DISC")
@@ -17,8 +17,8 @@ for tag, tint in (("sov", (0.24, 0.10, 0.05)), ("jkl", (0.22, 0.06, 0.05))):
     m.use_nodes = True
     b = m.node_tree.nodes["Principled BSDF"]
     b.inputs["Base Color"].default_value = (tint[0], tint[1], tint[2], 1.0)
-    b.inputs["Roughness"].default_value = 0.9
-    b.inputs["Alpha"].default_value = 0.20
+    b.inputs["Roughness"].default_value = 1.0
+    b.inputs["Alpha"].default_value = 0.09
     try: m.surface_render_method = 'BLENDED'
     except Exception:
         try: m.blend_method = 'BLEND'

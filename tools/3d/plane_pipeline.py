@@ -130,12 +130,19 @@ def cut_prop(o, m):
           e.verts[0].co.x > m["cut_x"] - 0.30 and e.verts[1].co.x > m["cut_x"] - 0.30]
     try: bmesh.ops.holes_fill(bm, edges=bd, sides=0)
     except Exception: pass
-    still = [e for e in bm.edges if len(e.link_faces) == 1 and e.verts[0].co.x > m["cut_x"] - 0.30]
-    if still:
-        try: bmesh.ops.triangle_fill(bm, edges=still, use_beauty=True)
-        except Exception: pass
+    # A triangle fan across the remaining bore comes out as a zigzag star with
+    # scrambled UVs, so leave that hole open and measure it: a brass cap covers it.
+    # Only the rim right at the cut plane counts: the cowling's own front lip is
+    # an open edge in the Tripo mesh too, and it must not widen the cap.
+    still = [e for e in bm.edges if len(e.link_faces) == 1 and e.verts[0].co.x > m["cut_x"] - 0.09]
+    hole_r = 0.0
+    for e in still:
+        for v in e.verts:
+            hole_r = max(hole_r, math.hypot(v.co.y - m["ax_y"], v.co.z - m["ax_z"]))
     bmesh.ops.recalc_face_normals(bm, faces=[f for f in bm.faces if f.calc_center_median().x > m["cut_x"] - 0.35])
     bm.to_mesh(me); bm.free(); me.update()
+    m["hole_r"] = round(hole_r, 3)
+    return hole_r
 
 def mat(name, base, rough=0.45, metal=0.0):
     mt = bpy.data.materials.get(name) or bpy.data.materials.new(name)
@@ -228,12 +235,16 @@ def assemble_prop(m, R, m_wood, m_gold, m_brass, tag="PROP"):
         for p in ob.data.polygons: p.use_smooth = True
         return ob
 
+    # The 2D canon has a flat riveted brass boss, not a spinner cone - keep it low.
     parts.append(prim("primitive_cylinder_add", tag + "_HUB", (0.0, 0, 0), vertices=56,
                       radius=hub_r, depth=0.075 * R))
-    parts.append(prim("primitive_cone_add", tag + "_BOSS", (0.072 * R, 0, 0), vertices=48,
-                      radius1=0.140 * R, radius2=0.100 * R, depth=0.09 * R))
-    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.100 * R, location=(0.113 * R, 0, 0), segments=40, ring_count=20)
-    dome = bpy.context.active_object; dome.name = tag + "_DOME"; dome.scale = (1.25, 1, 1)
+    parts.append(prim("primitive_cone_add", tag + "_BOSS", (0.055 * R, 0, 0), vertices=48,
+                      radius1=0.115 * R, radius2=0.075 * R, depth=0.038 * R))
+    before = {o.name for o in bpy.data.objects}
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.075 * R, location=(0.074 * R, 0, 0),
+                                         segments=36, ring_count=18)
+    dome = next(o for o in bpy.data.objects if o.name not in before)
+    dome.name = tag + "_DOME"; dome.scale = (0.75, 1, 1)
     dome.data.materials.append(m_brass)
     for p in dome.data.polygons: p.use_smooth = True
     parts.append(dome)
@@ -259,6 +270,7 @@ def assemble_prop(m, R, m_wood, m_gold, m_brass, tag="PROP"):
 
 # ---------------------------------------------------------------- rig
 def build_rig(o, m, hinge_frac=0.28, blend=0.10):
+    HARD = True   # rigid panels: cut the seams, weight 0/1, nothing bends
     hs = m["halfspan"]
     lo_te, lo_le = m["wing_lo_chord"]; up_te, up_le = m["wing_up_chord"]
     lo_h = lo_te + hinge_frac * (lo_le - lo_te)
@@ -317,10 +329,43 @@ def build_rig(o, m, hinge_frac=0.28, blend=0.10):
     bpy.ops.object.mode_set(mode='OBJECT')
     for pb in rig.pose.bones: pb.rotation_mode = 'XYZ'
 
+    # Cut the mesh along every hinge seam first, so a strictly 0/1 weight makes the
+    # panel swing as one rigid piece instead of bending the wing skin.
+    BOX = {
+        "ail_lo_L": (lo_te - 0.35, lo_h, 0.50 * hs, 1.03 * hs, loz - 0.45, loz + 0.45),
+        "ail_lo_R": (lo_te - 0.35, lo_h, 0.50 * hs, 1.03 * hs, loz - 0.45, loz + 0.45),
+        "ail_up_L": (up_te - 0.35, up_h, 0.50 * hs, 1.03 * hs, upz - 0.45, upz + 0.45),
+        "ail_up_R": (up_te - 0.35, up_h, 0.50 * hs, 1.03 * hs, upz - 0.45, upz + 0.45),
+        "elevator": (ht_te - 0.35, ht_h, 0.20 * hts, 1.10 * hts, htz - 0.42, htz + 0.42),
+        "rudder":   (fn_te - 0.35, fn_h, 0.0, 0.30 * hs, fz0 + 0.02, fz1 + 0.30),
+    }
+    if HARD:
+        done = set()
+        for nm, b in BOX.items():
+            key = (round(b[1], 3), round(b[4], 3))
+            if key in done: continue
+            done.add(key)
+            _bisect(o, Vector((b[1], 0, 0)), Vector((1, 0, 0)), b)
+            for ye in (b[2], b[3]):
+                if ye <= 0.001: continue
+                for sgn in (-1, 1):
+                    _bisect(o, Vector((0, sgn * ye, 0)), Vector((0, 1, 0)), b)
+
+    def hard_w(nm, c):
+        b = BOX[nm]
+        if not (b[0] <= c.x <= b[1] + 1e-4): return 0.0
+        if not (b[4] - 1e-4 <= c.z <= b[5] + 1e-4): return 0.0
+        if nm.endswith("_L") and c.y > 0: return 0.0
+        if nm.endswith("_R") and c.y < 0: return 0.0
+        ay = abs(c.y)
+        if not (b[2] - 1e-4 <= ay <= b[3] + 1e-4): return 0.0
+        return 1.0
+
     stats = {}
     for nm, d in SURF.items():
         vg = o.vertex_groups.new(name=nm)
-        f = d["w"]; k = 0
+        f = (lambda c, _n=nm: hard_w(_n, c)) if HARD else d["w"]
+        k = 0
         for v in o.data.vertices:
             w = f(v.co)
             if w > 0.002:
@@ -334,7 +379,7 @@ def build_rig(o, m, hinge_frac=0.28, blend=0.10):
 
 
 # ---------------------------------------------------------------- flat repaint
-def repaint_flats(o, m, body, name="WingFlat", nz=0.40):
+def repaint_flats(o, m, body, name="WingFlat", nz=0.40, rim=None):
     """Tripo bakes garbage onto the wing tops. Replace the flat upper/lower wing
     and tailplane surfaces with the canonical flat colour; leave rims, struts and
     the fuselage on the original texture."""
@@ -349,13 +394,24 @@ def repaint_flats(o, m, body, name="WingFlat", nz=0.40):
     # the lower wing and tailplane must leave the fuselage alone.
     slabs = [(m["wing_lo_z"], 0.42, 0.14), (m["wing_up_z"], 0.46, 0.0)]
     if "htail_z" in m: slabs.append((m["htail_z"], 0.30, 0.05))
+    idx_rim = idx
+    if rim is not None:
+        mr = mat(name + "Rim", rgb(rim), 0.44, 0.25)
+        if mr.name not in [x.name for x in me.materials if x]:
+            me.materials.append(mr)
+        idx_rim = [i for i, x in enumerate(me.materials) if x and x.name == mr.name][0]
     n = 0
     for p in me.polygons:
         c = p.center
-        if abs(p.normal.z) < nz: continue
-        for wz, half, ymin in slabs:
+        flat = abs(p.normal.z) >= nz
+        # the rim band is only the wing edge: well outboard of the fuselage, and
+        # never on the tail, or it swallows the cowling and the cockpit sides
+        rim_ok = (rim is not None and not flat and abs(c.y) > 0.30 * hs)
+        if not flat and not rim_ok: continue
+        for wz, half, ymin in slabs[:2] if rim_ok else slabs:
             if abs(c.z - wz) < half and abs(c.y) >= ymin * hs:
-                p.material_index = idx; n += 1
+                p.material_index = idx if flat else idx_rim
+                n += 1
                 break
     me.update()
     return n
@@ -389,21 +445,208 @@ def seat_guns(o, m, x0, x1, ylim, zmin, zmax, dz, mount=None, m_brass=None):
 
 
 # ---------------------------------------------------------------- engine face
-def clean_engine_face(o, m, m_dark):
+def clean_engine_face(o, m, m_dark, m_brass=None, mode="full"):
     """Tripo leaves shredded geometry inside the cowling. Remove the inner core
     (the cylinders sit further out and stay) and back it with a dark disc."""
     me = o.data
     ay, az = m["ax_y"], m["ax_z"]
-    rin = 0.60 * m["lip_r"]
-    xin = m["cut_x"] - 0.62
+    rin = (0.60 if mode == "full" else 0.30) * m["lip_r"]
+    xin = m["cut_x"] - (0.62 if mode == "full" else 0.24)
     bm = bmesh.new(); bm.from_mesh(me)
     kill = [v for v in bm.verts
             if v.co.x > xin and math.hypot(v.co.y - ay, v.co.z - az) < rin]
     bmesh.ops.delete(bm, geom=kill, context='VERTS')
     bm.to_mesh(me); bm.free(); me.update()
-    bpy.ops.mesh.primitive_cylinder_add(vertices=44, radius=0.70 * m["lip_r"], depth=0.06,
-                                        location=(m["cut_x"] - 0.58, ay, az))
-    d = bpy.context.active_object; d.name = "ENGINE_BACK"
-    d.rotation_euler = (0, math.radians(90), 0)
-    d.data.materials.append(m_dark)
+    # A small plug left daylight between the cylinders. Close the whole bore with
+    # one wall sitting just behind the cylinder ring instead.
+    # Two pieces, sized off the cylinder ring so the cylinders stay visible:
+    #  - a back wall deep in the cowling, so gaps between cylinders look at metal
+    #  - a narrow crankcase cap filling the bore in the middle
+    def disc(name, radius, depth, x, smooth):
+        before = {o.name for o in bpy.data.objects}
+        bpy.ops.mesh.primitive_cylinder_add(vertices=56, radius=radius, depth=depth,
+                                            location=(x, ay, az))
+        ob = next(o for o in bpy.data.objects if o.name not in before)
+        ob.name = name
+        ob.rotation_euler = (0, math.radians(90), 0)
+        ob.data.materials.append(m_dark)
+        for pf in ob.data.polygons: pf.use_smooth = smooth
+        return ob
+
+    # The cowling narrows towards the firewall, so size the back wall off the
+    # actual radius where it sits instead of guessing from the lip.
+    V = [v.co for v in me.vertices]
+    xw = m["cut_x"] - 0.72
+    here = [c for c in V if xw - 0.07 <= c.x <= xw + 0.07]
+    r_here = max((math.hypot(c.y - ay, c.z - az) for c in here), default=1.2 * m["lip_r"])
+    if mode == "full":
+        disc("ENGINE_BACKWALL", 0.92 * r_here, 0.08, xw, False)
+        disc("ENGINE_HUBCAP", 0.80 * m["lip_r"], 0.34, m["cut_x"] - 0.45, True)
+    else:
+        cap_r = max(0.35 * m["lip_r"], 1.02 * m.get("hole_r", 0.0))
+        cap = disc("ENGINE_HUBCAP", cap_r, 0.16, m["cut_x"] - 0.05, True)
+        if m_brass:
+            cap.data.materials.clear(); cap.data.materials.append(m_brass)
     return len(kill)
+
+
+# ---------------------------------------------------------------- rigid control surfaces
+def _in_box(c, b):
+    return (b[0] <= c.x <= b[1] and b[2] <= abs(c.y) <= b[3] and b[4] <= c.z <= b[5])
+
+def _bisect(o, co, no, box, pad=0.12):
+    """Cut the mesh along one plane, but only inside the surface's box."""
+    me = o.data
+    bm = bmesh.new(); bm.from_mesh(me)
+    big = (box[0] - pad, box[1] + pad, max(0.0, box[2] - pad), box[3] + pad,
+           box[4] - pad, box[5] + pad)
+    faces = [f for f in bm.faces if _in_box(f.calc_center_median(), big)]
+    if faces:
+        verts = set(); edges = set()
+        for f in faces:
+            verts.update(f.verts); edges.update(f.edges)
+        bmesh.ops.bisect_plane(bm, geom=list(verts) + list(edges) + faces, dist=1e-5,
+                               plane_co=co, plane_no=no,
+                               clear_inner=False, clear_outer=False)
+    bm.to_mesh(me); bm.free(); me.update()
+
+def _split_off(o, box, name):
+    """Move the faces inside `box` into their own object, keeping UVs and materials."""
+    me = o.data
+    bm = bmesh.new(); bm.from_mesh(me)
+    bm.faces.ensure_lookup_table()
+    sel = [f for f in bm.faces if _in_box(f.calc_center_median(), box)]
+    if not sel:
+        bm.free(); return None
+    uv_src = bm.loops.layers.uv.active
+    nb = bmesh.new()
+    uv_dst = nb.loops.layers.uv.new(uv_src.name) if uv_src else None
+    vmap = {}
+    for f in sel:
+        nvs = []
+        for v in f.verts:
+            if v not in vmap: vmap[v] = nb.verts.new(v.co)
+            nvs.append(vmap[v])
+        try: nf = nb.faces.new(nvs)
+        except Exception: continue
+        nf.material_index = f.material_index
+        nf.smooth = f.smooth
+        if uv_dst:
+            for ls, ld in zip(f.loops, nf.loops):
+                ld[uv_dst].uv = ls[uv_src].uv
+    # close the freshly opened rim on the panel
+    bmesh.ops.holes_fill(nb, edges=[e for e in nb.edges if len(e.link_faces) == 1], sides=0)
+    nm = bpy.data.meshes.new(name)
+    nb.to_mesh(nm); nb.free()
+    for mt in me.materials: nm.materials.append(mt)
+    nob = bpy.data.objects.new(name, nm)
+    bpy.context.scene.collection.objects.link(nob)
+
+    bmesh.ops.delete(bm, geom=sel, context='FACES')
+    bmesh.ops.holes_fill(bm, edges=[e for e in bm.edges if len(e.link_faces) == 1
+                                    and _in_box(e.verts[0].co, box) or False], sides=0)
+    bm.to_mesh(me); bm.free(); me.update()
+    return nob
+
+def build_control_surfaces(o, m, hinge_frac=0.28):
+    """Cut the ailerons, elevator and rudder out as separate rigid panels, each
+    parented to an empty sitting on its hinge line. No skinning, so nothing bends."""
+    hs = m["halfspan"]
+    lo_te, lo_le = m["wing_lo_chord"]; up_te, up_le = m["wing_up_chord"]
+    lo_h = lo_te + hinge_frac * (lo_le - lo_te)
+    up_h = up_te + hinge_frac * (up_le - up_te)
+    ht_te, ht_le = m["htail_chord"]; ht_h = ht_te + 0.46 * (ht_le - ht_te)
+    fn_te, fn_le = m["fin_chord"];   fn_h = fn_te + 0.46 * (fn_le - fn_te)
+    loz, upz = m["wing_lo_z"], m["wing_up_z"]
+    htz = m["htail_z"]; hts = m["htail_span"]
+    fz0, fz1 = m["fin_z"]
+    yi, yo = 0.52 * hs, 1.02 * hs
+
+    SPEC = {
+        "ail_lo_L": dict(box=(lo_te - 0.30, lo_h, yi, yo, loz - 0.45, loz + 0.45),
+                         side=-1, hinge=(lo_h, 0, loz), axis=1, sign=+1),
+        "ail_lo_R": dict(box=(lo_te - 0.30, lo_h, yi, yo, loz - 0.45, loz + 0.45),
+                         side=+1, hinge=(lo_h, 0, loz), axis=1, sign=-1),
+        "ail_up_L": dict(box=(up_te - 0.30, up_h, yi, yo, upz - 0.45, upz + 0.45),
+                         side=-1, hinge=(up_h, 0, upz), axis=1, sign=+1),
+        "ail_up_R": dict(box=(up_te - 0.30, up_h, yi, yo, upz - 0.45, upz + 0.45),
+                         side=+1, hinge=(up_h, 0, upz), axis=1, sign=-1),
+        "elevator": dict(box=(ht_te - 0.30, ht_h, 0.22 * hts, 1.10 * hts, htz - 0.42, htz + 0.42),
+                         side=0, hinge=(ht_h, 0, htz), axis=1, sign=+1),
+        "rudder":   dict(box=(fn_te - 0.30, fn_h, 0.0, 0.30 * hs, fz0 + 0.02, fz1 + 0.30),
+                         side=0, hinge=(fn_h, 0, 0.5 * (fz0 + fz1)), axis=2, sign=+1),
+    }
+
+    panels = {}
+    for name, sp in SPEC.items():
+        b = sp["box"]
+        # three cuts: the hinge line plus both span ends, so the panel comes away clean
+        _bisect(o, Vector((b[1], 0, 0)), Vector((1, 0, 0)), b)
+        for ye in (b[2], b[3]):
+            for s in ((-1, 1) if sp["side"] == 0 else (sp["side"],)):
+                _bisect(o, Vector((0, s * ye, 0)), Vector((0, 1, 0)), b)
+        box = (b[0], b[1], b[2], b[3], b[4], b[5])
+        if sp["side"] != 0:
+            box_signed = box
+        else:
+            box_signed = box
+        panel = _split_off_side(o, box, sp["side"], name.upper())
+        if panel is None: continue
+        piv = bpy.data.objects.new(name, None)
+        bpy.context.scene.collection.objects.link(piv)
+        piv.empty_display_type = 'PLAIN_AXES'; piv.empty_display_size = 0.45
+        piv.location = Vector(sp["hinge"])
+        piv.rotation_mode = 'XYZ'
+        bpy.context.view_layer.update()
+        panel.parent = piv
+        panel.matrix_parent_inverse = piv.matrix_world.inverted()
+        panels[name] = dict(empty=piv, obj=panel, axis=sp["axis"], sign=sp["sign"],
+                            faces=len(panel.data.polygons))
+    return panels
+
+def _split_off_side(o, box, side, name):
+    """Same as _split_off but honours which wing half the panel belongs to."""
+    lo, hi = box[2], box[3]
+    class _B:
+        pass
+    def inside(c):
+        if not (box[0] <= c.x <= box[1] and box[4] <= c.z <= box[5]): return False
+        if side < 0 and c.y > 0: return False
+        if side > 0 and c.y < 0: return False
+        return lo <= abs(c.y) <= hi
+    me = o.data
+    bm = bmesh.new(); bm.from_mesh(me)
+    bm.faces.ensure_lookup_table()
+    sel = [f for f in bm.faces if inside(f.calc_center_median())]
+    if not sel:
+        bm.free(); return None
+    uv_src = bm.loops.layers.uv.active
+    nb = bmesh.new()
+    uv_dst = nb.loops.layers.uv.new(uv_src.name) if uv_src else None
+    vmap = {}
+    for f in sel:
+        nvs = []
+        for v in f.verts:
+            if v not in vmap: vmap[v] = nb.verts.new(v.co)
+            nvs.append(vmap[v])
+        try: nf = nb.faces.new(nvs)
+        except Exception: continue
+        nf.material_index = f.material_index
+        nf.smooth = f.smooth
+        if uv_dst:
+            for ls, ld in zip(f.loops, nf.loops):
+                ld[uv_dst].uv = ls[uv_src].uv
+    try: bmesh.ops.holes_fill(nb, edges=[e for e in nb.edges if len(e.link_faces) == 1], sides=0)
+    except Exception: pass
+    nm = bpy.data.meshes.new(name)
+    nb.to_mesh(nm); nb.free()
+    for mt in me.materials: nm.materials.append(mt)
+    nob = bpy.data.objects.new(name, nm)
+    bpy.context.scene.collection.objects.link(nob)
+    bmesh.ops.delete(bm, geom=sel, context='FACES')
+    open_e = [e for e in bm.edges if len(e.link_faces) == 1 and inside(e.verts[0].co)]
+    if open_e:
+        try: bmesh.ops.holes_fill(bm, edges=open_e, sides=0)
+        except Exception: pass
+    bm.to_mesh(me); bm.free(); me.update()
+    return nob

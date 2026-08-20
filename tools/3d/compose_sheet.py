@@ -26,8 +26,8 @@ for tag in ("sov", "jkl"):
     # The painted sheets are punchier than a physically-lit render; nudge the
     # colour back up so the two sit together on screen.
     rgb, alpha = atlas.convert("RGB"), atlas.getchannel("A")
-    rgb = ImageEnhance.Color(rgb).enhance(1.28)
-    rgb = ImageEnhance.Brightness(rgb).enhance(1.05)
+    rgb = ImageEnhance.Color(rgb).enhance(1.12)
+    rgb = ImageEnhance.Brightness(rgb).enhance(1.0)
     atlas = Image.merge("RGBA", (*rgb.split(), alpha))
 
     out = os.path.join(DEST, NAMES[tag])
