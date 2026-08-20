@@ -795,15 +795,49 @@ def _split_off_side(o, box, side, name):
 
 
 # ---------------------------------------------------------------- faction tail
-def paint_tail(o, m, color, name="TailBlack", aft_frac=0.72, mode="full"):
-    """Jackal reference: fin, tailplane and the aft fuselage are black."""
+def paint_tail(o, m, color, name="TailBlack", aft_frac=0.72, mode="full", fade=1.6):
+    """Jackal squadron one: fin, tailplane and the aft fuselage go black.
+
+    The join is a FADE, not a line. Painting flat black up to a plane cut the
+    fuselage in half with a hard edge across the flank; instead the tail material
+    mixes the aeroplane's own texture into the black along the fuselage axis, so
+    the colour arrives over `fade` units instead of all at once.
+    """
     me = o.data
+    img = None
+    for mtx in me.materials:
+        if mtx and mtx.use_nodes:
+            for nd in mtx.node_tree.nodes:
+                if nd.type == 'TEX_IMAGE' and nd.image: img = nd.image
+
+    mn_x, mx_x = m["mn"][0], m["mx"][0]
+    aft = mn_x + (1.0 - aft_frac) * (mx_x - mn_x)
+
     mt = mat(name, rgb(color), 0.50, 0.0)
+    if img is not None:
+        nt = mt.node_tree
+        bsdf = nt.nodes["Principled BSDF"]
+        tex = nt.nodes.new("ShaderNodeTexImage"); tex.image = img
+        tex.interpolation = 'Smart'
+        gco = nt.nodes.new("ShaderNodeTexCoord")
+        sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+        rng = nt.nodes.new("ShaderNodeMapRange")
+        rng.inputs["From Min"].default_value = aft
+        rng.inputs["From Max"].default_value = aft + fade
+        rng.inputs["To Min"].default_value = 0.0
+        rng.inputs["To Max"].default_value = 1.0
+        mix = nt.nodes.new("ShaderNodeMix")
+        mix.data_type = 'RGBA'; mix.blend_type = 'MIX'
+        mix.inputs[6].default_value = (*rgb(color), 1.0)     # A: the tail colour
+        nt.links.new(gco.outputs["Object"], sep.inputs["Vector"])
+        nt.links.new(sep.outputs["X"], rng.inputs["Value"])
+        nt.links.new(rng.outputs["Result"], mix.inputs["Factor"])
+        nt.links.new(tex.outputs["Color"], mix.inputs[7])    # B: the aeroplane's own paint
+        nt.links.new(mix.outputs[2], bsdf.inputs["Base Color"])
+
     if mt.name not in [x.name for x in me.materials if x]:
         me.materials.append(mt)
     idx = [i for i, x in enumerate(me.materials) if x and x.name == mt.name][0]
-    mn_x, mx_x = m["mn"][0], m["mx"][0]
-    aft = mn_x + (1.0 - aft_frac) * (mx_x - mn_x)
     hs = m["halfspan"]; htz = m["htail_z"]; hts = m["htail_span"]
     az = m["ax_z"]
     n = 0
@@ -811,9 +845,10 @@ def paint_tail(o, m, color, name="TailBlack", aft_frac=0.72, mode="full"):
         c = p.center
         tail = False
         if mode == "full":
-            # z guard: the tail wheel and its leg hang below the fuselage and
-            # stay their own colour, as in the reference art
-            if c.x < aft and abs(c.y) < 0.32 * hs and c.z > htz - 0.55:
+            # Reach forward by the whole fade band, or the gradient has no room
+            # to run and the join is a hard edge again. The z guard keeps the
+            # tail wheel and its leg their own colour, as in the reference art.
+            if c.x < aft + fade and abs(c.y) < 0.32 * hs and c.z > htz - 0.55:
                 tail = True                                # aft fuselage
             if c.x < aft + 0.6 and abs(c.z - htz) < 0.40 and 0.06 * hts < abs(c.y) <= 1.20 * hts:
                 tail = True                                # tailplane
@@ -823,6 +858,7 @@ def paint_tail(o, m, color, name="TailBlack", aft_frac=0.72, mode="full"):
             p.material_index = idx; n += 1
     me.update()
     return n
+
 
 def add_fin_bolt(o, m, color=(246, 246, 244), name="FinBolt"):
     """White lightning on the fin, welded into the airframe mesh itself.
@@ -841,8 +877,11 @@ def add_fin_bolt(o, m, color=(246, 246, 244), name="FinBolt"):
     x0, x1 = fn_te + 0.10, fn_le - 0.10
     z0, z1 = fz0 - 0.26, fz1 - 0.03
     w, h = (x1 - x0), (z1 - z0)
-    UV = [(0.60, 1.00), (0.16, 0.46), (0.46, 0.46), (0.26, 0.00),
-          (0.86, 0.58), (0.54, 0.58)]
+    # Mirrored: the bolt leans the other way. Written as the original shape with
+    # u flipped, so the silhouette is unchanged and only its direction turns.
+    UV = [(1.0 - u, v) for u, v in
+          [(0.60, 1.00), (0.16, 0.46), (0.46, 0.46), (0.26, 0.00),
+           (0.86, 0.58), (0.54, 0.58)]]
 
     mt = mat(name + "_mat", rgb(color), 0.55, 0.0)
     if mt.name not in [x.name for x in me.materials if x]:
