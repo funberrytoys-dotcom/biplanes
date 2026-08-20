@@ -1,4 +1,5 @@
-import bpy, math, json, os
+import os
+import bpy, math, json
 from mathutils import Vector, Matrix
 
 TAG = "%TAG%"
@@ -8,7 +9,28 @@ TOOLS = os.environ.get("BIPLANES_3D_TOOLS", r"C:\Users\serge\Documents\Playgroun
 FRAMES = 50
 FW, FH = 512, 310
 FILL = 0.905           # fraction of frame width the plane spans
-HALF_TURNS = 7        # over the whole loop -> seamless for a 2-blade prop
+
+# Camera. Strictly side-on, with only a breath of elevation. At the 8/10 this
+# started out at, both upper wings read as slabs laid over the fuselage and the
+# cockpit — with the pilot in it — disappeared underneath. The reference art is
+# a flat side view, and the game only ever shows the aeroplane from the side.
+AZ_DEG, EL_DEG = 0.0, 3.0
+
+# The propeller is baked onto its own little sheet instead of into the airframe,
+# so the renderer can spin it: slow enough to count the blades at idle, a
+# smeared disc at full gas. The crisp steps cover a half turn, because a blade
+# pair repeats every 180 degrees; then two blurred frames for the fast end.
+# Seen from the side a propeller disc is edge-on, so it can never be a circle —
+# the honest fast-spin read is a narrow translucent lens standing at the nose.
+# The blades are smeared by Blender's own motion blur and a lens body is faded in
+# behind them, wider and stronger the faster the propeller turns.
+PROP_STEPS = 10
+PROP_BLUR = [(90.0, 0.10), (200.0, 0.22), (330.0, 0.34)]  # degrees per frame, lens alpha
+PROP_FRAMES = PROP_STEPS + len(PROP_BLUR)
+PROP_COLS = 4
+LENS_THICK = 0.085          # lens depth as a fraction of the propeller radius
+SPIN_PARTS = ("PROP_BLADE_A", "PROP_BLADE_B")
+DISC_PART = "PROP_DISC"
 
 bpy.ops.wm.open_mainfile(filepath=os.path.join(BASE, "plane_%s.blend" % TAG))
 sc = bpy.context.scene
@@ -23,7 +45,7 @@ if piv.animation_data: piv.animation_data_clear()
 piv.rotation_euler = (0, 0, 0)
 bpy.context.view_layer.update()
 
-# ---- airframe root so plane + prop bob together
+# ---- airframe root so plane + prop hang off one parent
 bob = bpy.data.objects.get("BOB")
 if bob is None:
     bob = bpy.data.objects.new("BOB", None)
@@ -33,7 +55,9 @@ rig.parent = bob; rig.matrix_parent_inverse = Matrix.Identity(4)
 piv.parent = bob; piv.matrix_parent_inverse = Matrix.Identity(4)
 bpy.context.view_layer.update()
 
-# ---- bounds of everything that renders
+# ---- bounds of everything that renders. Measured once with the propeller in
+# place and never recomputed, so the airframe pass and the propeller pass share
+# one camera and the two sheets line up pixel for pixel.
 def all_bounds():
     mn = Vector((1e9, 1e9, 1e9)); mx = Vector((-1e9, -1e9, -1e9))
     for o in sc.objects:
@@ -48,7 +72,7 @@ ctr = (mn + mx) / 2
 spanx = mx.x - mn.x
 
 # ---- camera: orthographic from +Y so the nose (+X) lands on the LEFT
-AZ, EL = math.radians(8.0), math.radians(10.0)
+AZ, EL = math.radians(AZ_DEG), math.radians(EL_DEG)
 tgt = bpy.data.objects.new("BakeTGT", None); sc.collection.objects.link(tgt); tgt.location = ctr
 cam_d = bpy.data.cameras.new("BakeCam")
 cam = bpy.data.objects.new("BakeCam", cam_d)
@@ -83,7 +107,6 @@ sc.render.film_transparent = True
 sc.view_settings.view_transform = 'Standard'
 sc.render.image_settings.file_format = 'PNG'
 sc.render.image_settings.color_mode = 'RGBA'
-sc.render.use_motion_blur = True
 try: sc.render.motion_blur_shutter = 0.62
 except Exception: pass
 try: sc.eevee.taa_render_samples = 64
@@ -107,23 +130,18 @@ if OUTLINE:
         ls.collection = ex
         ls.collection_negation = 'EXCLUSIVE'
 
-# ---- animation
+# ---- control blocks
 # The sheet holds three blocks so the game can show the elevator actually
-# working: level flight, then stick back and stick forward. This is a
-# side-on dogfighter — the aeroplane turns by looping, never by banking — so
-# the elevator is both the surface that does the work and the only one a
-# side-on camera can read. Ailerons and rudder stay parked, as they would in a
-# real loop.
+# working: level flight, then stick back and stick forward. This is a side-on
+# dogfighter, where the aeroplane turns by looping and never by banking, so the
+# elevator is both the surface that does the work and the only one a side-on
+# camera can read. Ailerons and rudder stay parked, as in a real loop.
 #
-# The throw is deliberately far past a real aeroplane's: seen from the side the
-# tailplane is only a few pixels of chord, and an honest 15° does not survive
-# the trip down to a 512px frame.
-#
-# Each block's propeller turn is a whole number of half-revolutions, so every
-# block loops seamlessly on its own.
-CONTROL_BLOCKS = True
+# The throw is deliberately far past what a real aeroplane has: seen from the
+# side the tailplane is only a few pixels of chord, and an honest 15 degrees
+# does not survive the trip down to a 512px frame.
 ELEV_THROW = 34.0
-LEVEL, BANK = (30, 10) if CONTROL_BLOCKS else (FRAMES, 0)
+LEVEL, BANK = 30, 10
 assert LEVEL + BANK * 2 == FRAMES
 import importlib.util as _il
 _sp = _il.spec_from_file_location("pp", os.path.join(TOOLS, "plane_pipeline.py"))
@@ -141,44 +159,112 @@ def set_controls(f, roll, elev, rud):
     P["rudder"].rotation_euler = (0, math.radians(rud * SIGN["rudder"]), 0)
     P["rudder"].keyframe_insert("rotation_euler", index=1, frame=f)
 
+# The airframe is baked dead level on purpose. A bob printed into the sheet is
+# the same bob on every aeroplane on screen, locked to one loop; the renderer
+# does it instead (see wobble.ts), with its own phase per aircraft.
 sc.frame_start = 1; sc.frame_end = FRAMES
 sc.render.fps = 24
-# The airframe itself is baked dead level on purpose. A bob baked into the sheet
-# is the same bob on every aeroplane on screen, locked to the propeller loop; the
-# renderer does it instead (see wobble.ts), with its own phase per aircraft.
-ang = 0.0
 for f in range(1, FRAMES + 1):
-    if f <= LEVEL:
-        i, n, elev = f - 1, LEVEL, 0.0
-        step = 7 * 180.0 / LEVEL          # whole half-turns across the block
-    elif f <= LEVEL + BANK:
-        i, n, elev = f - LEVEL - 1, BANK, ELEV_THROW        # stick back, nose up
-        step = 2 * 180.0 / BANK
-    else:
-        i, n, elev = f - LEVEL - BANK - 1, BANK, -ELEV_THROW  # stick forward
-        step = 2 * 180.0 / BANK
-    ang = step * i
-    piv.rotation_euler = (math.radians(ang), 0, 0)
-    piv.keyframe_insert("rotation_euler", index=0, frame=f)
+    if f <= LEVEL: elev = 0.0
+    elif f <= LEVEL + BANK: elev = ELEV_THROW         # stick back, nose up
+    else: elev = -ELEV_THROW                          # stick forward
     bob.location = (0.0, 0.0, 0.0)
     bob.rotation_euler = (0.0, 0.0, 0.0)
     bob.keyframe_insert("location", index=2, frame=f)
     bob.keyframe_insert("rotation_euler", index=1, frame=f)
     set_controls(f, 0.0, elev, 0.0)
-for fc in piv.animation_data.action.fcurves:
-    for kp in fc.keyframe_points: kp.interpolation = 'LINEAR'
 for fc in (rig.animation_data.action.fcurves if rig.animation_data else []):
     for kp in fc.keyframe_points: kp.interpolation = 'CONSTANT'
 
-OUT = os.path.join(BASE, "bake_%s" % TAG)
-os.makedirs(OUT, exist_ok=True)
-for old in os.listdir(OUT):
-    try: os.remove(os.path.join(OUT, old))
-    except Exception: pass
+
+def hide_spin(hidden):
+    """Show or hide the parts that spin — the blades and the sweep disc."""
+    for nm in SPIN_PARTS + (DISC_PART,):
+        o = bpy.data.objects.get(nm)
+        if o: o.hide_render = hidden
+
+
+def show_only(names):
+    """Render just these objects; hide every other mesh."""
+    for o in sc.objects:
+        if o.type == 'MESH':
+            o.hide_render = o.name not in names
+
+
+def fresh_dir(name):
+    p = os.path.join(BASE, name)
+    os.makedirs(p, exist_ok=True)
+    for old in os.listdir(p):
+        try: os.remove(os.path.join(p, old))
+        except Exception: pass
+    return p
+
+# ---- pass 1: the airframe, with the propeller blades left out
+hide_spin(True)
+sc.render.use_motion_blur = False
+OUT = fresh_dir("bake_%s" % TAG)
 sc.render.filepath = os.path.join(OUT, "f_")
 bpy.ops.render.render(animation=True)
 
+# ---- pass 2: the propeller alone, on the very same camera
+POUT = fresh_dir("bake_%s_prop" % TAG)
+show_only(set(SPIN_PARTS))
+sc.frame_set(1)
+disc = bpy.data.objects.get(DISC_PART)
+if piv.animation_data: piv.animation_data_clear()
+sc.render.use_motion_blur = False
+for i in range(PROP_STEPS):
+    piv.rotation_euler = (math.radians(i * 180.0 / PROP_STEPS), 0, 0)
+    bpy.context.view_layer.update()
+    sc.render.filepath = os.path.join(POUT, "p_%03d.png" % i)
+    bpy.ops.render.render(write_still=True)
+
+# The fast end. The flat sweep disc is useless here — edge-on it is a hairline —
+# so build a lens: the swept volume of a twisted blade, squashed along the shaft.
+R_tip = max(abs(v.co.z) for v in bpy.data.objects[SPIN_PARTS[0]].data.vertices)
+before = {o.name for o in bpy.data.objects}
+bpy.ops.mesh.primitive_uv_sphere_add(radius=R_tip, segments=48, ring_count=24,
+                                     location=piv.location)
+lens = next(o for o in bpy.data.objects if o.name not in before)
+lens.name = "PROP_LENS"
+lens.scale = (LENS_THICK, 1.0, 1.0)
+for p in lens.data.polygons: p.use_smooth = True
+lens_mat = bpy.data.materials.new("PropLens_" + TAG)
+lens_mat.use_nodes = True
+_b = lens_mat.node_tree.nodes["Principled BSDF"]
+_b.inputs["Base Color"].default_value = (0.20, 0.10, 0.07, 1.0)
+_b.inputs["Roughness"].default_value = 1.0
+try: lens_mat.surface_render_method = 'BLENDED'
+except Exception:
+    try: lens_mat.blend_method = 'BLEND'
+    except Exception: pass
+lens_mat.use_backface_culling = False
+lens.data.materials.append(lens_mat)
+lens.parent = piv
+lens.matrix_parent_inverse = piv.matrix_world.inverted()
+lens.location = (0, 0, 0)
+if disc is not None: disc.hide_render = True
+
+sc.render.use_motion_blur = True
+for j, (sweep, lens_alpha) in enumerate(PROP_BLUR):
+    lens.hide_render = False
+    _b.inputs["Alpha"].default_value = lens_alpha
+    if piv.animation_data: piv.animation_data_clear()
+    for k, f in enumerate((1, 2, 3)):
+        piv.rotation_euler = (math.radians(k * sweep), 0, 0)
+        piv.keyframe_insert("rotation_euler", index=0, frame=f)
+    for fc in piv.animation_data.action.fcurves:
+        for kp in fc.keyframe_points: kp.interpolation = 'LINEAR'
+    sc.frame_set(2)
+    sc.render.filepath = os.path.join(POUT, "p_%03d.png" % (PROP_STEPS + j))
+    bpy.ops.render.render(write_still=True)
+lens.hide_render = True
+sc.render.use_motion_blur = False
+
 # ---- cockpit marker: project a probe point so the pilot bust can be placed
+for o in sc.objects:
+    if o.type == 'MESH': o.hide_render = False
+hide_spin(True)
 from bpy_extras.object_utils import world_to_camera_view
 probe = bpy.data.objects.get("CK_PROBE")
 if probe is None:
@@ -192,12 +278,14 @@ for f in range(1, FRAMES + 1):
     sc.frame_set(f)
     co = world_to_camera_view(sc, cam, probe.matrix_world.translation)
     track.append([round(co.x * FW, 2), round((1 - co.y) * FH, 2)])
-print(json.dumps({"tag": TAG, "ortho": round(cam_d.ortho_scale, 3),
+print(json.dumps({"tag": TAG, "ortho": round(cam_d.ortho_scale, 3), "camera": [AZ_DEG, EL_DEG],
                   "bounds": [[round(c, 2) for c in mn], [round(c, 2) for c in mx]],
-                  "probe_track_first3": track[:3], "out": OUT}))
+                  "probe_track_first3": track[:3], "out": OUT, "prop_out": POUT}))
 with open(os.path.join(OUT, "track.json"), "w") as fh:
     json.dump({"track": track, "frames": FRAMES, "fw": FW, "fh": FH,
                # first frame index (0-based) and length of each block, so the
                # renderer can pick one by which way the stick is held
                "blocks": {"level": [0, LEVEL], "up": [LEVEL, BANK],
-                          "down": [LEVEL + BANK, BANK]} if BANK else None}, fh)
+                          "down": [LEVEL + BANK, BANK]},
+               "prop": {"frames": PROP_FRAMES, "steps": PROP_STEPS,
+                        "blur": len(PROP_BLUR), "columns": PROP_COLS}}, fh)

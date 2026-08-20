@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { flightWobble, wobblePhase, type WobbleInput } from './wobble.js';
+import {
+  advanceKick,
+  flightWobble,
+  manoeuvreLean,
+  wobblePhase,
+  type KickState,
+  type WobbleInput,
+} from './wobble.js';
 
 const base: WobbleInput = {
   time: 0,
@@ -70,5 +77,65 @@ describe('flightWobble', () => {
       const gap = Math.abs((phases[i] ?? 0) - (phases[i - 1] ?? 0));
       expect(Math.min(gap, Math.PI * 2 - gap)).toBeGreaterThan(0.5);
     }
+  });
+});
+
+describe('manoeuvreLean', () => {
+  it('leans the way the stick is held, and further the harder it is held', () => {
+    const gentle = manoeuvreLean(0.5);
+    const hard = manoeuvreLean(2.2);
+    expect(gentle).toBeGreaterThan(0);
+    expect(hard).toBeGreaterThan(gentle);
+    expect(manoeuvreLean(-2.2)).toBeCloseTo(-hard, 6);
+  });
+
+  it('never leans past a few degrees, however hard the stick goes over', () => {
+    expect(Math.abs(manoeuvreLean(50))).toBeLessThan(0.1);
+  });
+
+  it('is gone on the ground', () => {
+    expect(manoeuvreLean(2.2, 0)).toBe(0);
+  });
+});
+
+describe('advanceKick', () => {
+  const step = (s: KickState, delta: number) => advanceKick(s, delta, 1 / 60);
+
+  it('does nothing while the stick is held steady', () => {
+    let s: KickState = { value: 0, velocity: 0 };
+    for (let i = 0; i < 60; i++) s = step(s, 0);
+    expect(s.value).toBe(0);
+  });
+
+  it('throws the airframe when the stick is slammed over', () => {
+    let s: KickState = { value: 0, velocity: 0 };
+    let peak = 0;
+    for (let i = 0; i < 12; i++) { s = step(s, 0.25); peak = Math.max(peak, Math.abs(s.value)); }
+    expect(peak).toBeGreaterThan(0.02); // more than a degree
+  });
+
+  it('settles back to level once the stick stops moving', () => {
+    let s: KickState = { value: 0, velocity: 0 };
+    for (let i = 0; i < 12; i++) s = step(s, 0.25);
+    for (let i = 0; i < 240; i++) s = step(s, 0);
+    expect(Math.abs(s.value)).toBeLessThan(0.002);
+  });
+
+  it('overshoots at least once instead of just sagging back', () => {
+    let s: KickState = { value: 0, velocity: 0 };
+    for (let i = 0; i < 6; i++) s = step(s, 0.4);
+    let crossed = false;
+    const sign = Math.sign(s.value);
+    for (let i = 0; i < 180; i++) {
+      s = step(s, 0);
+      if (Math.sign(s.value) === -sign && Math.abs(s.value) > 0.001) crossed = true;
+    }
+    expect(crossed).toBe(true);
+  });
+
+  it('stays inside its ceiling even if the stick is slammed forever', () => {
+    let s: KickState = { value: 0, velocity: 0 };
+    for (let i = 0; i < 600; i++) s = step(s, 3);
+    expect(Math.abs(s.value)).toBeLessThanOrEqual(0.16 + 1e-9);
   });
 });

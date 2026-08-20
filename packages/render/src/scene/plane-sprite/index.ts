@@ -18,7 +18,7 @@ import { createPlaneBody } from './body.js';
 import { nextStickBlock, type StickBlock } from './stick-block.js';
 import { createPlaneControls } from './controls.js';
 import { createPilotHead } from './pilot-head.js';
-import { flightWobble, wobblePhase } from './wobble.js';
+import { advanceKick, flightWobble, manoeuvreLean, wobblePhase, type KickState } from './wobble.js';
 import { resolveGunfeelImpact, shouldApplyImpactCamera } from '../gunfeel-math.js';
 
 interface CameraLike {
@@ -135,10 +135,14 @@ export function createPlaneSprite(
   // Which stretch of the 3D sheet is playing — see stick-block.ts.
   let stickBlock: StickBlock = 'level';
 
-  // Flight sway — see wobble.ts. Render-only, so it never reaches the sim.
+  // Flight motion — see wobble.ts. Render-only, so it never reaches the sim.
   let wobbleTime = 0;
   let wobbleEnv = 0;
   let wobblePhaseValue: number | null = null;
+  let kick: KickState = { value: 0, velocity: 0 };
+  let prevPitchRate = 0;
+  // Signed pitch rate, shared by the elevator picker and the manoeuvre kick.
+  let pitchRate = 0;
 
   // Throttle bob tracking for pilot head (Task 2.4)
   let prevThrottle = 0;
@@ -219,10 +223,16 @@ export function createPlaneSprite(
         let delta = p.kinematic.heading - prevHeading;
         if (delta > Math.PI) delta -= Math.PI * 2;
         else if (delta < -Math.PI) delta += Math.PI * 2;
-        const rate = delta / Math.max(0.001, dt);
-        stickBlock = nextStickBlock(stickBlock, rate, p.alive && p.state === 'flying');
+        pitchRate = delta / Math.max(0.001, dt);
+        stickBlock = nextStickBlock(stickBlock, pitchRate, p.alive && p.state === 'flying');
       }
-      updateArt(dt, stickBlock);
+      // The propeller is its own sheet now, spun by the throttle rather than
+      // baked at one speed — see prop-spin.ts.
+      {
+        const engineOn = p.alive && p.state !== 'crashed'
+          && (p.state === 'flying' || (p.kinematic.throttleOn ?? false));
+        updateArt(dt, stickBlock, engineOn, p.kinematic.throttleLevel ?? 0);
+      }
 
       // Ground shadow: directly under the plane, biggest/darkest near the deck,
       // shrinking + fading with altitude until it vanishes high up. Uses the world's
@@ -287,15 +297,18 @@ export function createPlaneSprite(
       // which drew them wide and squat.
       {
         const target = Math.min(1, turnRate / 2.5);
-        const speed = 6 * dt;
-        bankT += (target - bankT) * speed;
-        c.scale.y = spriteScale * (1 - bankT * 0.12);
+        // Snaps in, eases out: rolling into a manoeuvre should read as sharp,
+        // coming out of one as the airframe settling.
+        const speed = (target > bankT ? 16 : 5) * dt;
+        bankT += (target - bankT) * Math.min(1, speed);
+        c.scale.y = spriteScale * (1 - bankT * 0.2);
       }
 
-      // Flight sway: the sheets themselves fly dead level, so without this a
-      // cruising plane looks like it is running on rails. Faded in only while
-      // actually airborne, damped while the pilot is hauling it round a turn,
-      // stronger when the airframe wallows near the stall or the weather kicks up.
+      // Flight motion. Three parts, all render-only (see wobble.ts): a slow
+      // idle sway so a cruising aeroplane is not on rails, a steady lean into a
+      // held turn, and a spring that gets slapped every time the stick moves
+      // hard — so throwing it into a manoeuvre pitches the airframe past where
+      // the simulation has it and then lets it settle.
       {
         if (wobblePhaseValue === null) wobblePhaseValue = wobblePhase(Number(p.id) || 0);
         wobbleTime += dt;
@@ -310,7 +323,15 @@ export function createPlaneSprite(
           stallSpeed: G_STALL,
           turbulence: opts?.turbulence ?? 0,
         });
-        c.rotation += sway.rotation;
+        // A heading wrap would read as an enormous jerk; ignore anything past
+        // what an aeroplane can actually do.
+        const rawDelta = pitchRate - prevPitchRate;
+        const jerk = Math.abs(rawDelta) > 12 ? 0 : rawDelta;
+        kick = wobbleEnv > 0
+          ? advanceKick(kick, jerk * wobbleEnv, dt)
+          : { value: kick.value * 0.9, velocity: 0 };
+        prevPitchRate = pitchRate;
+        c.rotation += sway.rotation + manoeuvreLean(pitchRate, wobbleEnv) + kick.value;
         c.y += sway.heave;
       }
 

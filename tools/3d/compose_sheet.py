@@ -7,6 +7,12 @@ COLS = 5
 NAMES = {"sov": "plane_player_sov_3d_sheet.png",
          "jkl": "plane_enemy_crimson_3d_sheet.png",
          "jkl2": "plane_enemy_crimson_3d_b_sheet.png"}
+# The propeller rides on its own sheet so the game can spin it with the throttle.
+# Its frames come off the SAME camera as the airframe, so they are kept at full
+# frame size and simply drawn on top — no offsets to get wrong.
+PROP_NAMES = {"sov": "prop_player_sov_3d_sheet.png",
+              "jkl": "prop_enemy_crimson_3d_sheet.png",
+              "jkl2": "prop_enemy_crimson_3d_b_sheet.png"}
 
 report = {}
 for tag in ("sov", "jkl", "jkl2"):
@@ -39,6 +45,36 @@ for tag in ("sov", "jkl", "jkl2"):
     small = atlas.quantize(colors=200, method=Image.FASTOCTREE, dither=Image.Dither.NONE)
     small.save(out, optimize=True)
 
+    # ---- the propeller sheet
+    psrc = os.path.join(BASE, "bake_%s_prop" % tag)
+    prop_report = None
+    if os.path.isdir(psrc):
+        pfiles = sorted(f for f in os.listdir(psrc) if f.startswith("p_") and f.endswith(".png"))
+        if pfiles:
+            pims = [Image.open(os.path.join(psrc, fn)).convert("RGBA") for fn in pfiles]
+            FRW, FRH = pims[0].size
+            # A propeller fills a sliver of the frame and the rest is empty; a
+            # full-frame sheet was 300 KB of transparency. Crop every frame to
+            # the union of their content and hand the renderer the origin.
+            boxes = [im.getbbox() for im in pims if im.getbbox()]
+            ox, oy = min(b[0] for b in boxes), min(b[1] for b in boxes)
+            PW = max(b[2] for b in boxes) - ox
+            PH = max(b[3] for b in boxes) - oy
+            PN = len(pims)
+            PCOLS = 4
+            prows = (PN + PCOLS - 1) // PCOLS
+            patlas = Image.new("RGBA", (PW * PCOLS, PH * prows), (0, 0, 0, 0))
+            for i, im in enumerate(pims):
+                patlas.paste(im.crop((ox, oy, ox + PW, oy + PH)),
+                             ((i % PCOLS) * PW, (i // PCOLS) * PH))
+            pout = os.path.join(DEST, PROP_NAMES[tag])
+            # Blades over a translucent sweep: quantising would band the fade,
+            # so this one stays in full colour.
+            patlas.save(pout, optimize=True)
+            prop_report = {"file": PROP_NAMES[tag], "sheet": list(patlas.size),
+                           "frame": [PW, PH], "origin": [ox, oy], "frames": PN,
+                           "columns": PCOLS, "kb": round(os.path.getsize(pout) / 1024)}
+
     trk = json.load(open(os.path.join(src, "track.json")))
     t = trk["track"]
     ck = [round(t[0][0]), round(t[0][1])]
@@ -53,6 +89,8 @@ for tag in ("sov", "jkl", "jkl2"):
         "cockpit_xy": ck,
         "bob": bob,
         "blocks": trk.get("blocks"),
+        "prop": prop_report,
+        "prop_split": trk.get("prop"),
         "kb": round(os.path.getsize(out) / 1024),
     }
 print(json.dumps(report, ensure_ascii=False))

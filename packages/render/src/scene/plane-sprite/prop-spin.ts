@@ -1,0 +1,59 @@
+/**
+ * How fast the propeller turns, and which frame of its sheet to show.
+ *
+ * The propeller is baked onto its own little sheet — crisp blade steps first,
+ * then a few progressively smeared frames — so it can start slow enough to
+ * count the blades and wind up into a translucent disc as the throttle comes in.
+ * Seen from the side that disc is edge-on, so the fast frames read as a narrow
+ * standing lens rather than a circle; that is what a real propeller looks like
+ * from abeam.
+ */
+
+/** Revs per second with the engine idling. */
+export const IDLE_REV = 2.2;
+/** Revs per second at full gas. */
+export const FULL_REV = 28;
+/** Below this the individual blades still read, so a crisp step is shown. */
+export const CRISP_BELOW = 4.5;
+/** Above this the propeller is a solid smear — the last blur frame. */
+export const BLUR_FULL = 17;
+/** How fast a shut-down propeller winds down, per second. */
+const WINDDOWN = 0.28;
+
+/** A blade pair repeats every half turn, so the crisp steps cover π, not 2π. */
+const HALF_TURN = Math.PI;
+
+export function propRevsPerSecond(engineOn: boolean, throttle: number): number {
+  if (!engineOn) return 0;
+  const t = throttle < 0 ? 0 : throttle > 1 ? 1 : throttle;
+  return IDLE_REV + (FULL_REV - IDLE_REV) * t;
+}
+
+/** Eases the current rate towards the target so the propeller spools up and
+ *  winds down instead of snapping between speeds. */
+export function easePropRev(current: number, target: number, dt: number): number {
+  // Winding down is slow (the propeller freewheels); spooling up is brisk.
+  const rate = target > current ? 4.5 : WINDDOWN * 6;
+  const k = 1 - Math.exp(-rate * dt);
+  return current + (target - current) * k;
+}
+
+export function nextPropPhase(phase: number, rev: number, dt: number): number {
+  const next = (phase + rev * 2 * Math.PI * dt) % HALF_TURN;
+  return next < 0 ? next + HALF_TURN : next;
+}
+
+/**
+ * Frame index into the propeller sheet. The first `steps` frames are crisp
+ * blades across a half turn; the `blurCount` after them are the fast smears,
+ * from softest to strongest.
+ */
+export function propFrameIndex(rev: number, phase: number, steps: number, blurCount: number): number {
+  if (blurCount <= 0 || rev < CRISP_BELOW) {
+    const i = Math.floor((phase / HALF_TURN) * steps) % steps;
+    return i < 0 ? i + steps : i;
+  }
+  const t = Math.min(1, (rev - CRISP_BELOW) / (BLUR_FULL - CRISP_BELOW));
+  const level = Math.min(blurCount - 1, Math.floor(t * blurCount));
+  return steps + level;
+}

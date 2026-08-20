@@ -14,6 +14,18 @@ def bobsrc(b):
     return "[" + ", ".join("[%s, %s]" % (p[0], p[1]) for p in b) + "]"
 
 
+def propsrc(rep_entry):
+    p, split = rep_entry.get("prop"), rep_entry.get("prop_split")
+    if not p or not split:
+        return "undefined"
+    return ("""{
+      url: assetUrl('assets/biplanes/%s'),
+      frameWidth: %d, frameHeight: %d, originX: %d, originY: %d,
+      frameCount: %d, columns: %d, steps: %d,
+    }""" % (p["file"], p["frame"][0], p["frame"][1], p["origin"][0], p["origin"][1],
+            p["frames"], p["columns"], split["steps"]))
+
+
 def blocksrc(bl):
     if not bl:
         return "undefined"
@@ -48,6 +60,21 @@ export type PlaneArtDef = {
    *  The sheet carries level flight, stick back and stick forward, so the
    *  elevator can be seen doing the work in a loop. */
   blocks?: { level: [number, number]; up: [number, number]; down: [number, number] };
+  /** The propeller, on its own sheet, drawn over the airframe. Same camera and
+   *  same frame size as the airframe sheet, so it needs no offset. The first
+   *  `steps` frames are crisp blades across a half turn; the rest are the
+   *  smeared fast frames, softest first. */
+  prop?: {
+    url: string;
+    frameWidth: number;
+    frameHeight: number;
+    /** Where the cropped propeller sits inside the airframe frame. */
+    originX: number;
+    originY: number;
+    frameCount: number;
+    columns: number;
+    steps: number;
+  };
 };
 
 const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef; enemy2: PlaneArtDef } = {
@@ -63,6 +90,7 @@ const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef; enemy2: PlaneArtD
     cockpit: { x: %(sov_cx)d, y: %(sov_cy)d, h: %(sov_ch)d },
     bob: %(sov_bob)s,
     blocks: %(sov_blocks)s,
+    prop: %(sov_prop)s,
   },
   enemy: {
     url: assetUrl('assets/biplanes/%(jkl_file)s'),
@@ -76,6 +104,7 @@ const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef; enemy2: PlaneArtD
     cockpit: { x: %(jkl_cx)d, y: %(jkl_cy)d, h: %(jkl_ch)d },
     bob: %(jkl_bob)s,
     blocks: %(jkl_blocks)s,
+    prop: %(jkl_prop)s,
   },
   // Second Jackal squadron - same airframe, crimson wings instead of black.
   enemy2: {
@@ -90,6 +119,7 @@ const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef; enemy2: PlaneArtD
     cockpit: { x: %(j2_cx)d, y: %(j2_cy)d, h: %(j2_ch)d },
     bob: %(j2_bob)s,
     blocks: %(j2_blocks)s,
+    prop: %(j2_prop)s,
   },
 };
 
@@ -117,16 +147,19 @@ const USE_3D_ART = use3dPlaneArt();
     "sov_cx": sov["cockpit_xy"][0], "sov_cy": sov["cockpit_xy"][1], "sov_ch": COCK_H["sov"],
     "sov_bob": bobsrc(sov["bob"]),
     "sov_blocks": blocksrc(sov.get("blocks")),
+    "sov_prop": propsrc(sov),
     "jkl_file": jkl["file"], "jkl_fw": jkl["frame"][0], "jkl_fh": jkl["frame"][1],
     "jkl_n": jkl["frames"], "jkl_cols": jkl["columns"],
     "jkl_cx": jkl["cockpit_xy"][0], "jkl_cy": jkl["cockpit_xy"][1], "jkl_ch": COCK_H["jkl"],
     "jkl_bob": bobsrc(jkl["bob"]),
     "jkl_blocks": blocksrc(jkl.get("blocks")),
+    "jkl_prop": propsrc(jkl),
     "j2_file": jkl2["file"], "j2_fw": jkl2["frame"][0], "j2_fh": jkl2["frame"][1],
     "j2_n": jkl2["frames"], "j2_cols": jkl2["columns"],
     "j2_cx": jkl2["cockpit_xy"][0], "j2_cy": jkl2["cockpit_xy"][1], "j2_ch": COCK_H["jkl2"],
     "j2_bob": bobsrc(jkl2["bob"]),
     "j2_blocks": blocksrc(jkl2.get("blocks")),
+    "j2_prop": propsrc(jkl2),
 }
 
 src = open(BODY, encoding="utf-8").read()
@@ -156,9 +189,13 @@ if (typeof window !== 'undefined' && use3dPlaneArt()) {
     assetUrl('assets/biplanes/%s'),
     assetUrl('assets/biplanes/%s'),
     assetUrl('assets/biplanes/%s'),
+    assetUrl('assets/biplanes/%s'),
+    assetUrl('assets/biplanes/%s'),
+    assetUrl('assets/biplanes/%s'),
   );
 }
-""" % (sov["file"], jkl["file"], jkl2["file"])
+""" % (sov["file"], jkl["file"], jkl2["file"],
+       sov["prop"]["file"], jkl["prop"]["file"], jkl2["prop"]["file"])
 if "use3dPlaneArt()" not in msrc:
     anchor = "\nconst STORY_INTRO_LINES: DialogueLine[] = ["
     assert anchor in msrc, "story anchor missing"

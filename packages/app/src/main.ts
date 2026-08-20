@@ -297,6 +297,9 @@ if (typeof window !== 'undefined' && use3dPlaneArt()) {
     assetUrl('assets/biplanes/plane_player_sov_3d_sheet.png'),
     assetUrl('assets/biplanes/plane_enemy_crimson_3d_sheet.png'),
     assetUrl('assets/biplanes/plane_enemy_crimson_3d_b_sheet.png'),
+    assetUrl('assets/biplanes/prop_player_sov_3d_sheet.png'),
+    assetUrl('assets/biplanes/prop_enemy_crimson_3d_sheet.png'),
+    assetUrl('assets/biplanes/prop_enemy_crimson_3d_b_sheet.png'),
   );
 }
 

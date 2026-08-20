@@ -1,5 +1,6 @@
 import { Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js';
 import type { StickBlock } from './stick-block.js';
+import { easePropRev, nextPropPhase, propFrameIndex, propRevsPerSecond } from './prop-spin.js';
 import { assetUrl } from '../../asset-url.js';
 
 export interface PlaneBodyHandle {
@@ -12,7 +13,7 @@ export interface PlaneBodyHandle {
   wingShadow: Graphics;
   fuselageGlint: Graphics;
   propellerX: number;
-  updateArt: (dt: number, block?: StickBlock) => void;
+  updateArt: (dt: number, block?: StickBlock, engineOn?: boolean, throttle?: number) => void;
   /** The airframe sprite itself — the ground shadow reuses its current frame so
    *  the shadow is the aircraft's own silhouette instead of a blob. */
   artSprite: Sprite;
@@ -79,6 +80,21 @@ export type PlaneArtDef = {
    *  The sheet carries level flight, stick back and stick forward, so the
    *  elevator can be seen doing the work in a loop. */
   blocks?: { level: [number, number]; up: [number, number]; down: [number, number] };
+  /** The propeller, on its own sheet, drawn over the airframe. Same camera and
+   *  same frame size as the airframe sheet, so it needs no offset. The first
+   *  `steps` frames are crisp blades across a half turn; the rest are the
+   *  smeared fast frames, softest first. */
+  prop?: {
+    url: string;
+    frameWidth: number;
+    frameHeight: number;
+    /** Where the cropped propeller sits inside the airframe frame. */
+    originX: number;
+    originY: number;
+    frameCount: number;
+    columns: number;
+    steps: number;
+  };
 };
 
 const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef; enemy2: PlaneArtDef } = {
@@ -94,6 +110,11 @@ const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef; enemy2: PlaneArtD
     cockpit: { x: 251, y: 126, h: 56 },
     bob: [],
     blocks: { level: [0, 30], up: [30, 10], down: [40, 10] },
+    prop: {
+      url: assetUrl('assets/biplanes/prop_player_sov_3d_sheet.png'),
+      frameWidth: 234, frameHeight: 257, originX: 30, originY: 9,
+      frameCount: 13, columns: 4, steps: 10,
+    },
   },
   enemy: {
     url: assetUrl('assets/biplanes/plane_enemy_crimson_3d_sheet.png'),
@@ -107,6 +128,11 @@ const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef; enemy2: PlaneArtD
     cockpit: { x: 257, y: 121, h: 62 },
     bob: [],
     blocks: { level: [0, 30], up: [30, 10], down: [40, 10] },
+    prop: {
+      url: assetUrl('assets/biplanes/prop_enemy_crimson_3d_sheet.png'),
+      frameWidth: 233, frameHeight: 274, originX: 30, originY: 0,
+      frameCount: 13, columns: 4, steps: 10,
+    },
   },
   // Second Jackal squadron - same airframe, crimson wings instead of black.
   enemy2: {
@@ -121,6 +147,11 @@ const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef; enemy2: PlaneArtD
     cockpit: { x: 257, y: 121, h: 62 },
     bob: [],
     blocks: { level: [0, 30], up: [30, 10], down: [40, 10] },
+    prop: {
+      url: assetUrl('assets/biplanes/prop_enemy_crimson_3d_b_sheet.png'),
+      frameWidth: 233, frameHeight: 274, originX: 30, originY: 0,
+      frameCount: 13, columns: 4, steps: 10,
+    },
   },
 };
 
@@ -164,16 +195,24 @@ const planeFrameCache = new Map<string, Texture[]>();
 function getPlaneFrames(art: PlaneArtDef): Texture[] {
   const cached = planeFrameCache.get(art.url);
   if (cached) return cached;
-  const sheet = Texture.from(art.url);
-  const frames = Array.from({ length: art.frameCount }, (_, i) => {
-    const x = (i % art.columns) * art.frameWidth;
-    const y = Math.floor(i / art.columns) * art.frameHeight;
-    return new Texture({
-      source: sheet.source,
-      frame: new Rectangle(x, y, art.frameWidth, art.frameHeight),
-    });
-  });
+  const frames = sliceSheet(art.url, art.frameWidth, art.frameHeight, art.columns, art.frameCount);
   planeFrameCache.set(art.url, frames);
+  return frames;
+}
+
+function sliceSheet(url: string, fw: number, fh: number, columns: number, count: number): Texture[] {
+  const sheet = Texture.from(url);
+  return Array.from({ length: count }, (_, i) => new Texture({
+    source: sheet.source,
+    frame: new Rectangle((i % columns) * fw, Math.floor(i / columns) * fh, fw, fh),
+  }));
+}
+
+function getPropFrames(prop: NonNullable<PlaneArtDef['prop']>): Texture[] {
+  const cached = planeFrameCache.get(prop.url);
+  if (cached) return cached;
+  const frames = sliceSheet(prop.url, prop.frameWidth, prop.frameHeight, prop.columns, prop.frameCount);
+  planeFrameCache.set(prop.url, frames);
   return frames;
 }
 
@@ -226,6 +265,24 @@ export function createPlaneBody(faction: 'player' | 'enemy', heroPilot = false, 
   pilotSprite.y = (cockpit.y - art.frameHeight / 2) * artScale;
   pilotSprite.visible = false; // shown once the texture has real dimensions (see update below)
   fuselageContainer.addChild(pilotSprite, planeArt);
+
+  // The propeller comes on its own sheet so the throttle can spin it: slow
+  // enough to count the blades at idle, a translucent smear at full gas (see
+  // prop-spin.ts). It was rendered on the same camera as the airframe and then
+  // cropped to the blades, so it lands by its recorded origin — no fudging — and
+  // sits ON TOP, because from abeam nothing on the aeroplane is in front of it.
+  const propArt = art.prop;
+  const propFrames = propArt ? getPropFrames(propArt) : [];
+  const propSprite = propArt && propFrames[0] ? new Sprite(propFrames[0]) : null;
+  let propRev = 0;
+  let propPhase = 0;
+  if (propSprite && propArt) {
+    propSprite.anchor.set(0.5);
+    propSprite.scale.set(-artScale, artScale);
+    propSprite.x = (propArt.originX + propArt.frameWidth / 2 - art.frameWidth / 2) * -artScale;
+    propSprite.y = (propArt.originY + propArt.frameHeight / 2 - art.frameHeight / 2) * artScale;
+    fuselageContainer.addChild(propSprite);
+  }
 
   const primaryColor = isPlayer ? 0xf4d35e : 0xc0392b;    // Warm yellow / Crimson red
   const secondaryColor = isPlayer ? 0xeab308 : 0x962d22;  // Golden ochre / Dark burgundy
@@ -390,8 +447,14 @@ export function createPlaneBody(faction: 'player' | 'enemy', heroPilot = false, 
     propellerX: noseX,
     artSprite: planeArt,
     artScale,
-    updateArt(dt: number, block: StickBlock = 'level') {
+    updateArt(dt: number, block: StickBlock = 'level', engineOn = true, throttle = 1) {
       const frame = artHandle.update(dt, block);
+      if (propSprite && propArt) {
+        propRev = easePropRev(propRev, propRevsPerSecond(engineOn, throttle), dt);
+        propPhase = nextPropPhase(propPhase, propRev, dt);
+        const idx = propFrameIndex(propRev, propPhase, propArt.steps, propArt.frameCount - propArt.steps);
+        propSprite.texture = propFrames[idx] ?? propFrames[0]!;
+      }
       if (!pilotSprite.visible) {
         const tex = pilotSprite.texture;
         if (tex && tex !== Texture.EMPTY && tex.width > 2) {
