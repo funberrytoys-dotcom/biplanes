@@ -26,12 +26,11 @@ def propsrc(rep_entry):
             p["frames"], p["columns"], split["steps"]))
 
 
-def blocksrc(bl):
-    if not bl:
+def posesrc(po):
+    if not po:
         return "undefined"
-    return "{ level: [%d, %d], up: [%d, %d], down: [%d, %d] }" % (
-        bl["level"][0], bl["level"][1], bl["up"][0], bl["up"][1],
-        bl["down"][0], bl["down"][1])
+    return "{ roll: [%s], elev: [%s] }" % (
+        ", ".join(str(v) for v in po["roll"]), ", ".join(str(v) for v in po["elev"]))
 
 sov, jkl, jkl2 = rep["sov"], rep["jkl"], rep["jkl2"]
 COCK_H = {"sov": 56, "jkl": 62, "jkl2": 62}
@@ -56,10 +55,10 @@ export type PlaneArtDef = {
   /** Per-frame drift of the airframe INSIDE the frames, so the pilot bust can
    *  ride along. Empty when the bake holds the airframe level. */
   bob: readonly (readonly number[])[];
-  /** Where each control block starts and how long it runs, as [first, count].
-   *  The sheet carries level flight, stick back and stick forward, so the
-   *  elevator can be seen doing the work in a loop. */
-  blocks?: { level: [number, number]; up: [number, number]; down: [number, number] };
+  /** The pose grid baked into the sheet: roll angles crossed with elevator
+   *  throws, in degrees. Frame index is rollIndex * elev.length + elevIndex.
+   *  Nothing on the airframe animates by itself — the renderer picks the cell. */
+  poses?: { roll: readonly number[]; elev: readonly number[] };
   /** The propeller, on its own sheet, drawn over the airframe. Same camera and
    *  same frame size as the airframe sheet, so it needs no offset. The first
    *  `steps` frames are crisp blades across a half turn; the rest are the
@@ -89,7 +88,7 @@ const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef; enemy2: PlaneArtD
     fps: 24,
     cockpit: { x: %(sov_cx)d, y: %(sov_cy)d, h: %(sov_ch)d },
     bob: %(sov_bob)s,
-    blocks: %(sov_blocks)s,
+    poses: %(sov_poses)s,
     prop: %(sov_prop)s,
   },
   enemy: {
@@ -103,7 +102,7 @@ const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef; enemy2: PlaneArtD
     fps: 24,
     cockpit: { x: %(jkl_cx)d, y: %(jkl_cy)d, h: %(jkl_ch)d },
     bob: %(jkl_bob)s,
-    blocks: %(jkl_blocks)s,
+    poses: %(jkl_poses)s,
     prop: %(jkl_prop)s,
   },
   // Second Jackal squadron - same airframe, crimson wings instead of black.
@@ -118,7 +117,7 @@ const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef; enemy2: PlaneArtD
     fps: 24,
     cockpit: { x: %(j2_cx)d, y: %(j2_cy)d, h: %(j2_ch)d },
     bob: %(j2_bob)s,
-    blocks: %(j2_blocks)s,
+    poses: %(j2_poses)s,
     prop: %(j2_prop)s,
   },
 };
@@ -146,19 +145,19 @@ const USE_3D_ART = use3dPlaneArt();
     "sov_n": sov["frames"], "sov_cols": sov["columns"],
     "sov_cx": sov["cockpit_xy"][0], "sov_cy": sov["cockpit_xy"][1], "sov_ch": COCK_H["sov"],
     "sov_bob": bobsrc(sov["bob"]),
-    "sov_blocks": blocksrc(sov.get("blocks")),
+    "sov_poses": posesrc(sov.get("poses")),
     "sov_prop": propsrc(sov),
     "jkl_file": jkl["file"], "jkl_fw": jkl["frame"][0], "jkl_fh": jkl["frame"][1],
     "jkl_n": jkl["frames"], "jkl_cols": jkl["columns"],
     "jkl_cx": jkl["cockpit_xy"][0], "jkl_cy": jkl["cockpit_xy"][1], "jkl_ch": COCK_H["jkl"],
     "jkl_bob": bobsrc(jkl["bob"]),
-    "jkl_blocks": blocksrc(jkl.get("blocks")),
+    "jkl_poses": posesrc(jkl.get("poses")),
     "jkl_prop": propsrc(jkl),
     "j2_file": jkl2["file"], "j2_fw": jkl2["frame"][0], "j2_fh": jkl2["frame"][1],
     "j2_n": jkl2["frames"], "j2_cols": jkl2["columns"],
     "j2_cx": jkl2["cockpit_xy"][0], "j2_cy": jkl2["cockpit_xy"][1], "j2_ch": COCK_H["jkl2"],
     "j2_bob": bobsrc(jkl2["bob"]),
-    "j2_blocks": blocksrc(jkl2.get("blocks")),
+    "j2_poses": posesrc(jkl2.get("poses")),
     "j2_prop": propsrc(jkl2),
 }
 

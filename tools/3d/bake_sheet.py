@@ -6,8 +6,23 @@ TAG = "%TAG%"
 OUTLINE = False   # the ink line was what made it read as a cartoon
 BASE = os.environ.get("BIPLANES_3D_BASE", r"C:\Users\serge\Documents\Playground\Biplanes\.3dwork")
 TOOLS = os.environ.get("BIPLANES_3D_TOOLS", r"C:\Users\serge\Documents\Playground\Biplanes\tools\3d")
-FRAMES = 50
-FW, FH = 512, 310
+# The sheet is a grid of POSES, not an animation. Nothing on the airframe moves
+# by itself any more — the sway, the propeller and the pilot all come from the
+# renderer — so every frame spent on a repeat was a frame wasted. Instead the
+# grid crosses roll against elevator, and the renderer picks the cell.
+#
+# Roll: the game has no roll in its physics (it is a side-on looper), but a
+# aeroplane that never dips a wing reads as a cardboard cut-out. These are
+# cosmetic: a slow rock in cruise, a real lean into a manoeuvre. The steps
+# bunch up near level, where the gentle rock lives, and spread out towards the
+# ends, where the aeroplane is snapping about and stepping does not show.
+ROLL_STEPS = [-22.0, -14.0, -8.0, -3.5, 0.0, 3.5, 8.0, 14.0, 22.0]
+ELEV_STEPS = [34.0, 0.0, -34.0]     # stick back, centred, stick forward
+FRAMES = len(ROLL_STEPS) * len(ELEV_STEPS)
+COLS = 6
+# Taller than the old 310: a banked aeroplane stands higher in its frame, and at
+# 22 degrees the wingtips ran off the top.
+FW, FH = 512, 400
 FILL = 0.905           # fraction of frame width the plane spans
 
 # Camera. Strictly side-on, with only a breath of elevation. At the 8/10 this
@@ -130,19 +145,11 @@ if OUTLINE:
         ls.collection = ex
         ls.collection_negation = 'EXCLUSIVE'
 
-# ---- control blocks
-# The sheet holds three blocks so the game can show the elevator actually
-# working: level flight, then stick back and stick forward. This is a side-on
-# dogfighter, where the aeroplane turns by looping and never by banking, so the
-# elevator is both the surface that does the work and the only one a side-on
-# camera can read. Ailerons and rudder stay parked, as in a real loop.
-#
-# The throw is deliberately far past what a real aeroplane has: seen from the
-# side the tailplane is only a few pixels of chord, and an honest 15 degrees
-# does not survive the trip down to a 512px frame.
-ELEV_THROW = 34.0
-LEVEL, BANK = 30, 10
-assert LEVEL + BANK * 2 == FRAMES
+# ---- the pose grid
+# The elevator throw is deliberately far past what a real aeroplane has: seen
+# from the side the tailplane is only a few pixels of chord, and an honest 15
+# degrees does not survive the trip down to a 512px frame. The ailerons move
+# with the roll, so a wing that dips has a reason to be dipping.
 import importlib.util as _il
 _sp = _il.spec_from_file_location("pp", os.path.join(TOOLS, "plane_pipeline.py"))
 _pp = _il.module_from_spec(_sp); _sp.loader.exec_module(_pp)
@@ -159,22 +166,23 @@ def set_controls(f, roll, elev, rud):
     P["rudder"].rotation_euler = (0, math.radians(rud * SIGN["rudder"]), 0)
     P["rudder"].keyframe_insert("rotation_euler", index=1, frame=f)
 
-# The airframe is baked dead level on purpose. A bob printed into the sheet is
-# the same bob on every aeroplane on screen, locked to one loop; the renderer
-# does it instead (see wobble.ts), with its own phase per aircraft.
+# Roll about the nose axis is put on the airframe root, so the whole aeroplane —
+# wings, tail, wheels — banks together. Frame N of the sheet is pose N.
+POSES = [(r, e) for r in ROLL_STEPS for e in ELEV_STEPS]
 sc.frame_start = 1; sc.frame_end = FRAMES
 sc.render.fps = 24
-for f in range(1, FRAMES + 1):
-    if f <= LEVEL: elev = 0.0
-    elif f <= LEVEL + BANK: elev = ELEV_THROW         # stick back, nose up
-    else: elev = -ELEV_THROW                          # stick forward
+for f, (roll, elev) in enumerate(POSES, start=1):
     bob.location = (0.0, 0.0, 0.0)
-    bob.rotation_euler = (0.0, 0.0, 0.0)
+    bob.rotation_euler = (math.radians(roll), 0.0, 0.0)
     bob.keyframe_insert("location", index=2, frame=f)
+    bob.keyframe_insert("rotation_euler", index=0, frame=f)
     bob.keyframe_insert("rotation_euler", index=1, frame=f)
-    set_controls(f, 0.0, elev, 0.0)
-for fc in (rig.animation_data.action.fcurves if rig.animation_data else []):
-    for kp in fc.keyframe_points: kp.interpolation = 'CONSTANT'
+    # A dipping wing has its ailerons over: the down-going wing carries the
+    # down-going aileron, which is what puts it there.
+    set_controls(f, roll * 0.55, elev, 0.0)
+for ob in (bob, rig):
+    for fc in (ob.animation_data.action.fcurves if ob.animation_data else []):
+        for kp in fc.keyframe_points: kp.interpolation = 'CONSTANT'
 
 
 def hide_spin(hidden):
@@ -206,10 +214,28 @@ OUT = fresh_dir("bake_%s" % TAG)
 sc.render.filepath = os.path.join(OUT, "f_")
 bpy.ops.render.render(animation=True)
 
+# ---- cockpit marker: project a probe point so the pilot bust can be placed
+from bpy_extras.object_utils import world_to_camera_view
+probe = bpy.data.objects.get("CK_PROBE")
+if probe is None:
+    probe = bpy.data.objects.new("CK_PROBE", None)
+    sc.collection.objects.link(probe)
+probe.parent = bob; probe.matrix_parent_inverse = Matrix.Identity(4)
+CK = {"sov": (0.05, 0.0, 0.62), "jkl": (-0.10, 0.0, 0.72), "jkl2": (-0.10, 0.0, 0.72)}[TAG]
+probe.location = CK
+track = []
+for f in range(1, FRAMES + 1):
+    sc.frame_set(f)
+    co = world_to_camera_view(sc, cam, probe.matrix_world.translation)
+    track.append([round(co.x * FW, 2), round((1 - co.y) * FH, 2)])
 # ---- pass 2: the propeller alone, on the very same camera
 POUT = fresh_dir("bake_%s_prop" % TAG)
 show_only(set(SPIN_PARTS))
-sc.frame_set(1)
+# level the airframe root first: the pose grid leaves it banked, and a banked
+# root drags the propeller off the shaft line
+if bob.animation_data: bob.animation_data_clear()
+bob.rotation_euler = (0.0, 0.0, 0.0)
+bpy.context.view_layer.update()
 disc = bpy.data.objects.get(DISC_PART)
 if piv.animation_data: piv.animation_data_clear()
 sc.render.use_motion_blur = False
@@ -261,31 +287,13 @@ for j, (sweep, lens_alpha) in enumerate(PROP_BLUR):
 lens.hide_render = True
 sc.render.use_motion_blur = False
 
-# ---- cockpit marker: project a probe point so the pilot bust can be placed
-for o in sc.objects:
-    if o.type == 'MESH': o.hide_render = False
-hide_spin(True)
-from bpy_extras.object_utils import world_to_camera_view
-probe = bpy.data.objects.get("CK_PROBE")
-if probe is None:
-    probe = bpy.data.objects.new("CK_PROBE", None)
-    sc.collection.objects.link(probe)
-probe.parent = bob; probe.matrix_parent_inverse = Matrix.Identity(4)
-CK = {"sov": (0.05, 0.0, 0.62), "jkl": (-0.10, 0.0, 0.72), "jkl2": (-0.10, 0.0, 0.72)}[TAG]
-probe.location = CK
-track = []
-for f in range(1, FRAMES + 1):
-    sc.frame_set(f)
-    co = world_to_camera_view(sc, cam, probe.matrix_world.translation)
-    track.append([round(co.x * FW, 2), round((1 - co.y) * FH, 2)])
 print(json.dumps({"tag": TAG, "ortho": round(cam_d.ortho_scale, 3), "camera": [AZ_DEG, EL_DEG],
                   "bounds": [[round(c, 2) for c in mn], [round(c, 2) for c in mx]],
                   "probe_track_first3": track[:3], "out": OUT, "prop_out": POUT}))
 with open(os.path.join(OUT, "track.json"), "w") as fh:
     json.dump({"track": track, "frames": FRAMES, "fw": FW, "fh": FH,
-               # first frame index (0-based) and length of each block, so the
-               # renderer can pick one by which way the stick is held
-               "blocks": {"level": [0, LEVEL], "up": [LEVEL, BANK],
-                          "down": [LEVEL + BANK, BANK]},
+               # the pose grid: frame index is rollIndex * len(elev) + elevIndex
+               "columns": COLS,
+               "poses": {"roll": ROLL_STEPS, "elev": ELEV_STEPS},
                "prop": {"frames": PROP_FRAMES, "steps": PROP_STEPS,
                         "blur": len(PROP_BLUR), "columns": PROP_COLS}}, fh)

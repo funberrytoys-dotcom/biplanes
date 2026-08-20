@@ -3,7 +3,7 @@ from PIL import Image, ImageEnhance
 
 BASE = os.environ.get("BIPLANES_3D_BASE", r"C:\Users\serge\Documents\Playground\Biplanes\.3dwork")
 DEST = r"C:\Users\serge\Documents\Playground\Biplanes\apps\web\public\assets\biplanes"
-COLS = 5
+DEFAULT_COLS = 5
 NAMES = {"sov": "plane_player_sov_3d_sheet.png",
          "jkl": "plane_enemy_crimson_3d_sheet.png",
          "jkl2": "plane_enemy_crimson_3d_b_sheet.png"}
@@ -20,6 +20,8 @@ for tag in ("sov", "jkl", "jkl2"):
     files = sorted(f for f in os.listdir(src) if f.startswith("f_") and f.endswith(".png"))
     if not files:
         report[tag] = "NO FRAMES"; continue
+    trk_early = json.load(open(os.path.join(src, "track.json")))
+    COLS = trk_early.get("columns", DEFAULT_COLS)
     first = Image.open(os.path.join(src, files[0])).convert("RGBA")
     FW, FH = first.size
     N = len(files)
@@ -88,7 +90,7 @@ for tag in ("sov", "jkl", "jkl2"):
                          max(b[2] for b in bbs), max(b[3] for b in bbs)],
         "cockpit_xy": ck,
         "bob": bob,
-        "blocks": trk.get("blocks"),
+        "poses": trk.get("poses"),
         "prop": prop_report,
         "prop_split": trk.get("prop"),
         "kb": round(os.path.getsize(out) / 1024),

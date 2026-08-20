@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   advanceKick,
+  flightRollDegrees,
   flightWobble,
-  manoeuvreLean,
   wobblePhase,
   type KickState,
   type WobbleInput,
@@ -80,21 +80,47 @@ describe('flightWobble', () => {
   });
 });
 
-describe('manoeuvreLean', () => {
-  it('leans the way the stick is held, and further the harder it is held', () => {
-    const gentle = manoeuvreLean(0.5);
-    const hard = manoeuvreLean(2.2);
-    expect(gentle).toBeGreaterThan(0);
-    expect(hard).toBeGreaterThan(gentle);
-    expect(manoeuvreLean(-2.2)).toBeCloseTo(-hard, 6);
+describe('flightRollDegrees', () => {
+  const base = { time: 0, phase: 0, envelope: 1, pitchRate: 0, kick: 0 };
+
+  it('keeps the wings level on the ground', () => {
+    expect(flightRollDegrees({ ...base, envelope: 0, time: 2 })).toBe(0);
   });
 
-  it('never leans past a few degrees, however hard the stick goes over', () => {
-    expect(Math.abs(manoeuvreLean(50))).toBeLessThan(0.1);
+  it('rocks the wings BOTH ways in straight flight', () => {
+    let lo = 0, hi = 0;
+    for (let t = 0; t < 12; t += 1 / 30) {
+      const r = flightRollDegrees({ ...base, time: t });
+      lo = Math.min(lo, r); hi = Math.max(hi, r);
+    }
+    expect(hi).toBeGreaterThan(2);   // near wing lifts
+    expect(lo).toBeLessThan(-2);     // and dips
+    expect(hi).toBeLessThan(10);     // but it is a rock, not a wingover
+    expect(lo).toBeGreaterThan(-10);
   });
 
-  it('is gone on the ground', () => {
-    expect(manoeuvreLean(2.2, 0)).toBe(0);
+  it('banks into a held turn, and the other way for the other stick', () => {
+    const pull = flightRollDegrees({ ...base, pitchRate: -2.2 });
+    const push = flightRollDegrees({ ...base, pitchRate: 2.2 });
+    expect(pull).toBeLessThan(-8);
+    expect(push).toBeGreaterThan(8);
+  });
+
+  it('banks harder still when the kick spring is loaded', () => {
+    const plain = flightRollDegrees({ ...base, pitchRate: -2.2 });
+    const kicked = flightRollDegrees({ ...base, pitchRate: -2.2, kick: -0.12 });
+    expect(Math.abs(kicked)).toBeGreaterThan(Math.abs(plain));
+  });
+
+  it('never asks for a bank the sheet does not hold', () => {
+    for (const pitchRate of [-40, -2, 0, 2, 40]) {
+      for (const kick of [-1, 0, 1]) {
+        for (const time of [0, 1.7, 4.4]) {
+          const r = flightRollDegrees({ ...base, time, pitchRate, kick });
+          expect(Math.abs(r)).toBeLessThanOrEqual(22);
+        }
+      }
+    }
   });
 });
 

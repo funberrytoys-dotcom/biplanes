@@ -15,10 +15,10 @@ import type { FloatingNumbers } from '../floating-numbers.js';
 import type { GroundFx } from '../ground-fx.js';
 import type { ScreenEffectsHandle } from '../screen-effects.js';
 import { createPlaneBody } from './body.js';
-import { nextStickBlock, type StickBlock } from './stick-block.js';
+import { nextStick, type Stick } from './pose.js';
 import { createPlaneControls } from './controls.js';
 import { createPilotHead } from './pilot-head.js';
-import { advanceKick, flightWobble, manoeuvreLean, wobblePhase, type KickState } from './wobble.js';
+import { advanceKick, flightRollDegrees, flightWobble, wobblePhase, type KickState } from './wobble.js';
 import { resolveGunfeelImpact, shouldApplyImpactCamera } from '../gunfeel-math.js';
 
 interface CameraLike {
@@ -132,8 +132,11 @@ export function createPlaneSprite(
   // Banking visual squeeze (Task 2.2)
   let bankT = 0;
 
-  // Which stretch of the 3D sheet is playing — see stick-block.ts.
-  let stickBlock: StickBlock = 'level';
+  // Where the stick is, and how far the airframe is banked — see pose.ts. The
+  // stick is sticky: the aeroplane is always drifting a little in pitch, so a
+  // bare sign test would flick the elevator back and forth every other frame.
+  let stick: Stick = 0;
+  let rollDeg = 0;
 
   // Flight motion — see wobble.ts. Render-only, so it never reaches the sim.
   let wobbleTime = 0;
@@ -224,14 +227,14 @@ export function createPlaneSprite(
         if (delta > Math.PI) delta -= Math.PI * 2;
         else if (delta < -Math.PI) delta += Math.PI * 2;
         pitchRate = delta / Math.max(0.001, dt);
-        stickBlock = nextStickBlock(stickBlock, pitchRate, p.alive && p.state === 'flying');
+        stick = nextStick(stick, pitchRate, p.alive && p.state === 'flying');
       }
       // The propeller is its own sheet now, spun by the throttle rather than
       // baked at one speed — see prop-spin.ts.
       {
         const engineOn = p.alive && p.state !== 'crashed'
           && (p.state === 'flying' || (p.kinematic.throttleOn ?? false));
-        updateArt(dt, stickBlock, engineOn, p.kinematic.throttleLevel ?? 0);
+        updateArt(dt, { rollDeg, stick }, engineOn, p.kinematic.throttleLevel ?? 0);
       }
 
       // Ground shadow: directly under the plane, biggest/darkest near the deck,
@@ -331,7 +334,16 @@ export function createPlaneSprite(
           ? advanceKick(kick, jerk * wobbleEnv, dt)
           : { value: kick.value * 0.9, velocity: 0 };
         prevPitchRate = pitchRate;
-        c.rotation += sway.rotation + manoeuvreLean(pitchRate, wobbleEnv) + kick.value;
+        // Bank is a real pose out of the sheet, so the wings actually dip; the
+        // 2D kick stays on top as the jolt of the airframe being thrown about.
+        rollDeg = flightRollDegrees({
+          time: wobbleTime,
+          phase: wobblePhaseValue,
+          envelope: wobbleEnv,
+          pitchRate,
+          kick: kick.value,
+        });
+        c.rotation += sway.rotation + kick.value * 0.5;
         c.y += sway.heave;
       }
 

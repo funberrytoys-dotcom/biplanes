@@ -7,10 +7,11 @@
  * aircraft read as if it were running on rails: `flightWobble` gives it a slow
  * nose hunt and a lazy vertical float, phase-shifted per aircraft.
  *
- * In a manoeuvre the aeroplane should feel like it has weight. `manoeuvreLean`
- * makes it dig into a sustained turn, and `advanceKick` is a little spring that
- * gets slapped whenever the stick moves hard — so slamming into a turn throws
- * the airframe past where the simulation has it, then lets it settle.
+ * In a manoeuvre the aeroplane should feel like it has weight. `flightRollDegrees`
+ * banks it — a slow rock in cruise, a real lean held through a turn — and
+ * `advanceKick` is a little spring that gets slapped whenever the stick moves
+ * hard, so slamming into a manoeuvre throws the airframe further still before
+ * it settles.
  *
  * Nothing here touches the core: the sim heading, the hitboxes and the replay
  * are untouched, so a recorded run still plays back bit-for-bit.
@@ -42,8 +43,27 @@ const TURBULENCE_GAIN = 1.2;
  *  rocks noticeably harder without flipping onto its back. */
 const GAIN_CAP = 2.4;
 
-/** How far the airframe leans into a fully deflected turn, radians (~4.6°). */
-const LEAN_MAX = 0.08;
+// ---------------------------------------------------------------------------
+// Roll. The simulation has none — this is a side-on looper — but an aeroplane
+// that never dips a wing reads as a cardboard cut-out, so the sheets carry
+// banked poses and this decides which one to ask for. All in DEGREES, because
+// that is what the bake lists its steps in.
+// ---------------------------------------------------------------------------
+
+/** The gentle rock of straight flight, degrees either side of level. */
+const ROCK_AMP = 5.5;
+/** One cycle per ~4.3 s, with a smaller ripple on top at ~2.6 s. */
+const ROCK_W = 1.46;
+const ROCK_RIPPLE = 0.35;
+const ROCK_RIPPLE_W = 2.41;
+/** How far a fully deflected, sustained turn banks it. Held short of the
+ *  steepest baked pose on purpose: past about this the upper wing starts to
+ *  cover the cockpit, and the pilot is meant to stay visible. */
+const ROLL_LEAN_MAX = 13;
+/** What the kick spring is worth in degrees of roll on top of that. */
+const ROLL_KICK_DEG = 62;
+/** Never past the steepest pose in the sheet. */
+const ROLL_MAX = 22;
 
 /** Spring stiffness of the manoeuvre kick — about 1.5 Hz. */
 const KICK_STIFF = 90;
@@ -106,14 +126,36 @@ export function flightWobble(i: WobbleInput): Wobble {
   return { rotation, heave };
 }
 
+export interface RollInput {
+  /** Seconds this sprite has been alive. */
+  time: number;
+  /** Per-plane offset, radians — see wobblePhase. */
+  phase: number;
+  /** 0..1 envelope: 1 airborne, 0 on the ground. */
+  envelope: number;
+  /** Signed pitch rate, rad/s, positive the way stick-forward swings the nose. */
+  pitchRate: number;
+  /** Current value of the manoeuvre kick spring, radians. */
+  kick: number;
+}
+
 /**
- * The steady lean into a turn: the airframe rolls a little past the flight path
- * and holds there for as long as the stick is over. `signedTurnRate` is rad/s,
- * positive the way stick-forward swings the nose.
+ * How far the aeroplane is banked, in degrees. Negative dips the near wing, so
+ * we look down on the top of the wings; positive lifts it and shows the belly.
+ *
+ * Three things add up: a slow rock that never stops, a lean held for as long as
+ * the stick is over, and whatever the kick spring is doing. Pulling back drops
+ * the near wing, which is the way a climbing turn reads from abeam.
  */
-export function manoeuvreLean(signedTurnRate: number, envelope = 1): number {
-  const t = Math.max(-1, Math.min(1, signedTurnRate / TURN_FULL));
-  return t * LEAN_MAX * clamp01(envelope);
+export function flightRollDegrees(i: RollInput): number {
+  const envelope = clamp01(i.envelope);
+  if (envelope <= 0) return 0;
+  const rock =
+    Math.sin(i.time * ROCK_W + i.phase) * ROCK_AMP +
+    Math.sin(i.time * ROCK_RIPPLE_W + i.phase * 1.7) * ROCK_AMP * ROCK_RIPPLE;
+  const lean = Math.max(-1, Math.min(1, i.pitchRate / TURN_FULL)) * ROLL_LEAN_MAX;
+  const roll = (rock + lean + i.kick * ROLL_KICK_DEG) * envelope;
+  return roll < -ROLL_MAX ? -ROLL_MAX : roll > ROLL_MAX ? ROLL_MAX : roll;
 }
 
 export interface KickState {

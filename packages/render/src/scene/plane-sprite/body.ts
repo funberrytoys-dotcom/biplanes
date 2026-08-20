@@ -1,5 +1,5 @@
 import { Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js';
-import type { StickBlock } from './stick-block.js';
+import { elevIndex, poseFrame, rollIndex, type Stick } from './pose.js';
 import { easePropRev, nextPropPhase, propFrameIndex, propRevsPerSecond } from './prop-spin.js';
 import { assetUrl } from '../../asset-url.js';
 
@@ -13,7 +13,7 @@ export interface PlaneBodyHandle {
   wingShadow: Graphics;
   fuselageGlint: Graphics;
   propellerX: number;
-  updateArt: (dt: number, block?: StickBlock, engineOn?: boolean, throttle?: number) => void;
+  updateArt: (dt: number, pose?: PlanePose, engineOn?: boolean, throttle?: number) => void;
   /** The airframe sprite itself — the ground shadow reuses its current frame so
    *  the shadow is the aircraft's own silhouette instead of a blob. */
   artSprite: Sprite;
@@ -76,10 +76,10 @@ export type PlaneArtDef = {
   /** Per-frame drift of the airframe INSIDE the frames, so the pilot bust can
    *  ride along. Empty when the bake holds the airframe level. */
   bob: readonly (readonly number[])[];
-  /** Where each control block starts and how long it runs, as [first, count].
-   *  The sheet carries level flight, stick back and stick forward, so the
-   *  elevator can be seen doing the work in a loop. */
-  blocks?: { level: [number, number]; up: [number, number]; down: [number, number] };
+  /** The pose grid baked into the sheet: roll angles crossed with elevator
+   *  throws, in degrees. Frame index is rollIndex * elev.length + elevIndex.
+   *  Nothing on the airframe animates by itself — the renderer picks the cell. */
+  poses?: { roll: readonly number[]; elev: readonly number[] };
   /** The propeller, on its own sheet, drawn over the airframe. Same camera and
    *  same frame size as the airframe sheet, so it needs no offset. The first
    *  `steps` frames are crisp blades across a half turn; the rest are the
@@ -103,16 +103,16 @@ const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef; enemy2: PlaneArtD
     width: 512,
     noseX: 0.43,
     frameWidth: 512,
-    frameHeight: 310,
-    frameCount: 50,
-    columns: 5,
+    frameHeight: 400,
+    frameCount: 27,
+    columns: 6,
     fps: 24,
-    cockpit: { x: 251, y: 126, h: 56 },
-    bob: [],
-    blocks: { level: [0, 30], up: [30, 10], down: [40, 10] },
+    cockpit: { x: 251, y: 174, h: 56 },
+    bob: [[0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, -1.5], [0.0, -1.5], [0.0, -1.5], [0.0, -2.2], [0.0, -2.2], [0.0, -2.2], [0.0, -2.5], [0.0, -2.5], [0.0, -2.5], [0.0, -2.7], [0.0, -2.7], [0.0, -2.7], [0.0, -2.7], [0.0, -2.7], [0.0, -2.7], [0.0, -2.6], [0.0, -2.6], [0.0, -2.6], [0.0, -2.2], [0.0, -2.2], [0.0, -2.2], [0.0, -1.1], [0.0, -1.1], [0.0, -1.1]],
+    poses: { roll: [-22.0, -14.0, -8.0, -3.5, 0.0, 3.5, 8.0, 14.0, 22.0], elev: [34.0, 0.0, -34.0] },
     prop: {
       url: assetUrl('assets/biplanes/prop_player_sov_3d_sheet.png'),
-      frameWidth: 234, frameHeight: 257, originX: 30, originY: 9,
+      frameWidth: 234, frameHeight: 257, originX: 30, originY: 54,
       frameCount: 13, columns: 4, steps: 10,
     },
   },
@@ -121,16 +121,16 @@ const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef; enemy2: PlaneArtD
     width: 512,
     noseX: 0.43,
     frameWidth: 512,
-    frameHeight: 310,
-    frameCount: 50,
-    columns: 5,
+    frameHeight: 400,
+    frameCount: 27,
+    columns: 6,
     fps: 24,
-    cockpit: { x: 257, y: 121, h: 62 },
-    bob: [],
-    blocks: { level: [0, 30], up: [30, 10], down: [40, 10] },
+    cockpit: { x: 257, y: 169, h: 62 },
+    bob: [[0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, -1.7], [0.0, -1.7], [0.0, -1.7], [0.0, -2.6], [0.0, -2.6], [0.0, -2.6], [0.0, -3.0], [0.0, -3.0], [0.0, -3.0], [0.0, -3.1], [0.0, -3.1], [0.0, -3.1], [0.0, -3.2], [0.0, -3.2], [0.0, -3.2], [0.0, -3.1], [0.0, -3.1], [0.0, -3.1], [0.0, -2.6], [0.0, -2.6], [0.0, -2.6], [0.0, -1.3], [0.0, -1.3], [0.0, -1.3]],
+    poses: { roll: [-22.0, -14.0, -8.0, -3.5, 0.0, 3.5, 8.0, 14.0, 22.0], elev: [34.0, 0.0, -34.0] },
     prop: {
       url: assetUrl('assets/biplanes/prop_enemy_crimson_3d_sheet.png'),
-      frameWidth: 233, frameHeight: 274, originX: 30, originY: 0,
+      frameWidth: 233, frameHeight: 274, originX: 30, originY: 45,
       frameCount: 13, columns: 4, steps: 10,
     },
   },
@@ -140,16 +140,16 @@ const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef; enemy2: PlaneArtD
     width: 512,
     noseX: 0.43,
     frameWidth: 512,
-    frameHeight: 310,
-    frameCount: 50,
-    columns: 5,
+    frameHeight: 400,
+    frameCount: 27,
+    columns: 6,
     fps: 24,
-    cockpit: { x: 257, y: 121, h: 62 },
-    bob: [],
-    blocks: { level: [0, 30], up: [30, 10], down: [40, 10] },
+    cockpit: { x: 257, y: 169, h: 62 },
+    bob: [[0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, -1.7], [0.0, -1.7], [0.0, -1.7], [0.0, -2.6], [0.0, -2.6], [0.0, -2.6], [0.0, -3.0], [0.0, -3.0], [0.0, -3.0], [0.0, -3.1], [0.0, -3.1], [0.0, -3.1], [0.0, -3.2], [0.0, -3.2], [0.0, -3.2], [0.0, -3.1], [0.0, -3.1], [0.0, -3.1], [0.0, -2.6], [0.0, -2.6], [0.0, -2.6], [0.0, -1.3], [0.0, -1.3], [0.0, -1.3]],
+    poses: { roll: [-22.0, -14.0, -8.0, -3.5, 0.0, 3.5, 8.0, 14.0, 22.0], elev: [34.0, 0.0, -34.0] },
     prop: {
       url: assetUrl('assets/biplanes/prop_enemy_crimson_3d_b_sheet.png'),
-      frameWidth: 233, frameHeight: 274, originX: 30, originY: 0,
+      frameWidth: 233, frameHeight: 274, originX: 30, originY: 45,
       frameCount: 13, columns: 4, steps: 10,
     },
   },
@@ -192,6 +192,8 @@ const COCKPIT_PILOT_ART = {
 // hitch on phones.
 const planeFrameCache = new Map<string, Texture[]>();
 
+const LEVEL_POSE: PlanePose = { rollDeg: 0, stick: 0 };
+
 function getPlaneFrames(art: PlaneArtDef): Texture[] {
   const cached = planeFrameCache.get(art.url);
   if (cached) return cached;
@@ -216,9 +218,17 @@ function getPropFrames(prop: NonNullable<PlaneArtDef['prop']>): Texture[] {
   return frames;
 }
 
+/** How the airframe is being flown, as far as the art is concerned. */
+export interface PlanePose {
+  /** Bank in degrees; negative dips the near wing. */
+  rollDeg: number;
+  /** Stick back, centred or forward. */
+  stick: Stick;
+}
+
 function createAnimatedPlaneArt(art: PlaneArtDef): {
   sprite: Sprite;
-  update: (dt: number, block: StickBlock) => number;
+  update: (dt: number, pose: PlanePose) => number;
 } {
   const frames = getPlaneFrames(art);
   const firstFrame = frames[0];
@@ -229,13 +239,15 @@ function createAnimatedPlaneArt(art: PlaneArtDef): {
   return {
     sprite,
     // Returns the frame index shown this tick (the pilot bob table is keyed on it).
-    // Sheets without control blocks ignore the stick and just run end to end.
-    update(dt: number, block: StickBlock): number {
+    // A sheet of POSES is picked from; a painted sheet is an animation and just
+    // runs end to end on the clock.
+    update(dt: number, pose: PlanePose): number {
       time += dt;
-      const range = art.blocks?.[block] ?? art.blocks?.level;
-      const start = range ? range[0] : 0;
-      const count = range ? range[1] : frames.length;
-      const frame = start + (Math.floor(time * art.fps) % Math.max(1, count));
+      const poses = art.poses;
+      const frame = poses
+        ? poseFrame(rollIndex(pose.rollDeg, poses.roll), elevIndex(pose.stick, poses.elev.length),
+                    poses.elev.length)
+        : Math.floor(time * art.fps) % frames.length;
       sprite.texture = frames[frame] ?? firstFrame;
       return frame;
     },
@@ -447,8 +459,8 @@ export function createPlaneBody(faction: 'player' | 'enemy', heroPilot = false, 
     propellerX: noseX,
     artSprite: planeArt,
     artScale,
-    updateArt(dt: number, block: StickBlock = 'level', engineOn = true, throttle = 1) {
-      const frame = artHandle.update(dt, block);
+    updateArt(dt: number, pose: PlanePose = LEVEL_POSE, engineOn = true, throttle = 1) {
+      const frame = artHandle.update(dt, pose);
       if (propSprite && propArt) {
         propRev = easePropRev(propRev, propRevsPerSecond(engineOn, throttle), dt);
         propPhase = nextPropPhase(propPhase, propRev, dt);
