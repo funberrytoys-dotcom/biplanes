@@ -16,13 +16,16 @@ TOOLS = os.environ.get("BIPLANES_3D_TOOLS", r"C:\Users\serge\Documents\Playgroun
 # cosmetic: a slow rock in cruise, a real lean into a manoeuvre. The steps
 # bunch up near level, where the gentle rock lives, and spread out towards the
 # ends, where the aeroplane is snapping about and stepping does not show.
-ROLL_STEPS = [-22.0, -14.0, -8.0, -3.5, 0.0, 3.5, 8.0, 14.0, 22.0]
+ROLL_STEPS = [-22.0, -14.0, -9.0, -6.0, -3.6, -1.8, 0.0, 1.8, 3.6, 6.0, 9.0, 14.0, 22.0]
 ELEV_STEPS = [34.0, 0.0, -34.0]     # stick back, centred, stick forward
 FRAMES = len(ROLL_STEPS) * len(ELEV_STEPS)
-COLS = 6
-# Taller than the old 310: a banked aeroplane stands higher in its frame, and at
-# 22 degrees the wingtips ran off the top.
-FW, FH = 512, 400
+COLS = 7
+# The game draws the aeroplane 156px wide, so a 512px frame was three times more
+# resolution than anything could show — and thirteen roll steps at that size ran
+# the sheet into the 4096px limit that turns planes black on weak mobile chips.
+# 384 still leaves headroom over a 2x phone. Taller in proportion than the old
+# 310, because a banked aeroplane stands higher in its frame.
+FW, FH = 384, 288
 FILL = 0.905           # fraction of frame width the plane spans
 
 # Camera. Strictly side-on, with only a breath of elevation. At the 8/10 this
@@ -266,8 +269,11 @@ except Exception:
     except Exception: pass
 lens_mat.use_backface_culling = False
 lens.data.materials.append(lens_mat)
+# Parent it the way the propeller's own parts are parented: identity inverse and
+# a local origin, so it sits ON the shaft. Cancelling the parent transform
+# instead put the lens at the world origin — a disc spinning over the cockpit.
 lens.parent = piv
-lens.matrix_parent_inverse = piv.matrix_world.inverted()
+lens.matrix_parent_inverse = Matrix.Identity(4)
 lens.location = (0, 0, 0)
 if disc is not None: disc.hide_render = True
 

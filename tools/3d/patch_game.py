@@ -79,7 +79,7 @@ export type PlaneArtDef = {
 const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef; enemy2: PlaneArtDef } = {
   player: {
     url: assetUrl('assets/biplanes/%(sov_file)s'),
-    width: 512,
+    width: %(sov_fw)d,
     noseX: 0.43,
     frameWidth: %(sov_fw)d,
     frameHeight: %(sov_fh)d,
@@ -93,7 +93,7 @@ const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef; enemy2: PlaneArtD
   },
   enemy: {
     url: assetUrl('assets/biplanes/%(jkl_file)s'),
-    width: 512,
+    width: %(jkl_fw)d,
     noseX: 0.43,
     frameWidth: %(jkl_fw)d,
     frameHeight: %(jkl_fh)d,
@@ -108,7 +108,7 @@ const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef; enemy2: PlaneArtD
   // Second Jackal squadron - same airframe, crimson wings instead of black.
   enemy2: {
     url: assetUrl('assets/biplanes/%(j2_file)s'),
-    width: 512,
+    width: %(j2_fw)d,
     noseX: 0.43,
     frameWidth: %(j2_fw)d,
     frameHeight: %(j2_fh)d,
