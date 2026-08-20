@@ -281,19 +281,19 @@ def build_rig(o, m, hinge_frac=0.28, blend=0.10):
     fz0, fz1 = m["fin_z"]
 
     SURF = {
-        "ail_lo_L": dict(head=(lo_h, -0.48 * hs, loz), tail=(lo_h, -1.02 * hs, loz),
+        "ail_lo_L": dict(head=(lo_h, 0.48 * hs, loz), tail=(lo_h, 1.02 * hs, loz),
                          w=lambda c: (1 - ramp(c.x, lo_h - blend / 2, lo_h + blend / 2)) *
                                      band(-c.y, 0.46 * hs, 0.55 * hs, 0.94 * hs, 1.00 * hs) *
                                      band(c.z, loz - 0.55, loz - 0.42, loz + 0.42, loz + 0.55)),
-        "ail_lo_R": dict(head=(lo_h, 0.48 * hs, loz), tail=(lo_h, 1.02 * hs, loz),
+        "ail_lo_R": dict(head=(lo_h, -0.48 * hs, loz), tail=(lo_h, -1.02 * hs, loz),
                          w=lambda c: (1 - ramp(c.x, lo_h - blend / 2, lo_h + blend / 2)) *
                                      band(c.y, 0.46 * hs, 0.55 * hs, 0.94 * hs, 1.00 * hs) *
                                      band(c.z, loz - 0.55, loz - 0.42, loz + 0.42, loz + 0.55)),
-        "ail_up_L": dict(head=(up_h, -0.48 * hs, upz), tail=(up_h, -1.02 * hs, upz),
+        "ail_up_L": dict(head=(up_h, 0.48 * hs, upz), tail=(up_h, 1.02 * hs, upz),
                          w=lambda c: (1 - ramp(c.x, up_h - blend / 2, up_h + blend / 2)) *
                                      band(-c.y, 0.46 * hs, 0.55 * hs, 0.94 * hs, 1.00 * hs) *
                                      band(c.z, upz - 0.55, upz - 0.42, upz + 0.42, upz + 0.55)),
-        "ail_up_R": dict(head=(up_h, 0.48 * hs, upz), tail=(up_h, 1.02 * hs, upz),
+        "ail_up_R": dict(head=(up_h, -0.48 * hs, upz), tail=(up_h, -1.02 * hs, upz),
                          w=lambda c: (1 - ramp(c.x, up_h - blend / 2, up_h + blend / 2)) *
                                      band(c.y, 0.46 * hs, 0.55 * hs, 0.94 * hs, 1.00 * hs) *
                                      band(c.z, upz - 0.55, upz - 0.42, upz + 0.42, upz + 0.55)),
@@ -352,8 +352,9 @@ def build_rig(o, m, hinge_frac=0.28, blend=0.10):
         b = BOX[nm]
         if not (b[0] <= c.x <= b[1] + 1e-4): return 0.0
         if not (b[4] - 1e-4 <= c.z <= b[5] + 1e-4): return 0.0
-        if nm.endswith("_L") and c.y > 0: return 0.0
-        if nm.endswith("_R") and c.y < 0: return 0.0
+        # nose is +X and up is +Z, so +Y is the pilot's LEFT wing
+        if nm.endswith("_L") and c.y < 0: return 0.0
+        if nm.endswith("_R") and c.y > 0: return 0.0
         ay = abs(c.y)
         if not (b[2] - 1e-4 <= ay <= b[3] + 1e-4): return 0.0
         return 1.0
@@ -373,6 +374,14 @@ def build_rig(o, m, hinge_frac=0.28, blend=0.10):
     bpy.context.view_layer.update()
     return rig, stats, {"lo_h": round(lo_h, 3), "up_h": round(up_h, 3),
                         "ht_h": round(ht_h, 3), "fn_h": round(fn_h, 3)}
+
+
+# One positive input = nose RIGHT / nose UP, the way a stick works. The aileron
+# bones are mirrored, so one angle already gives a differential; the sign here is
+# what makes that differential roll the same way the rudder yaws.
+CONTROL_SIGN = {"ail_lo_L": -1.0, "ail_lo_R": -1.0,
+                "ail_up_L": -1.0, "ail_up_R": -1.0,
+                "elevator": 1.0, "rudder": 1.0}
 
 
 # ---------------------------------------------------------------- flat repaint

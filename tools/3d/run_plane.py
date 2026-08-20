@@ -75,10 +75,12 @@ piv.parent = None
 
 # quick pose so the check renders show every surface actually moving
 P = rig.pose.bones
+# positive input = stick right / stick back / right pedal, so the check render
+# shows a right bank with the rudder agreeing instead of fighting it
 for b in ("ail_lo_L", "ail_lo_R", "ail_up_L", "ail_up_R"):
-    P[b].rotation_euler = (0, math.radians(22), 0)
-P["elevator"].rotation_euler = (0, math.radians(18), 0)
-P["rudder"].rotation_euler = (0, math.radians(22), 0)
+    P[b].rotation_euler = (0, math.radians(22 * pp.CONTROL_SIGN[b]), 0)
+P["elevator"].rotation_euler = (0, math.radians(18 * pp.CONTROL_SIGN["elevator"]), 0)
+P["rudder"].rotation_euler = (0, math.radians(22 * pp.CONTROL_SIGN["rudder"]), 0)
 piv.rotation_euler = (math.radians(12), 0, 0)
 bpy.context.view_layer.update()
 
