@@ -669,7 +669,9 @@ def paint_tail(o, m, color, name="TailBlack", aft_frac=0.72, mode="full"):
         c = p.center
         tail = False
         if mode == "full":
-            if c.x < aft and abs(c.y) < 0.22 * hs:
+            # z guard: the tail wheel and its leg hang below the fuselage and
+            # stay their own colour, as in the reference art
+            if c.x < aft and abs(c.y) < 0.22 * hs and c.z > htz - 0.55:
                 tail = True                                # aft fuselage
             if c.x < aft + 0.6 and abs(c.z - htz) < 0.36 and 0.08 * hts < abs(c.y) <= 1.15 * hts:
                 tail = True                                # tailplane
@@ -691,8 +693,10 @@ def add_fin_bolt(o, m, color=(246, 246, 244), name="FinBolt"):
 
     # Keep the decal strictly inside the fin outline - it used to overshoot the
     # top of the fin and float above the tail.
-    x0, x1 = hinge + 0.03, fn_le - 0.16
-    z0, z1 = fz0 + 0.08, fz1 - 0.07
+    # fill the fin: fz0 is clipped by the measuring filter, so reach below it,
+    # and stay ahead of the hinge so the rudder does not swing out from under it
+    x0, x1 = hinge + 0.01, fn_le - 0.02
+    z0, z1 = fz0 - 0.15, fz1 - 0.01
     w, h = (x1 - x0), (z1 - z0)
     # unit lightning bolt, nose of the plane is +X so the bolt leans forward
     UV = [(0.60, 1.00), (0.16, 0.46), (0.46, 0.46), (0.26, 0.00),
