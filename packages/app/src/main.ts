@@ -1201,7 +1201,10 @@ export async function startGame(container: HTMLElement) {
   let wolfCometDemo = false;
 
   let sky: SkyBackgroundHandle;
+  // Remembered so plane shadows can switch off under a night sky.
+  let currentSkyTheme: SkyThemeId = 'noon';
   function setSkyTheme(themeId: SkyThemeId, imageUrl?: string) {
+    currentSkyTheme = themeId;
     const worldW =
       runMode === 'story' ? MISSION_ONE_WORLD_WIDTH :
       runMode === 'arena' ? ARENA_WORLD_WIDTH :
@@ -4538,7 +4541,7 @@ export async function startGame(container: HTMLElement) {
     }
 
     const worldGroundY = (state.worldHeight ?? WORLD_HEIGHT) - 90;
-    playerSprite.update(state.player, dt, damageFx, clock, camera, undefined, groundFx, { screenFx, groundY: worldGroundY });
+    playerSprite.update(state.player, dt, damageFx, clock, camera, undefined, groundFx, { screenFx, groundY: worldGroundY, sunless: currentSkyTheme === 'night' });
     // Airframe recoil buck: decay fast, then nudge the plane sprite by the leftover.
     const bodyKickDecay = Math.min(1, dt * 22);
     playerBodyKick.x -= playerBodyKick.x * bodyKickDecay;
@@ -4584,7 +4587,7 @@ export async function startGame(container: HTMLElement) {
         groundShadowLayer.addChild(s.shadow);
         enemySprites.set(e.id, s);
       }
-      s.update(e, dt, damageFx, clock, camera, undefined, groundFx, { screenFx, groundY: worldGroundY });
+      s.update(e, dt, damageFx, clock, camera, undefined, groundFx, { screenFx, groundY: worldGroundY, sunless: currentSkyTheme === 'night' });
     }
     for (const [id, s] of enemySprites) {
       if (!seenEnemy.has(id)) {
@@ -4609,7 +4612,7 @@ export async function startGame(container: HTMLElement) {
         groundShadowLayer.addChild(s.shadow);
         allySprites.set(a.id, s);
       }
-      s.update(a, dt, damageFx, clock, camera, undefined, groundFx, { screenFx, groundY: worldGroundY });
+      s.update(a, dt, damageFx, clock, camera, undefined, groundFx, { screenFx, groundY: worldGroundY, sunless: currentSkyTheme === 'night' });
     }
     for (const [id, s] of allySprites) {
       if (!seenAlly.has(id)) {

@@ -12,6 +12,11 @@ export interface PlaneBodyHandle {
   fuselageGlint: Graphics;
   propellerX: number;
   updateArt: (dt: number) => void;
+  /** The airframe sprite itself — the ground shadow reuses its current frame so
+   *  the shadow is the aircraft's own silhouette instead of a blob. */
+  artSprite: Sprite;
+  /** Scale the sheet is drawn at, so the shadow can match its footprint. */
+  artScale: number;
 }
 
 const PLANE_ART = {
@@ -366,6 +371,8 @@ export function createPlaneBody(faction: 'player' | 'enemy', heroPilot = false, 
     wingShadow,
     fuselageGlint,
     propellerX: noseX,
+    artSprite: planeArt,
+    artScale,
     updateArt(dt: number) {
       const frame = artHandle.update(dt);
       if (!pilotSprite.visible) {

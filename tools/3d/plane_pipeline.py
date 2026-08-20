@@ -700,11 +700,11 @@ def paint_tail(o, m, color, name="TailBlack", aft_frac=0.72, mode="full"):
         if mode == "full":
             # z guard: the tail wheel and its leg hang below the fuselage and
             # stay their own colour, as in the reference art
-            if c.x < aft and abs(c.y) < 0.22 * hs and c.z > htz - 0.55:
+            if c.x < aft and abs(c.y) < 0.32 * hs and c.z > htz - 0.55:
                 tail = True                                # aft fuselage
-            if c.x < aft + 0.6 and abs(c.z - htz) < 0.36 and 0.08 * hts < abs(c.y) <= 1.15 * hts:
+            if c.x < aft + 0.6 and abs(c.z - htz) < 0.40 and 0.06 * hts < abs(c.y) <= 1.20 * hts:
                 tail = True                                # tailplane
-        if c.x < aft + 0.6 and abs(c.y) < 0.10 * hs and c.z > az + 0.45:
+        if c.x < aft + 0.6 and abs(c.y) < 0.17 * hs and c.z > az + 0.45:
             tail = True                                    # fin
         if tail:
             p.material_index = idx; n += 1
@@ -819,7 +819,8 @@ def recolor_by_texture(o, m, zones, keep=None):
 
 # ---------------------------------------------------------------- metal trim
 def metalize_trim(o, m, base=(206, 146, 52), name="Duralumin",
-                  hue=(26, 56), sat_min=0.62, val_min=0.34, share=0.80):
+                  hue=(26, 56), sat_min=0.62, val_min=0.34, share=0.80,
+                  boost=None):
     """Turn the gold/brass trim into clean polished metal.
 
     Tripo bleeds blue over the trim, so the struts, edging and cowling come out
@@ -845,13 +846,24 @@ def metalize_trim(o, m, base=(206, 146, 52), name="Duralumin",
         me.materials.append(mt)
     idx = [i for i, x in enumerate(me.materials) if x and x.name == mt.name][0]
 
-    def is_trim(u, v):
+    def sample(u, v):
         xi = min(W - 1, max(0, int(u * W))); yi = min(H - 1, max(0, int((1.0 - v) * H)))
         off = (yi * W + xi) * 4
-        r, g, b = (l2s(px[off]), l2s(px[off + 1]), l2s(px[off + 2]))
-        h, s, val = colorsys.rgb_to_hsv(r, g, b)
+        return (l2s(px[off]), l2s(px[off + 1]), l2s(px[off + 2]))
+
+    def is_trim(u, v):
+        h, s, val = colorsys.rgb_to_hsv(*sample(u, v))
         h *= 360
         return hue[0] <= h <= hue[1] and s >= sat_min and val >= val_min
+
+    def in_boost(c):
+        # the cowling is trim end to end, so accept a weaker vote there: the
+        # texture streaks blue across it and a strict test leaves body-coloured
+        # blotches on the nose
+        if not boost: return False
+        for x0, x1 in boost:
+            if x0 <= c.x <= x1: return True
+        return False
 
     vote = []
     for p in me.polygons:
@@ -861,7 +873,19 @@ def metalize_trim(o, m, base=(206, 146, 52), name="Duralumin",
         for a in uvs:                       # pull samples in towards the centre
             pts.append((a[0] * 0.65 + cu * 0.35, a[1] * 0.65 + cv * 0.35))
         hits = sum(1 for u, v in pts if is_trim(u, v))
-        vote.append(hits / len(pts) >= share)
+        if in_boost(p.center):
+            # judge the cowling by the face's AVERAGE colour instead of a vote:
+            # the streaks break the vote up, while the dark cylinder heads and
+            # the white teeth stay out on their own brightness and hue
+            acc = [0.0, 0.0, 0.0]
+            for u, v in pts:
+                c = sample(u, v)
+                for i in range(3): acc[i] += c[i]
+            h, sa, va = colorsys.rgb_to_hsv(*[a / len(pts) for a in acc])
+            h *= 360
+            vote.append(18 <= h <= 62 and sa >= 0.40 and va >= 0.30)
+        else:
+            vote.append(hits / len(pts) >= share)
 
     # dilate: a face ringed by trim is trim, which closes pinholes on the struts
     nbr = {}
@@ -886,3 +910,39 @@ def metalize_trim(o, m, base=(206, 146, 52), name="Duralumin",
             p.material_index = idx; n += 1
     me.update()
     return {"metal_faces": n, "of": len(me.polygons)}
+
+
+# ---------------------------------------------------------------- junk removal
+def strip_film_artifacts(o, max_verts=60, thin=0.22, wide=0.80):
+    """Delete Tripo's stray membranes.
+
+    The generator leaves flat slivers behind: a ribbon floating over the top
+    wing, sails strung between the struts where rigging wires belong, and
+    degenerate strips along the tail. They all share a shape — a handful of
+    vertices spanning two big dimensions with almost no thickness. Real rigging
+    wires are thin in TWO directions, so they survive this test.
+    """
+    me = o.data
+    bm = bmesh.new(); bm.from_mesh(me)
+    bm.verts.ensure_lookup_table()
+    seen = set(); kill = []; removed = []
+    for v in bm.verts:
+        if v.index in seen: continue
+        stack = [v]; comp = []
+        seen.add(v.index)
+        while stack:
+            cur = stack.pop(); comp.append(cur)
+            for e in cur.link_edges:
+                w = e.other_vert(cur)
+                if w.index not in seen:
+                    seen.add(w.index); stack.append(w)
+        if len(comp) > max_verts: continue
+        xs = [c.co.x for c in comp]; ys = [c.co.y for c in comp]; zs = [c.co.z for c in comp]
+        size = sorted((max(xs) - min(xs), max(ys) - min(ys), max(zs) - min(zs)))
+        if size[0] < thin and size[1] > wide:
+            kill.extend(comp)
+            removed.append({"verts": len(comp), "size": [round(s, 2) for s in size]})
+    if kill:
+        bmesh.ops.delete(bm, geom=kill, context='VERTS')
+    bm.to_mesh(me); bm.free(); me.update()
+    return {"islands": len(removed), "verts": len(kill), "worst": removed[:5]}

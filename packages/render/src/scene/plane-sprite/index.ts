@@ -1,4 +1,4 @@
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Sprite } from 'pixi.js';
 import type { Plane, PlaneState } from '@biplanes/core';
 import {
   SMOKE_THRESHOLD,
@@ -29,6 +29,8 @@ export { use3dPlaneArt } from './body.js';
 
 export interface PlaneSpriteUpdateOpts {
   screenFx?: ScreenEffectsHandle;
+  /** No sun, no shadow: night skies get none at all. */
+  sunless?: boolean;
   /** Actual ground Y of the current world (worldHeight − 90). The arena world is 3×
    *  tall, so the shared GROUND_Y constant is wrong there — pass the real one. */
   groundY?: number;
@@ -39,7 +41,7 @@ export interface PlaneSpriteHandle {
   /** Screen-aligned HP bar that floats above the plane (does not rotate with the body). */
   hpBar: Container;
   /** Flat ground shadow on the deck below the plane; scales/fades with altitude. */
-  shadow: Graphics;
+  shadow: Container;
   update: (
     p: Plane,
     dt: number,
@@ -141,15 +143,22 @@ export function createPlaneSprite(
   const hpBarFill = new Graphics();
   hpBar.addChild(hpBarBg, hpBarFill);
 
-  // Ground shadow — a flat blob on the deck directly below the plane. Biggest/darkest
-  // at ground level (takeoff), shrinks + fades as the plane climbs, gone up high.
-  const shadow = new Graphics();
-  shadow.ellipse(0, 0, 56, 13).fill({ color: 0x070a0e, alpha: 0.95 });
+  // Ground shadow — the aircraft's own silhouette laid on the deck, not a blob:
+  // the current sheet frame, tinted black and squashed flat, so wings, tail and
+  // spinning propeller all read in the shadow. Biggest and darkest at ground
+  // level, shrinking and fading as the plane climbs, gone up high.
+  const shadow = new Container();
+  const shadowSprite = new Sprite();
+  shadowSprite.anchor.set(0.5);
+  shadowSprite.tint = 0x000000;
+  shadow.addChild(shadowSprite);
   shadow.visible = false;
+  const SHADOW_SQUASH = 0.34;   // how flat it lies on the deck
+  const SHADOW_SWING = 0.32;    // how much of the plane's bank the shadow shows
   // Only show right at the deck (takeoff/landing). A larger range made shadows float
   // in mid-air below low-flying planes — there's no visible ground up there, so it
   // read as a blob "near the wings". Tight band = a real takeoff shadow only.
-  const SHADOW_MAX_ALT = 150;
+  const SHADOW_MAX_ALT = 190;
   let lastDrawnMaxHp = -1;
   let lastDrawnHpFrac = -1;
   let lastFillMaxHp = -1;
@@ -198,15 +207,21 @@ export function createPlaneSprite(
         const groundY = opts?.groundY ?? GROUND_Y;
         const altitude = Math.max(0, groundY - p.kinematic.position.y);
         const k = Math.max(0, 1 - altitude / SHADOW_MAX_ALT);
-        if (k > 0.02 && p.alive && p.state !== 'crashed') {
-          const s = (0.6 + k * 1.1) * (p.visualScale ?? 1);
+        if (k > 0.02 && p.alive && p.state !== 'crashed' && !opts?.sunless) {
+          const s = (0.62 + k * 0.95) * (p.visualScale ?? 1);
           shadow.visible = true;
           shadow.x = p.kinematic.position.x;
           // Sit below the fuselage (the plane's spawn origin is AT groundY, so the body
           // straddles the line) — pushes the shadow under the wheels, not the wings.
           shadow.y = groundY + 22 * (p.visualScale ?? 1);
-          shadow.scale.set(s, s);
-          shadow.alpha = k * 0.6;
+          const tex = body.artSprite.texture;
+          if (tex) shadowSprite.texture = tex;
+          const w = body.artScale * VISUAL_SCALE * s;
+          // mirrored on X like the airframe art, flattened on Y onto the ground
+          shadowSprite.scale.set(-w, w * SHADOW_SQUASH);
+          // only a hint of the bank: a shadow on flat ground barely rotates
+          shadowSprite.rotation = c.rotation * SHADOW_SWING;
+          shadow.alpha = k * 0.55;
         } else {
           shadow.visible = false;
         }
