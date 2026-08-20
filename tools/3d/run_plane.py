@@ -6,24 +6,31 @@ def imp(name):
     m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m); return m
 pp = imp("plane_pipeline"); lv = imp("lib_view")
 
+# Tripo's second pass at these two airframes paints itself far better than we
+# ever repainted it: the wings carry their own edging, the trim is clean gold,
+# the wheel fairings are one solid colour. So the paint passes are OFF here —
+# `repaint`, `gild` and `fairing` exist to rescue a texture that needs it, and
+# this one does not. Everything structural still runs: propeller, engine face,
+# guns, rig.
 CFG = {
-    "sov": dict(src=r"C:\Users\serge\Downloads\vintage airplane 3d model (1).glb",
+    "sov": dict(src=r"C:\Users\serge\Downloads\vintage biplane 3d model (4).glb",
                 wood=(141, 47, 14), gold=(186, 114, 16), brass=(186, 114, 16), wing=(11, 65, 150),
-                rim=(176, 106, 14), metal=(214, 152, 56), tail=None, tail_mode="full", bolt=False, bolt_rgb=(255, 255, 255),
-                spat=(28, 76, 168), spat_trim=(196, 128, 26)),
-    "jkl": dict(src=r"C:\Users\serge\Downloads\red biplane 3d model (3).glb",
+                rim=(176, 106, 14), metal=(214, 152, 56), tail=None, tail_mode="full",
+                bolt=False, bolt_rgb=(255, 255, 255), spat=(28, 76, 168), spat_trim=(196, 128, 26),
+                repaint=False, gild=False, fairing=False, guns="sov"),
+    "jkl": dict(src=r"C:\Users\serge\Downloads\red biplane 3d model (4).glb",
                 wood=(143, 33, 25), gold=(215, 140, 40), brass=(198, 132, 42), wing=(37, 37, 38),
-                rim=(26, 26, 27), metal=(216, 150, 52), tail=(34, 34, 35), tail_mode="full", bolt=True, bolt_rgb=(246, 246, 244),
-                spat=(158, 34, 30), spat_trim=(120, 26, 23)),
-    # Second Jackal squadron: same airframe, inverted scheme so the two read
-    # apart in a dogfight — crimson wings and tail, black edging, black bolt.
-    "jkl2": dict(src=r"C:\Users\serge\Downloads\red biplane 3d model (3).glb",
+                rim=(26, 26, 27), metal=(216, 150, 52), tail=(34, 34, 35), tail_mode="full",
+                bolt=True, bolt_rgb=(246, 246, 244), spat=(158, 34, 30), spat_trim=(120, 26, 23),
+                repaint=False, gild=False, fairing=False, guns="jkl"),
+    # Second Jackal squadron: the same airframe and the same Tripo paint, with
+    # the tail left as Tripo made it, so a wave reads as two squadrons instead
+    # of a row of identical aircraft.
+    "jkl2": dict(src=r"C:\Users\serge\Downloads\red biplane 3d model (4).glb",
                  wood=(120, 28, 22), gold=(196, 122, 34), brass=(186, 122, 40), wing=(96, 30, 25),
-                 # tail left on the Tripo texture: a painted one sat lighter than the
-                 # fuselage and the seam showed
-                 rim=(28, 28, 29), metal=(216, 150, 52), tail=(34, 34, 35), tail_mode="fin",
-                 bolt=True, bolt_rgb=(246, 246, 244),
-                 spat=(140, 32, 28), spat_trim=(104, 24, 21)),
+                 rim=(28, 28, 29), metal=(216, 150, 52), tail=None, tail_mode="fin",
+                 bolt=False, bolt_rgb=(246, 246, 244), spat=(140, 32, 28), spat_trim=(104, 24, 21),
+                 repaint=False, gild=False, fairing=False, guns="jkl"),
 }
 TAG = "%TAG%"
 c = CFG[TAG]
@@ -60,12 +67,12 @@ if TAG == "sov":
                       z=(az + 0.50, fz1 + 0.30), hue=(12, 78), sat=0.20, val=0.18))
     zones.append(dict(x=(mn_x - 0.20, ht_le + 0.10), absy=(0.25 * hts, 1.25 * hts),
                       z=(htz - 0.35, htz + 0.35), hue=(10, 85), sat=0.16, val=0.16))
-zonal = pp.metalize_trim(o, m, base=c["metal"], name="Duralumin_" + TAG, boost=zones)
-flats = pp.repaint_flats(o, m, c["wing"], name="WingFlat_" + TAG, rim=c["rim"])
+zonal = pp.metalize_trim(o, m, base=c["metal"], name="Duralumin_" + TAG, boost=zones) if c["gild"] else {}
+flats = pp.repaint_flats(o, m, c["wing"], name="WingFlat_" + TAG, rim=c["rim"]) if c["repaint"] else 0
 # The wheel fairings: clean body colour with a band of trim over the top, as in
 # the reference art. Runs AFTER the trim pass, which otherwise leaves them
 # spattered with gold shards.
-spats = pp.paint_gear_fairing(o, m, c["spat"], c["spat_trim"], name="Spat_" + TAG)
+spats = pp.paint_gear_fairing(o, m, c["spat"], c["spat_trim"], name="Spat_" + TAG) if c["fairing"] else {}
 m_wood = pp.mat("PropWood_" + TAG, pp.rgb(c["wood"]), 0.44, 0.0)
 m_gold = pp.mat("PropGold_" + TAG, pp.rgb(c["gold"]), 0.32, 0.8)
 
@@ -92,7 +99,7 @@ nt.links.new(rp.outputs["Color"], bsdf.inputs["Base Color"])
 GUN = {"sov": dict(x0=2.70, x1=4.70, ylim=0.78, zmin=1.03, zmax=1.52, dz=0.14,
                    mount=(2.95, 3.85, 0.20, 0.86, 1.08)),
        "jkl": dict(x0=2.80, x1=4.70, ylim=0.78, zmin=1.10, zmax=1.55, dz=0.07,
-                   mount=(3.05, 3.95, 0.20, 0.96, 1.16))}[TAG.rstrip("0123456789")]
+                   mount=(3.05, 3.95, 0.20, 0.96, 1.16))}[c["guns"]]
 moved, mount = pp.seat_guns(o, m, GUN["x0"], GUN["x1"], GUN["ylim"], GUN["zmin"],
                             GUN["zmax"], GUN["dz"], GUN["mount"], m_brass)
 R = m["Rprop"] * 0.98

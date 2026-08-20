@@ -50,7 +50,34 @@ def load(src, span=10.0):
     s = span / max(dim.x, dim.y)
     o.scale = (s, s, s); bpy.ops.object.transform_apply(scale=True)
     o.name = "PLANE"
+    face_nose_forward(o)
     return o
+
+
+def face_nose_forward(o):
+    """Everything downstream assumes the nose points at +X. Tripo does not always
+    hand the aeroplane over that way round, and when it does not the propeller cut
+    takes the tail off instead.
+
+    The tell is the mainplanes. They are the only thing that reaches right out to
+    the wingtips, and on a biplane they sit well FORWARD of the middle — so the
+    end their centre leans towards is the nose. Judging by the tailplane instead
+    would be fooled by a propeller whose blades happen to lie horizontally.
+    """
+    V = [v.co for v in o.data.vertices]
+    mn, mx, dim, _ = bounds(o)
+    hs = dim.y / 2
+    wing = [c.x for c in V if abs(c.y) > 0.60 * hs]
+    if not wing:
+        return False
+    if sum(wing) / len(wing) >= 0.0:
+        return False
+    # Spin the MESH, not the object: transform_apply is an operator, and in a
+    # background Blender it can decline the job without saying so.
+    o.data.transform(Matrix.Rotation(math.pi, 4, 'Z'))
+    o.data.update()
+    return True
+
 
 # ---------------------------------------------------------------- measurement
 def measure(o):

@@ -25,7 +25,7 @@ COLS = 7
 # the sheet into the 4096px limit that turns planes black on weak mobile chips.
 # 384 still leaves headroom over a 2x phone. Taller in proportion than the old
 # 310, because a banked aeroplane stands higher in its frame.
-FW, FH = 384, 288
+FW, FH = 384, 352
 FILL = 0.905           # fraction of frame width the plane spans
 
 # Camera. Strictly side-on, with only a breath of elevation. At the 8/10 this
@@ -96,7 +96,12 @@ cam_d = bpy.data.cameras.new("BakeCam")
 cam = bpy.data.objects.new("BakeCam", cam_d)
 sc.collection.objects.link(cam); sc.camera = cam
 cam_d.type = 'ORTHO'
-cam_d.ortho_scale = spanx / FILL
+# Wide enough for the aeroplane, and TALL enough for the steepest baked bank: a
+# rolled aeroplane stands higher than a level one, and framing on length alone
+# ran the С.О.В.'s wingtips off the top of the frame.
+roll = math.radians(max(abs(r) for r in ROLL_STEPS))
+need_v = ((mx.y - mn.y) * math.sin(roll) + (mx.z - mn.z) * math.cos(roll)) / 0.93
+cam_d.ortho_scale = max(spanx / FILL, need_v * FW / FH)
 d = Vector((math.sin(AZ) * math.cos(EL), math.cos(AZ) * math.cos(EL), math.sin(EL)))
 cam.location = ctr + d * 40.0
 con = cam.constraints.new('TRACK_TO'); con.target = tgt
