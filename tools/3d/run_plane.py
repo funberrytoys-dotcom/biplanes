@@ -8,17 +8,17 @@ pp = imp("plane_pipeline"); lv = imp("lib_view")
 CFG = {
     "sov": dict(src=r"C:\Users\serge\Downloads\vintage airplane 3d model (1).glb",
                 wood=(141, 47, 14), gold=(186, 114, 16), brass=(186, 114, 16), wing=(11, 65, 150),
-                rim=(176, 106, 14), tail=None, tail_mode="full", bolt=False, bolt_rgb=(255, 255, 255)),
+                rim=(176, 106, 14), metal=(214, 152, 56), tail=None, tail_mode="full", bolt=False, bolt_rgb=(255, 255, 255)),
     "jkl": dict(src=r"C:\Users\serge\Downloads\red biplane 3d model (3).glb",
                 wood=(143, 33, 25), gold=(215, 140, 40), brass=(198, 132, 42), wing=(37, 37, 38),
-                rim=(26, 26, 27), tail=(34, 34, 35), tail_mode="full", bolt=True, bolt_rgb=(246, 246, 244)),
+                rim=(26, 26, 27), metal=(216, 150, 52), tail=(34, 34, 35), tail_mode="full", bolt=True, bolt_rgb=(246, 246, 244)),
     # Second Jackal squadron: same airframe, inverted scheme so the two read
     # apart in a dogfight — crimson wings and tail, black edging, black bolt.
     "jkl2": dict(src=r"C:\Users\serge\Downloads\red biplane 3d model (3).glb",
                  wood=(120, 28, 22), gold=(196, 122, 34), brass=(186, 122, 40), wing=(96, 30, 25),
                  # tail left on the Tripo texture: a painted one sat lighter than the
                  # fuselage and the seam showed
-                 rim=(28, 28, 29), tail=(34, 34, 35), tail_mode="fin",
+                 rim=(28, 28, 29), metal=(216, 150, 52), tail=(34, 34, 35), tail_mode="fin",
                  bolt=True, bolt_rgb=(246, 246, 244)),
 }
 TAG = "%TAG%"
@@ -35,7 +35,7 @@ cleaned = pp.clean_engine_face(o, m, m_dark, m_brass, mode="%MODE%")
 # Per-face zone recolour from the texture is available in the pipeline, but on
 # a 19k mesh a single face straddles gold and body colour, so the borders come
 # out ragged. Left off until the plane gets a hand-authored zone map.
-zonal = {}
+zonal = pp.metalize_trim(o, m, base=c["metal"], name="Duralumin_" + TAG)
 flats = pp.repaint_flats(o, m, c["wing"], name="WingFlat_" + TAG, rim=c["rim"])
 m_wood = pp.mat("PropWood_" + TAG, pp.rgb(c["wood"]), 0.44, 0.0)
 m_gold = pp.mat("PropGold_" + TAG, pp.rgb(c["gold"]), 0.32, 0.8)

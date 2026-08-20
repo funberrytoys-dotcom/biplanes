@@ -815,3 +815,74 @@ def recolor_by_texture(o, m, zones, keep=None):
             stats["kept"] += 1
     me.update()
     return stats
+
+
+# ---------------------------------------------------------------- metal trim
+def metalize_trim(o, m, base=(206, 146, 52), name="Duralumin",
+                  hue=(26, 56), sat_min=0.62, val_min=0.34, share=0.80):
+    """Turn the gold/brass trim into clean polished metal.
+
+    Tripo bleeds blue over the trim, so the struts, edging and cowling come out
+    streaked. Each face is sampled at several points and repainted only if most
+    of it is trim colour, which keeps the border along the fuselage crisp
+    instead of the ragged edge a single-point test gives. One dilation pass
+    fills the pinholes a per-face vote leaves behind.
+    """
+    me = o.data
+    img = None
+    for mt in me.materials:
+        if mt and mt.use_nodes:
+            for n in mt.node_tree.nodes:
+                if n.type == 'TEX_IMAGE' and n.image: img = n.image
+    if img is None or not me.uv_layers.active:
+        return {}
+    W, H = img.size
+    px = img.pixels[:]
+    uvl = me.uv_layers.active.data
+
+    mt = mat(name, rgb(base), 0.20, 0.95)
+    if mt.name not in [x.name for x in me.materials if x]:
+        me.materials.append(mt)
+    idx = [i for i, x in enumerate(me.materials) if x and x.name == mt.name][0]
+
+    def is_trim(u, v):
+        xi = min(W - 1, max(0, int(u * W))); yi = min(H - 1, max(0, int((1.0 - v) * H)))
+        off = (yi * W + xi) * 4
+        r, g, b = (l2s(px[off]), l2s(px[off + 1]), l2s(px[off + 2]))
+        h, s, val = colorsys.rgb_to_hsv(r, g, b)
+        h *= 360
+        return hue[0] <= h <= hue[1] and s >= sat_min and val >= val_min
+
+    vote = []
+    for p in me.polygons:
+        uvs = [uvl[li].uv for li in p.loop_indices]
+        cu = sum(a[0] for a in uvs) / len(uvs); cv = sum(a[1] for a in uvs) / len(uvs)
+        pts = [(cu, cv)]
+        for a in uvs:                       # pull samples in towards the centre
+            pts.append((a[0] * 0.65 + cu * 0.35, a[1] * 0.65 + cv * 0.35))
+        hits = sum(1 for u, v in pts if is_trim(u, v))
+        vote.append(hits / len(pts) >= share)
+
+    # dilate: a face ringed by trim is trim, which closes pinholes on the struts
+    nbr = {}
+    for p in me.polygons:
+        for ek in p.edge_keys:
+            nbr.setdefault(ek, []).append(p.index)
+    grown = list(vote)
+    for p in me.polygons:
+        if vote[p.index]: continue
+        near = 0; tot = 0
+        for ek in p.edge_keys:
+            for j in nbr.get(ek, ()):
+                if j == p.index: continue
+                tot += 1
+                if vote[j]: near += 1
+        if tot >= 3 and near == tot:
+            grown[p.index] = True
+
+    n = 0
+    for p in me.polygons:
+        if grown[p.index]:
+            p.material_index = idx; n += 1
+    me.update()
+    return {"metal_faces": n, "of": len(me.polygons)}
