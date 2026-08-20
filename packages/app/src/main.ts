@@ -2425,6 +2425,9 @@ export async function startGame(container: HTMLElement) {
   let arenaShownStage = 0;
   let arenaRound = 1;
   let currentWeather: WeatherGameplay = weatherGameplay('clear');
+  // How hard the air is shaking right now, 0..1 — drives the cosmetic flight sway
+  // of every plane. Derived from the same gust vector the physics already uses.
+  const gustiness = () => Math.min(1, Math.abs(currentWeather.wind.x) / 140);
   let weatherBaseWind = { x: 0, y: 0 };
   let lightningStrikeTimer = 4;
   let arenaRoundPhase: ArenaRoundPhase = 'takeoff';
@@ -4541,7 +4544,7 @@ export async function startGame(container: HTMLElement) {
     }
 
     const worldGroundY = (state.worldHeight ?? WORLD_HEIGHT) - 90;
-    playerSprite.update(state.player, dt, damageFx, clock, camera, undefined, groundFx, { screenFx, groundY: worldGroundY, sunless: currentSkyTheme === 'night' });
+    playerSprite.update(state.player, dt, damageFx, clock, camera, undefined, groundFx, { screenFx, groundY: worldGroundY, sunless: currentSkyTheme === 'night', turbulence: gustiness() });
     // Airframe recoil buck: decay fast, then nudge the plane sprite by the leftover.
     const bodyKickDecay = Math.min(1, dt * 22);
     playerBodyKick.x -= playerBodyKick.x * bodyKickDecay;
@@ -4587,7 +4590,7 @@ export async function startGame(container: HTMLElement) {
         groundShadowLayer.addChild(s.shadow);
         enemySprites.set(e.id, s);
       }
-      s.update(e, dt, damageFx, clock, camera, undefined, groundFx, { screenFx, groundY: worldGroundY, sunless: currentSkyTheme === 'night' });
+      s.update(e, dt, damageFx, clock, camera, undefined, groundFx, { screenFx, groundY: worldGroundY, sunless: currentSkyTheme === 'night', turbulence: gustiness() });
     }
     for (const [id, s] of enemySprites) {
       if (!seenEnemy.has(id)) {
@@ -4612,7 +4615,7 @@ export async function startGame(container: HTMLElement) {
         groundShadowLayer.addChild(s.shadow);
         allySprites.set(a.id, s);
       }
-      s.update(a, dt, damageFx, clock, camera, undefined, groundFx, { screenFx, groundY: worldGroundY, sunless: currentSkyTheme === 'night' });
+      s.update(a, dt, damageFx, clock, camera, undefined, groundFx, { screenFx, groundY: worldGroundY, sunless: currentSkyTheme === 'night', turbulence: gustiness() });
     }
     for (const [id, s] of allySprites) {
       if (!seenAlly.has(id)) {

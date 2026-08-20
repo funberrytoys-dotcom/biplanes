@@ -17,6 +17,7 @@ import type { ScreenEffectsHandle } from '../screen-effects.js';
 import { createPlaneBody } from './body.js';
 import { createPlaneControls } from './controls.js';
 import { createPilotHead } from './pilot-head.js';
+import { flightWobble, wobblePhase } from './wobble.js';
 import { resolveGunfeelImpact, shouldApplyImpactCamera } from '../gunfeel-math.js';
 
 interface CameraLike {
@@ -34,6 +35,9 @@ export interface PlaneSpriteUpdateOpts {
   /** Actual ground Y of the current world (worldHeight − 90). The arena world is 3×
    *  tall, so the shared GROUND_Y constant is wrong there — pass the real one. */
   groundY?: number;
+  /** 0..1 gustiness of the current weather. Feeds the flight sway only: planes
+   *  rock harder in a storm than on a clear day. Purely cosmetic. */
+  turbulence?: number;
 }
 
 export interface PlaneSpriteHandle {
@@ -126,6 +130,11 @@ export function createPlaneSprite(
 
   // Banking visual squeeze (Task 2.2)
   let bankT = 0;
+
+  // Flight sway — see wobble.ts. Render-only, so it never reaches the sim.
+  let wobbleTime = 0;
+  let wobbleEnv = 0;
+  let wobblePhaseValue: number | null = null;
 
   // Throttle bob tracking for pilot head (Task 2.4)
   let prevThrottle = 0;
@@ -258,12 +267,36 @@ export function createPlaneSprite(
         turnRate = headingDiff / Math.max(0.001, dt);
       }
 
-      // Visible bank squeeze on hard turns (Task 2.2)
+      // Visible bank squeeze on hard turns (Task 2.2). Keeps the plane's own
+      // visualScale — bosses are 1.34× and used to lose it on the Y axis here,
+      // which drew them wide and squat.
       {
         const target = Math.min(1, turnRate / 2.5);
         const speed = 6 * dt;
         bankT += (target - bankT) * speed;
-        c.scale.y = 1 - bankT * 0.12;
+        c.scale.y = spriteScale * (1 - bankT * 0.12);
+      }
+
+      // Flight sway: the sheets themselves fly dead level, so without this a
+      // cruising plane looks like it is running on rails. Faded in only while
+      // actually airborne, damped while the pilot is hauling it round a turn,
+      // stronger when the airframe wallows near the stall or the weather kicks up.
+      {
+        if (wobblePhaseValue === null) wobblePhaseValue = wobblePhase(Number(p.id) || 0);
+        wobbleTime += dt;
+        const target = aliveAndFlying && p.state !== 'taxi' ? 1 : 0;
+        wobbleEnv += (target - wobbleEnv) * Math.min(1, dt * 3);
+        const sway = flightWobble({
+          time: wobbleTime,
+          phase: wobblePhaseValue,
+          envelope: wobbleEnv,
+          turnRate,
+          speed: p.kinematic.g,
+          stallSpeed: G_STALL,
+          turbulence: opts?.turbulence ?? 0,
+        });
+        c.rotation += sway.rotation;
+        c.y += sway.heave;
       }
 
       // Dynamic specular highlight and shadow cast (Phase 1.1).
