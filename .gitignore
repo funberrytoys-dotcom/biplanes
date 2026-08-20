@@ -43,3 +43,5 @@ docs/references/new-clouds/
 docs/u6964384989_*.png
 tools/assets/_cloud_contact_sheet.png
 .3dwork/
+__pycache__/
+*.pyc
