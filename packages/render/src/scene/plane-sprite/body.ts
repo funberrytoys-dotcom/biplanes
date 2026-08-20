@@ -1,4 +1,5 @@
 import { Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js';
+import type { StickBlock } from './stick-block.js';
 import { assetUrl } from '../../asset-url.js';
 
 export interface PlaneBodyHandle {
@@ -11,7 +12,7 @@ export interface PlaneBodyHandle {
   wingShadow: Graphics;
   fuselageGlint: Graphics;
   propellerX: number;
-  updateArt: (dt: number) => void;
+  updateArt: (dt: number, block?: StickBlock) => void;
   /** The airframe sprite itself — the ground shadow reuses its current frame so
    *  the shadow is the aircraft's own silhouette instead of a blob. */
   artSprite: Sprite;
@@ -71,7 +72,13 @@ export type PlaneArtDef = {
   columns: number;
   fps: number;
   cockpit: { x: number; y: number; h: number };
+  /** Per-frame drift of the airframe INSIDE the frames, so the pilot bust can
+   *  ride along. Empty when the bake holds the airframe level. */
   bob: readonly (readonly number[])[];
+  /** Where each control block starts and how long it runs, as [first, count].
+   *  The sheet carries level flight, stick back and stick forward, so the
+   *  elevator can be seen doing the work in a loop. */
+  blocks?: { level: [number, number]; up: [number, number]; down: [number, number] };
 };
 
 const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef; enemy2: PlaneArtDef } = {
@@ -84,8 +91,9 @@ const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef; enemy2: PlaneArtD
     frameCount: 50,
     columns: 5,
     fps: 24,
-    cockpit: { x: 251, y: 136, h: 56 },
-    bob: [[0.0, 0.0], [-0.0, -0.5], [-0.0, -1.0], [-0.0, -1.4], [-0.0, -1.9], [-0.0, -2.3], [-0.0, -2.7], [-0.0, -3.0], [0.0, -3.3], [0.1, -3.6], [0.1, -3.8], [0.1, -3.9], [0.2, -4.0], [0.2, -4.0], [0.3, -3.9], [0.3, -3.8], [0.4, -3.6], [0.5, -3.4], [0.5, -3.1], [0.6, -2.8], [0.6, -2.4], [0.7, -2.0], [0.7, -1.5], [0.8, -1.1], [0.8, -0.6], [0.8, -0.1], [0.8, 0.4], [0.9, 0.9], [0.9, 1.4], [0.9, 1.8], [0.9, 2.2], [0.8, 2.6], [0.8, 3.0], [0.8, 3.2], [0.8, 3.5], [0.7, 3.7], [0.7, 3.8], [0.6, 3.9], [0.6, 3.9], [0.5, 3.8], [0.5, 3.7], [0.4, 3.5], [0.4, 3.3], [0.3, 3.0], [0.2, 2.7], [0.2, 2.3], [0.2, 1.9], [0.1, 1.4], [0.1, 1.0], [0.0, 0.5]],
+    cockpit: { x: 251, y: 126, h: 56 },
+    bob: [],
+    blocks: { level: [0, 30], up: [30, 10], down: [40, 10] },
   },
   enemy: {
     url: assetUrl('assets/biplanes/plane_enemy_crimson_3d_sheet.png'),
@@ -96,8 +104,9 @@ const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef; enemy2: PlaneArtD
     frameCount: 50,
     columns: 5,
     fps: 24,
-    cockpit: { x: 256, y: 133, h: 62 },
-    bob: [[0.0, 0.0], [-0.0, -0.5], [-0.1, -1.0], [-0.1, -1.5], [-0.1, -1.9], [-0.1, -2.3], [-0.0, -2.7], [-0.0, -3.0], [0.0, -3.3], [0.1, -3.6], [0.1, -3.8], [0.1, -3.9], [0.2, -3.9], [0.3, -3.9], [0.3, -3.9], [0.4, -3.7], [0.4, -3.5], [0.5, -3.3], [0.6, -3.0], [0.7, -2.6], [0.7, -2.2], [0.8, -1.8], [0.8, -1.4], [0.9, -0.9], [0.9, -0.4], [0.9, 0.1], [1.0, 0.6], [1.0, 1.1], [1.0, 1.6], [1.0, 2.0], [1.0, 2.4], [1.0, 2.8], [0.9, 3.1], [0.9, 3.4], [0.9, 3.7], [0.8, 3.8], [0.8, 4.0], [0.7, 4.0], [0.7, 4.0], [0.6, 3.9], [0.6, 3.8], [0.5, 3.6], [0.4, 3.4], [0.4, 3.1], [0.3, 2.7], [0.2, 2.3], [0.2, 1.9], [0.1, 1.5], [0.1, 1.0], [0.0, 0.5]],
+    cockpit: { x: 257, y: 121, h: 62 },
+    bob: [],
+    blocks: { level: [0, 30], up: [30, 10], down: [40, 10] },
   },
   // Second Jackal squadron - same airframe, crimson wings instead of black.
   enemy2: {
@@ -109,8 +118,9 @@ const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef; enemy2: PlaneArtD
     frameCount: 50,
     columns: 5,
     fps: 24,
-    cockpit: { x: 256, y: 133, h: 62 },
-    bob: [[0.0, 0.0], [-0.0, -0.5], [-0.1, -1.0], [-0.1, -1.5], [-0.1, -1.9], [-0.1, -2.3], [-0.0, -2.7], [-0.0, -3.0], [0.0, -3.3], [0.1, -3.6], [0.1, -3.8], [0.1, -3.9], [0.2, -3.9], [0.3, -3.9], [0.3, -3.9], [0.4, -3.7], [0.4, -3.5], [0.5, -3.3], [0.6, -3.0], [0.7, -2.6], [0.7, -2.2], [0.8, -1.8], [0.8, -1.4], [0.9, -0.9], [0.9, -0.4], [0.9, 0.1], [1.0, 0.6], [1.0, 1.1], [1.0, 1.6], [1.0, 2.0], [1.0, 2.4], [1.0, 2.8], [0.9, 3.1], [0.9, 3.4], [0.9, 3.7], [0.8, 3.8], [0.8, 4.0], [0.7, 4.0], [0.7, 4.0], [0.6, 3.9], [0.6, 3.8], [0.5, 3.6], [0.4, 3.4], [0.4, 3.1], [0.3, 2.7], [0.2, 2.3], [0.2, 1.9], [0.1, 1.5], [0.1, 1.0], [0.0, 0.5]],
+    cockpit: { x: 257, y: 121, h: 62 },
+    bob: [],
+    blocks: { level: [0, 30], up: [30, 10], down: [40, 10] },
   },
 };
 
@@ -167,7 +177,10 @@ function getPlaneFrames(art: PlaneArtDef): Texture[] {
   return frames;
 }
 
-function createAnimatedPlaneArt(art: PlaneArtDef): { sprite: Sprite; update: (dt: number) => number } {
+function createAnimatedPlaneArt(art: PlaneArtDef): {
+  sprite: Sprite;
+  update: (dt: number, block: StickBlock) => number;
+} {
   const frames = getPlaneFrames(art);
   const firstFrame = frames[0];
   if (!firstFrame) throw new Error(`Plane spritesheet ${art.url} has no frames`);
@@ -177,9 +190,13 @@ function createAnimatedPlaneArt(art: PlaneArtDef): { sprite: Sprite; update: (dt
   return {
     sprite,
     // Returns the frame index shown this tick (the pilot bob table is keyed on it).
-    update(dt: number): number {
+    // Sheets without control blocks ignore the stick and just run end to end.
+    update(dt: number, block: StickBlock): number {
       time += dt;
-      const frame = Math.floor(time * art.fps) % frames.length;
+      const range = art.blocks?.[block] ?? art.blocks?.level;
+      const start = range ? range[0] : 0;
+      const count = range ? range[1] : frames.length;
+      const frame = start + (Math.floor(time * art.fps) % Math.max(1, count));
       sprite.texture = frames[frame] ?? firstFrame;
       return frame;
     },
@@ -373,8 +390,8 @@ export function createPlaneBody(faction: 'player' | 'enemy', heroPilot = false, 
     propellerX: noseX,
     artSprite: planeArt,
     artScale,
-    updateArt(dt: number) {
-      const frame = artHandle.update(dt);
+    updateArt(dt: number, block: StickBlock = 'level') {
+      const frame = artHandle.update(dt, block);
       if (!pilotSprite.visible) {
         const tex = pilotSprite.texture;
         if (tex && tex !== Texture.EMPTY && tex.width > 2) {

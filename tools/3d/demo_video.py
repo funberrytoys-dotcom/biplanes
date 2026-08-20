@@ -2,13 +2,14 @@ import bpy, math, json, os, time, importlib.util
 from mathutils import Vector, Matrix
 
 TAG = "%TAG%"
-BASE = r"C:\Users\serge\AppData\Local\Temp\claude\C--Users-serge-Documents-Playground-Biplanes\882b20d1-942a-41ff-b96c-218c1c8afa45\scratchpad\3d"
+BASE = os.environ.get("BIPLANES_3D_BASE", r"C:\Users\serge\Documents\Playground\Biplanes\.3dwork")
+TOOLS = os.environ.get("BIPLANES_3D_TOOLS", r"C:\Users\serge\Documents\Playground\Biplanes\tools\3d")
 OUTDIR = r"C:\Users\serge\Downloads\vintage biplane 3d model\_ИСПРАВЛЕНО"
 FPS, DUR = 30, 14.0
 NF = int(FPS * DUR)
 
 def imp(n):
-    s = importlib.util.spec_from_file_location(n, os.path.join(BASE, n + ".py"))
+    s = importlib.util.spec_from_file_location(n, os.path.join(TOOLS, n + ".py"))
     m = importlib.util.module_from_spec(s); s.loader.exec_module(m); return m
 pp = imp("plane_pipeline")
 SIGN = pp.CONTROL_SIGN

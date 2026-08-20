@@ -15,6 +15,7 @@ import type { FloatingNumbers } from '../floating-numbers.js';
 import type { GroundFx } from '../ground-fx.js';
 import type { ScreenEffectsHandle } from '../screen-effects.js';
 import { createPlaneBody } from './body.js';
+import { nextStickBlock, type StickBlock } from './stick-block.js';
 import { createPlaneControls } from './controls.js';
 import { createPilotHead } from './pilot-head.js';
 import { flightWobble, wobblePhase } from './wobble.js';
@@ -131,6 +132,9 @@ export function createPlaneSprite(
   // Banking visual squeeze (Task 2.2)
   let bankT = 0;
 
+  // Which stretch of the 3D sheet is playing — see stick-block.ts.
+  let stickBlock: StickBlock = 'level';
+
   // Flight sway — see wobble.ts. Render-only, so it never reaches the sim.
   let wobbleTime = 0;
   let wobbleEnv = 0;
@@ -207,7 +211,18 @@ export function createPlaneSprite(
         fx.addDebris(p.kinematic.position, bodyColor);
       }
 
-      updateArt(dt);
+      // Elevator: this is a looping dogfighter, so a turn IS a pitch change and
+      // the elevator is the surface doing the work — the one thing a side-on
+      // camera can actually read. Positive heading change swings the nose the
+      // way stick-forward does, whichever way round the aircraft happens to be.
+      {
+        let delta = p.kinematic.heading - prevHeading;
+        if (delta > Math.PI) delta -= Math.PI * 2;
+        else if (delta < -Math.PI) delta += Math.PI * 2;
+        const rate = delta / Math.max(0.001, dt);
+        stickBlock = nextStickBlock(stickBlock, rate, p.alive && p.state === 'flying');
+      }
+      updateArt(dt, stickBlock);
 
       // Ground shadow: directly under the plane, biggest/darkest near the deck,
       // shrinking + fading with altitude until it vanishes high up. Uses the world's

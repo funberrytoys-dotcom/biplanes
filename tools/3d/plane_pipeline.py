@@ -818,6 +818,11 @@ def recolor_by_texture(o, m, zones, keep=None):
 
 
 # ---------------------------------------------------------------- metal trim
+def _within(rng, v):
+    """True when v sits inside (lo, hi), or when the bound was left out."""
+    return rng is None or rng[0] <= v <= rng[1]
+
+
 def metalize_trim(o, m, base=(206, 146, 52), name="Duralumin",
                   hue=(26, 56), sat_min=0.62, val_min=0.34, share=0.80,
                   boost=None):
@@ -828,6 +833,18 @@ def metalize_trim(o, m, base=(206, 146, 52), name="Duralumin",
     of it is trim colour, which keeps the border along the fuselage crisp
     instead of the ragged edge a single-point test gives. One dilation pass
     fills the pinholes a per-face vote leaves behind.
+
+    `boost` is the hand zone map: a list of boxes where the bleed is bad enough
+    that the strict test gives up, and the face is judged by its AVERAGE colour
+    against looser limits instead. Each entry is a dict of
+
+        x / y / absy / z   (lo, hi) bounds on the face centre; omit to allow all
+        hue                (lo, hi) degrees the average must land inside
+        sat, val           floors on the average saturation and brightness
+
+    Zones must be drawn tight. Loosening the test over the whole aeroplane
+    sprays gold down the fuselage; loosening it over the tail alone recovers the
+    edging without touching the cream flash below it.
     """
     me = o.data
     img = None
@@ -856,14 +873,17 @@ def metalize_trim(o, m, base=(206, 146, 52), name="Duralumin",
         h *= 360
         return hue[0] <= h <= hue[1] and s >= sat_min and val >= val_min
 
-    def in_boost(c):
-        # the cowling is trim end to end, so accept a weaker vote there: the
-        # texture streaks blue across it and a strict test leaves body-coloured
-        # blotches on the nose
-        if not boost: return False
-        for x0, x1 in boost:
-            if x0 <= c.x <= x1: return True
-        return False
+    def zone_of(c):
+        # the cowling and the tail edging are trim end to end, so accept a
+        # weaker vote inside their boxes: the texture streaks blue across them
+        # and a strict test leaves body-coloured blotches behind
+        for z in boost or ():
+            if not _within(z.get("x"), c.x): continue
+            if not _within(z.get("y"), c.y): continue
+            if not _within(z.get("absy"), abs(c.y)): continue
+            if not _within(z.get("z"), c.z): continue
+            return z
+        return None
 
     vote = []
     for p in me.polygons:
@@ -873,17 +893,20 @@ def metalize_trim(o, m, base=(206, 146, 52), name="Duralumin",
         for a in uvs:                       # pull samples in towards the centre
             pts.append((a[0] * 0.65 + cu * 0.35, a[1] * 0.65 + cv * 0.35))
         hits = sum(1 for u, v in pts if is_trim(u, v))
-        if in_boost(p.center):
-            # judge the cowling by the face's AVERAGE colour instead of a vote:
-            # the streaks break the vote up, while the dark cylinder heads and
-            # the white teeth stay out on their own brightness and hue
+        z = zone_of(p.center)
+        if z:
+            # judge the face by its AVERAGE colour instead of by a vote: the
+            # streaks break the vote up, while the dark cylinder heads and the
+            # white teeth stay out on their own brightness and hue
             acc = [0.0, 0.0, 0.0]
             for u, v in pts:
                 c = sample(u, v)
                 for i in range(3): acc[i] += c[i]
             h, sa, va = colorsys.rgb_to_hsv(*[a / len(pts) for a in acc])
             h *= 360
-            vote.append(18 <= h <= 62 and sa >= 0.40 and va >= 0.30)
+            zh = z.get("hue", (18, 62))
+            vote.append(zh[0] <= h <= zh[1] and sa >= z.get("sat", 0.40)
+                        and va >= z.get("val", 0.30))
         else:
             vote.append(hits / len(pts) >= share)
 

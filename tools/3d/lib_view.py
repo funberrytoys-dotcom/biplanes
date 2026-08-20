@@ -1,7 +1,7 @@
 import bpy, os, math, json
 from mathutils import Vector
 
-OUT = r"C:\Users\serge\AppData\Local\Temp\claude\C--Users-serge-Documents-Playground-Biplanes\882b20d1-942a-41ff-b96c-218c1c8afa45\scratchpad\3d\shots"
+OUT = os.path.join(os.environ.get("BIPLANES_3D_BASE", r"C:\Users\serge\Documents\Playground\Biplanes\.3dwork"), "shots")
 os.makedirs(OUT, exist_ok=True)
 
 def wipe():

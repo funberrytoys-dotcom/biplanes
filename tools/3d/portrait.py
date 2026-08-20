@@ -1,8 +1,9 @@
 import bpy, math, json, os, importlib.util
 from mathutils import Vector
-BASE = r"C:\Users\serge\AppData\Local\Temp\claude\C--Users-serge-Documents-Playground-Biplanes\882b20d1-942a-41ff-b96c-218c1c8afa45\scratchpad\3d"
+BASE = os.environ.get("BIPLANES_3D_BASE", r"C:\Users\serge\Documents\Playground\Biplanes\.3dwork")
+TOOLS = os.environ.get("BIPLANES_3D_TOOLS", r"C:\Users\serge\Documents\Playground\Biplanes\tools\3d")
 def imp(n):
-    s=importlib.util.spec_from_file_location(n, os.path.join(BASE,n+".py")); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); return m
+    s=importlib.util.spec_from_file_location(n, os.path.join(TOOLS,n+".py")); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); return m
 lv=imp("lib_view")
 TAG="%TAG%"
 bpy.ops.wm.open_mainfile(filepath=os.path.join(BASE,"plane_%s.blend"%TAG))

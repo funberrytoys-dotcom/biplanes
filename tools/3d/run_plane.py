@@ -1,7 +1,8 @@
 import bpy, math, json, os, sys, importlib.util
-BASE = r"C:\Users\serge\AppData\Local\Temp\claude\C--Users-serge-Documents-Playground-Biplanes\882b20d1-942a-41ff-b96c-218c1c8afa45\scratchpad\3d"
+BASE = os.environ.get("BIPLANES_3D_BASE", r"C:\Users\serge\Documents\Playground\Biplanes\.3dwork")
+TOOLS = os.environ.get("BIPLANES_3D_TOOLS", r"C:\Users\serge\Documents\Playground\Biplanes\tools\3d")
 def imp(name):
-    spec = importlib.util.spec_from_file_location(name, os.path.join(BASE, name + ".py"))
+    spec = importlib.util.spec_from_file_location(name, os.path.join(TOOLS, name + ".py"))
     m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m); return m
 pp = imp("plane_pipeline"); lv = imp("lib_view")
 
@@ -32,14 +33,31 @@ hole_r = pp.cut_prop(o, m)
 m_dark = pp.mat("EngineDark_" + TAG, (0.048, 0.045, 0.043), 0.52, 0.55)
 m_brass = pp.mat("PropBrass_" + TAG, pp.rgb(c["brass"]), 0.50, 0.45)
 painted = pp.paint_cut(o, m, m_brass)
-cleaned = pp.clean_engine_face(o, m, m_dark, m_brass, mode="%MODE%")
-# Per-face zone recolour from the texture is available in the pipeline, but on
-# a 19k mesh a single face straddles gold and body colour, so the borders come
-# out ragged. Left off until the plane gets a hand-authored zone map.
-zonal = pp.metalize_trim(o, m, base=c["metal"], name="Duralumin_" + TAG,
-                         # only the cowling SIDES: further forward and the cylinder heads,
-                         # which have to stay dark, get swept into the trim
-                         boost=[(m["cut_x"] - 1.50, m["cut_x"] - 0.72)])
+# "lip" leaves the dark backing right behind the cowling lip. "full" pushes it
+# deeper, which opens daylight between the cylinders — this is the shipped one.
+cleaned = pp.clean_engine_face(o, m, m_dark, m_brass, mode="lip")
+# The hand zone map. Everywhere else the strict hue test decides what is trim;
+# inside these boxes Tripo's blue bleed has washed the gold out too far for that,
+# so the face is judged by its average colour against looser limits.
+zones = [
+    # the cowling SIDES only: further forward and the cylinder heads, which have
+    # to stay dark, get swept into the trim
+    dict(x=(m["cut_x"] - 1.50, m["cut_x"] - 0.72), hue=(18, 62), sat=0.40, val=0.30),
+]
+if TAG == "sov":
+    # The С.О.В. tail is the worst of the bleed: its gold edging comes off the
+    # texture as muddy olive. Two tight boxes recover it — the fin box sits
+    # ABOVE the fuselage and the tailplane box OUTBOARD of it, so the cream
+    # flash along the rear flank is in neither and keeps its own colour.
+    hs, az = m["halfspan"], m["ax_z"]
+    fn_le = m["fin_chord"][1]; fz1 = m["fin_z"][1]
+    ht_le = m["htail_chord"][1]; htz = m["htail_z"]; hts = m["htail_span"]
+    mn_x = m["mn"][0]
+    zones.append(dict(x=(mn_x - 0.20, fn_le + 0.10), absy=(0.0, 0.10 * hs),
+                      z=(az + 0.50, fz1 + 0.30), hue=(12, 78), sat=0.20, val=0.18))
+    zones.append(dict(x=(mn_x - 0.20, ht_le + 0.10), absy=(0.25 * hts, 1.25 * hts),
+                      z=(htz - 0.35, htz + 0.35), hue=(10, 85), sat=0.16, val=0.16))
+zonal = pp.metalize_trim(o, m, base=c["metal"], name="Duralumin_" + TAG, boost=zones)
 flats = pp.repaint_flats(o, m, c["wing"], name="WingFlat_" + TAG, rim=c["rim"])
 m_wood = pp.mat("PropWood_" + TAG, pp.rgb(c["wood"]), 0.44, 0.0)
 m_gold = pp.mat("PropGold_" + TAG, pp.rgb(c["gold"]), 0.32, 0.8)

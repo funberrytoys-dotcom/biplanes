@@ -4,9 +4,10 @@ One positive input means stick right / stick back / right pedal. Run after any
 change to the rig; it prints ALL PASS or names the surface that went wrong.
 """
 import bpy, math, json, os, importlib.util
-BASE = r"C:\Users\serge\AppData\Local\Temp\claude\C--Users-serge-Documents-Playground-Biplanes\882b20d1-942a-41ff-b96c-218c1c8afa45\scratchpad\3d"
+BASE = os.environ.get("BIPLANES_3D_BASE", r"C:\Users\serge\Documents\Playground\Biplanes\.3dwork")
+TOOLS = os.environ.get("BIPLANES_3D_TOOLS", r"C:\Users\serge\Documents\Playground\Biplanes\tools\3d")
 def imp(n):
-    s=importlib.util.spec_from_file_location(n, os.path.join(BASE,n+".py")); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); return m
+    s=importlib.util.spec_from_file_location(n, os.path.join(TOOLS,n+".py")); m=importlib.util.module_from_spec(s); s.loader.exec_module(m); return m
 pp=imp("plane_pipeline"); S=pp.CONTROL_SIGN
 report={}
 for tag in ("sov","jkl","jkl2"):

@@ -1,7 +1,7 @@
 import json, os, sys
 from PIL import Image, ImageEnhance
 
-BASE = r"C:\Users\serge\AppData\Local\Temp\claude\C--Users-serge-Documents-Playground-Biplanes\882b20d1-942a-41ff-b96c-218c1c8afa45\scratchpad\3d"
+BASE = os.environ.get("BIPLANES_3D_BASE", r"C:\Users\serge\Documents\Playground\Biplanes\.3dwork")
 DEST = r"C:\Users\serge\Documents\Playground\Biplanes\apps\web\public\assets\biplanes"
 COLS = 5
 NAMES = {"sov": "plane_player_sov_3d_sheet.png",
@@ -52,6 +52,7 @@ for tag in ("sov", "jkl", "jkl2"):
                          max(b[2] for b in bbs), max(b[3] for b in bbs)],
         "cockpit_xy": ck,
         "bob": bob,
+        "blocks": trk.get("blocks"),
         "kb": round(os.path.getsize(out) / 1024),
     }
 print(json.dumps(report, ensure_ascii=False))

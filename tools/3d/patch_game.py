@@ -1,13 +1,25 @@
 import json, os, sys
 
 REPO = r"C:\Users\serge\Documents\Playground\Biplanes"
-BASE = r"C:\Users\serge\AppData\Local\Temp\claude\C--Users-serge-Documents-Playground-Biplanes\882b20d1-942a-41ff-b96c-218c1c8afa45\scratchpad\3d"
+BASE = os.environ.get("BIPLANES_3D_BASE", r"C:\Users\serge\Documents\Playground\Biplanes\.3dwork")
 BODY = os.path.join(REPO, "packages", "render", "src", "scene", "plane-sprite", "body.ts")
 MAIN = os.path.join(REPO, "packages", "app", "src", "main.ts")
 rep = json.load(open(os.path.join(BASE, "sheet_report.json"), encoding="utf-8"))
 
 def bobsrc(b):
+    # the airframe is baked dead level now, so the drift table is all zeros —
+    # emit an empty one rather than fifty identical pairs
+    if all(p[0] == 0 and p[1] == 0 for p in b):
+        return "[]"
     return "[" + ", ".join("[%s, %s]" % (p[0], p[1]) for p in b) + "]"
+
+
+def blocksrc(bl):
+    if not bl:
+        return "undefined"
+    return "{ level: [%d, %d], up: [%d, %d], down: [%d, %d] }" % (
+        bl["level"][0], bl["level"][1], bl["up"][0], bl["up"][1],
+        bl["down"][0], bl["down"][1])
 
 sov, jkl, jkl2 = rep["sov"], rep["jkl"], rep["jkl2"]
 COCK_H = {"sov": 56, "jkl": 62, "jkl2": 62}
@@ -29,7 +41,13 @@ export type PlaneArtDef = {
   columns: number;
   fps: number;
   cockpit: { x: number; y: number; h: number };
+  /** Per-frame drift of the airframe INSIDE the frames, so the pilot bust can
+   *  ride along. Empty when the bake holds the airframe level. */
   bob: readonly (readonly number[])[];
+  /** Where each control block starts and how long it runs, as [first, count].
+   *  The sheet carries level flight, stick back and stick forward, so the
+   *  elevator can be seen doing the work in a loop. */
+  blocks?: { level: [number, number]; up: [number, number]; down: [number, number] };
 };
 
 const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef; enemy2: PlaneArtDef } = {
@@ -44,6 +62,7 @@ const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef; enemy2: PlaneArtD
     fps: 24,
     cockpit: { x: %(sov_cx)d, y: %(sov_cy)d, h: %(sov_ch)d },
     bob: %(sov_bob)s,
+    blocks: %(sov_blocks)s,
   },
   enemy: {
     url: assetUrl('assets/biplanes/%(jkl_file)s'),
@@ -56,6 +75,7 @@ const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef; enemy2: PlaneArtD
     fps: 24,
     cockpit: { x: %(jkl_cx)d, y: %(jkl_cy)d, h: %(jkl_ch)d },
     bob: %(jkl_bob)s,
+    blocks: %(jkl_blocks)s,
   },
   // Second Jackal squadron - same airframe, crimson wings instead of black.
   enemy2: {
@@ -69,6 +89,7 @@ const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef; enemy2: PlaneArtD
     fps: 24,
     cockpit: { x: %(j2_cx)d, y: %(j2_cy)d, h: %(j2_ch)d },
     bob: %(j2_bob)s,
+    blocks: %(j2_blocks)s,
   },
 };
 
@@ -95,14 +116,17 @@ const USE_3D_ART = use3dPlaneArt();
     "sov_n": sov["frames"], "sov_cols": sov["columns"],
     "sov_cx": sov["cockpit_xy"][0], "sov_cy": sov["cockpit_xy"][1], "sov_ch": COCK_H["sov"],
     "sov_bob": bobsrc(sov["bob"]),
+    "sov_blocks": blocksrc(sov.get("blocks")),
     "jkl_file": jkl["file"], "jkl_fw": jkl["frame"][0], "jkl_fh": jkl["frame"][1],
     "jkl_n": jkl["frames"], "jkl_cols": jkl["columns"],
     "jkl_cx": jkl["cockpit_xy"][0], "jkl_cy": jkl["cockpit_xy"][1], "jkl_ch": COCK_H["jkl"],
     "jkl_bob": bobsrc(jkl["bob"]),
+    "jkl_blocks": blocksrc(jkl.get("blocks")),
     "j2_file": jkl2["file"], "j2_fw": jkl2["frame"][0], "j2_fh": jkl2["frame"][1],
     "j2_n": jkl2["frames"], "j2_cols": jkl2["columns"],
     "j2_cx": jkl2["cockpit_xy"][0], "j2_cy": jkl2["cockpit_xy"][1], "j2_ch": COCK_H["jkl2"],
     "j2_bob": bobsrc(jkl2["bob"]),
+    "j2_blocks": blocksrc(jkl2.get("blocks")),
 }
 
 src = open(BODY, encoding="utf-8").read()

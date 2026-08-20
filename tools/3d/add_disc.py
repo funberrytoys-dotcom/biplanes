@@ -1,5 +1,5 @@
 import bpy, math, json, os
-BASE = r"C:\Users\serge\AppData\Local\Temp\claude\C--Users-serge-Documents-Playground-Biplanes\882b20d1-942a-41ff-b96c-218c1c8afa45\scratchpad\3d"
+BASE = os.environ.get("BIPLANES_3D_BASE", r"C:\Users\serge\Documents\Playground\Biplanes\.3dwork")
 made = {}
 for tag, tint in (("sov", (0.09, 0.04, 0.02)), ("jkl", (0.08, 0.02, 0.02)), ("jkl2", (0.08, 0.02, 0.02))):
     bpy.ops.wm.open_mainfile(filepath=os.path.join(BASE, "plane_%s.blend" % tag))
