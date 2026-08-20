@@ -8,15 +8,18 @@ pp = imp("plane_pipeline"); lv = imp("lib_view")
 CFG = {
     "sov": dict(src=r"C:\Users\serge\Downloads\vintage airplane 3d model (1).glb",
                 wood=(141, 47, 14), gold=(186, 114, 16), brass=(186, 114, 16), wing=(11, 65, 150),
-                rim=(176, 106, 14), tail=None, bolt=False, bolt_rgb=(255, 255, 255)),
+                rim=(176, 106, 14), tail=None, tail_mode="full", bolt=False, bolt_rgb=(255, 255, 255)),
     "jkl": dict(src=r"C:\Users\serge\Downloads\red biplane 3d model (3).glb",
                 wood=(143, 33, 25), gold=(215, 140, 40), brass=(198, 132, 42), wing=(37, 37, 38),
-                rim=(26, 26, 27), tail=(34, 34, 35), bolt=True, bolt_rgb=(246, 246, 244)),
+                rim=(26, 26, 27), tail=(34, 34, 35), tail_mode="full", bolt=True, bolt_rgb=(246, 246, 244)),
     # Second Jackal squadron: same airframe, inverted scheme so the two read
     # apart in a dogfight — crimson wings and tail, black edging, black bolt.
     "jkl2": dict(src=r"C:\Users\serge\Downloads\red biplane 3d model (3).glb",
-                 wood=(120, 28, 22), gold=(196, 122, 34), brass=(186, 122, 40), wing=(122, 34, 27),
-                 rim=(30, 30, 31), tail=(118, 32, 25), bolt=True, bolt_rgb=(24, 24, 26)),
+                 wood=(120, 28, 22), gold=(196, 122, 34), brass=(186, 122, 40), wing=(96, 30, 25),
+                 # tail left on the Tripo texture: a painted one sat lighter than the
+                 # fuselage and the seam showed
+                 rim=(28, 28, 29), tail=(34, 34, 35), tail_mode="fin",
+                 bolt=True, bolt_rgb=(246, 246, 244)),
 }
 TAG = "%TAG%"
 c = CFG[TAG]
@@ -61,7 +64,7 @@ moved, mount = pp.seat_guns(o, m, GUN["x0"], GUN["x1"], GUN["ylim"], GUN["zmin"]
                             GUN["zmax"], GUN["dz"], GUN["mount"], m_brass)
 R = m["Rprop"] * 0.98
 piv, parts = pp.assemble_prop(m, R, m_wood, m_gold, m_brass, tag="PROP")
-tailn = pp.paint_tail(o, m, c["tail"], name="TailBlack_" + TAG) if c["tail"] else 0
+tailn = pp.paint_tail(o, m, c["tail"], name="TailBlack_" + TAG, mode=c["tail_mode"]) if c["tail"] else 0
 bolt = pp.add_fin_bolt(o, m, color=c["bolt_rgb"], name="FinBolt_" + TAG) if c["bolt"] else []
 rig, stats, hinges = pp.build_rig(o, m)
 piv.parent = None

@@ -653,7 +653,7 @@ def _split_off_side(o, box, side, name):
 
 
 # ---------------------------------------------------------------- faction tail
-def paint_tail(o, m, color, name="TailBlack", aft_frac=0.72):
+def paint_tail(o, m, color, name="TailBlack", aft_frac=0.72, mode="full"):
     """Jackal reference: fin, tailplane and the aft fuselage are black."""
     me = o.data
     mt = mat(name, rgb(color), 0.50, 0.0)
@@ -668,10 +668,11 @@ def paint_tail(o, m, color, name="TailBlack", aft_frac=0.72):
     for p in me.polygons:
         c = p.center
         tail = False
-        if c.x < aft and abs(c.y) < 0.22 * hs:
-            tail = True                                    # aft fuselage
-        if c.x < aft + 0.6 and abs(c.z - htz) < 0.36 and 0.08 * hts < abs(c.y) <= 1.15 * hts:
-            tail = True                                    # tailplane
+        if mode == "full":
+            if c.x < aft and abs(c.y) < 0.22 * hs:
+                tail = True                                # aft fuselage
+            if c.x < aft + 0.6 and abs(c.z - htz) < 0.36 and 0.08 * hts < abs(c.y) <= 1.15 * hts:
+                tail = True                                # tailplane
         if c.x < aft + 0.6 and abs(c.y) < 0.10 * hs and c.z > az + 0.45:
             tail = True                                    # fin
         if tail:
@@ -688,8 +689,10 @@ def add_fin_bolt(o, m, color=(246, 246, 244), name="FinBolt"):
            and fz0 - 0.05 <= c.z <= fz1 + 0.20 and abs(c.y) < 0.14 * m["halfspan"]]
     half_y = max((abs(c.y) for c in fin), default=0.06)
 
-    x0, x1 = hinge - 0.02, fn_le + 0.02
-    z0, z1 = fz0 - 0.02, fz1 + 0.26
+    # Keep the decal strictly inside the fin outline - it used to overshoot the
+    # top of the fin and float above the tail.
+    x0, x1 = hinge + 0.03, fn_le - 0.16
+    z0, z1 = fz0 + 0.08, fz1 - 0.07
     w, h = (x1 - x0), (z1 - z0)
     # unit lightning bolt, nose of the plane is +X so the bolt leans forward
     UV = [(0.60, 1.00), (0.16, 0.46), (0.46, 0.46), (0.26, 0.00),
