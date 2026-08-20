@@ -136,7 +136,7 @@ if probe is None:
     probe = bpy.data.objects.new("CK_PROBE", None)
     sc.collection.objects.link(probe)
 probe.parent = bob; probe.matrix_parent_inverse = Matrix.Identity(4)
-CK = {"sov": (0.05, 0.0, 0.62), "jkl": (-0.10, 0.0, 0.72)}[TAG]
+CK = {"sov": (0.05, 0.0, 0.62), "jkl": (-0.10, 0.0, 0.72), "jkl2": (-0.10, 0.0, 0.72)}[TAG]
 probe.location = CK
 track = []
 for f in range(1, FRAMES + 1):

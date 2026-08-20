@@ -296,6 +296,7 @@ if (typeof window !== 'undefined' && use3dPlaneArt()) {
   VISUAL_ASSET_URLS.push(
     assetUrl('assets/biplanes/plane_player_sov_3d_sheet.png'),
     assetUrl('assets/biplanes/plane_enemy_crimson_3d_sheet.png'),
+    assetUrl('assets/biplanes/plane_enemy_crimson_3d_b_sheet.png'),
   );
 }
 
@@ -4575,7 +4576,10 @@ export async function startGame(container: HTMLElement) {
       }
       let s = enemySprites.get(e.id);
       if (!s) {
-        s = createPlaneSprite('enemy', enemyVisual(), e.isBoss === true);
+        // Bosses always fly squadron one; the rest alternate by id, which keeps
+        // the choice deterministic so a replay looks identical.
+        const squadron = e.isBoss === true ? 0 : (typeof e.id === 'number' ? Math.abs(e.id) % 2 : 0);
+        s = createPlaneSprite('enemy', enemyVisual(), e.isBoss === true, squadron);
         planeLayer.addChild(s.container, s.hpBar);
         groundShadowLayer.addChild(s.shadow);
         enemySprites.set(e.id, s);

@@ -4,10 +4,12 @@ from PIL import Image, ImageEnhance
 BASE = r"C:\Users\serge\AppData\Local\Temp\claude\C--Users-serge-Documents-Playground-Biplanes\882b20d1-942a-41ff-b96c-218c1c8afa45\scratchpad\3d"
 DEST = r"C:\Users\serge\Documents\Playground\Biplanes\apps\web\public\assets\biplanes"
 COLS = 5
-NAMES = {"sov": "plane_player_sov_3d_sheet.png", "jkl": "plane_enemy_crimson_3d_sheet.png"}
+NAMES = {"sov": "plane_player_sov_3d_sheet.png",
+         "jkl": "plane_enemy_crimson_3d_sheet.png",
+         "jkl2": "plane_enemy_crimson_3d_b_sheet.png"}
 
 report = {}
-for tag in ("sov", "jkl"):
+for tag in ("sov", "jkl", "jkl2"):
     src = os.path.join(BASE, "bake_%s" % tag)
     files = sorted(f for f in os.listdir(src) if f.startswith("f_") and f.endswith(".png"))
     if not files:

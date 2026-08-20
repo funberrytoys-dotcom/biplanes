@@ -69,7 +69,7 @@ export type PlaneArtDef = {
   bob: readonly (readonly number[])[];
 };
 
-const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef } = {
+const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef; enemy2: PlaneArtDef } = {
   player: {
     url: assetUrl('assets/biplanes/plane_player_sov_3d_sheet.png'),
     width: 512,
@@ -94,7 +94,27 @@ const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef } = {
     cockpit: { x: 258, y: 122, h: 62 },
     bob: [[0.0, 0.0], [-0.0, -0.5], [-0.1, -1.0], [-0.1, -1.4], [-0.1, -1.9], [-0.1, -2.3], [-0.0, -2.7], [-0.0, -3.0], [0.0, -3.3], [0.1, -3.5], [0.1, -3.7], [0.1, -3.8], [0.2, -3.9], [0.3, -3.9], [0.3, -3.8], [0.4, -3.7], [0.4, -3.5], [0.5, -3.3], [0.6, -3.0], [0.6, -2.6], [0.7, -2.2], [0.8, -1.8], [0.8, -1.4], [0.9, -0.9], [0.9, -0.4], [0.9, 0.1], [1.0, 0.6], [1.0, 1.1], [1.0, 1.6], [1.0, 2.0], [1.0, 2.4], [1.0, 2.8], [0.9, 3.1], [0.9, 3.4], [0.9, 3.6], [0.8, 3.8], [0.8, 3.9], [0.7, 4.0], [0.7, 4.0], [0.6, 3.9], [0.6, 3.8], [0.5, 3.6], [0.4, 3.4], [0.4, 3.1], [0.3, 2.7], [0.2, 2.3], [0.2, 1.9], [0.1, 1.5], [0.1, 1.0], [0.0, 0.5]],
   },
+  // Second Jackal squadron - same airframe, crimson wings instead of black.
+  enemy2: {
+    url: assetUrl('assets/biplanes/plane_enemy_crimson_3d_b_sheet.png'),
+    width: 512,
+    noseX: 0.43,
+    frameWidth: 512,
+    frameHeight: 310,
+    frameCount: 50,
+    columns: 5,
+    fps: 24,
+    cockpit: { x: 258, y: 122, h: 62 },
+    bob: [[0.0, 0.0], [-0.0, -0.5], [-0.1, -1.0], [-0.1, -1.4], [-0.1, -1.9], [-0.1, -2.3], [-0.0, -2.7], [-0.0, -3.0], [0.0, -3.3], [0.1, -3.5], [0.1, -3.7], [0.1, -3.8], [0.2, -3.9], [0.3, -3.9], [0.3, -3.8], [0.4, -3.7], [0.4, -3.5], [0.5, -3.3], [0.6, -3.0], [0.6, -2.6], [0.7, -2.2], [0.8, -1.8], [0.8, -1.4], [0.9, -0.9], [0.9, -0.4], [0.9, 0.1], [1.0, 0.6], [1.0, 1.1], [1.0, 1.6], [1.0, 2.0], [1.0, 2.4], [1.0, 2.8], [0.9, 3.1], [0.9, 3.4], [0.9, 3.6], [0.8, 3.8], [0.8, 3.9], [0.7, 4.0], [0.7, 4.0], [0.6, 3.9], [0.6, 3.8], [0.5, 3.6], [0.4, 3.4], [0.4, 3.1], [0.3, 2.7], [0.2, 2.3], [0.2, 1.9], [0.1, 1.5], [0.1, 1.0], [0.0, 0.5]],
+  },
 };
+
+// Enemy planes alternate between the two Jackal squadrons by id so a fight is
+// not a row of identical aircraft. Bosses always fly squadron one.
+export function pick3dArt(faction: 'player' | 'enemy', variant: number): PlaneArtDef {
+  if (faction === 'enemy' && variant === 1) return PLANE_ART_3D.enemy2;
+  return PLANE_ART_3D[faction];
+}
 
 export function use3dPlaneArt(): boolean {
   try {
@@ -161,13 +181,13 @@ function createAnimatedPlaneArt(art: PlaneArtDef): { sprite: Sprite; update: (dt
   };
 }
 
-export function createPlaneBody(faction: 'player' | 'enemy', heroPilot = false): PlaneBodyHandle {
+export function createPlaneBody(faction: 'player' | 'enemy', heroPilot = false, variant = 0): PlaneBodyHandle {
   const wingContainer = new Container();
   const fuselageContainer = new Container();
   const propellerContainer = new Container();
 
   const isPlayer = faction === 'player';
-  const art: PlaneArtDef = USE_3D_ART ? PLANE_ART_3D[faction] : PLANE_ART[faction];
+  const art: PlaneArtDef = USE_3D_ART ? pick3dArt(faction, variant) : PLANE_ART[faction];
   const artHandle = createAnimatedPlaneArt(art);
   const planeArt = artHandle.sprite;
   planeArt.anchor.set(0.5);

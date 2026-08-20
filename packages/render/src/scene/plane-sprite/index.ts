@@ -64,10 +64,13 @@ export function createPlaneSprite(
   // Hero planes (the player's own + bosses) get the faction HERO in the cockpit
   // (Chico / Baron); everyone else gets the rank-and-file pilot (cat / jackal).
   heroPilot = false,
+  // Which Jackal squadron this airframe belongs to (3D art only): enemies
+  // alternate so a wave is not a row of identical planes.
+  variant = 0,
 ): PlaneSpriteHandle {
   const c = new Container();
 
-  const body = createPlaneBody(visual, heroPilot);
+  const body = createPlaneBody(visual, heroPilot, variant);
   const {
     fuselageContainer,
     wingContainer,

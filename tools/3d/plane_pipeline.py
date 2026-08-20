@@ -650,3 +650,62 @@ def _split_off_side(o, box, side, name):
         except Exception: pass
     bm.to_mesh(me); bm.free(); me.update()
     return nob
+
+
+# ---------------------------------------------------------------- faction tail
+def paint_tail(o, m, color, name="TailBlack", aft_frac=0.72):
+    """Jackal reference: fin, tailplane and the aft fuselage are black."""
+    me = o.data
+    mt = mat(name, rgb(color), 0.50, 0.0)
+    if mt.name not in [x.name for x in me.materials if x]:
+        me.materials.append(mt)
+    idx = [i for i, x in enumerate(me.materials) if x and x.name == mt.name][0]
+    mn_x, mx_x = m["mn"][0], m["mx"][0]
+    aft = mn_x + (1.0 - aft_frac) * (mx_x - mn_x)
+    hs = m["halfspan"]; htz = m["htail_z"]; hts = m["htail_span"]
+    az = m["ax_z"]
+    n = 0
+    for p in me.polygons:
+        c = p.center
+        tail = False
+        if c.x < aft and abs(c.y) < 0.22 * hs:
+            tail = True                                    # aft fuselage
+        if c.x < aft + 0.6 and abs(c.z - htz) < 0.36 and 0.08 * hts < abs(c.y) <= 1.15 * hts:
+            tail = True                                    # tailplane
+        if c.x < aft + 0.6 and abs(c.y) < 0.10 * hs and c.z > az + 0.45:
+            tail = True                                    # fin
+        if tail:
+            p.material_index = idx; n += 1
+    me.update()
+    return n
+
+def add_fin_bolt(o, m, color=(246, 246, 244), name="FinBolt"):
+    """White lightning decal on the fin, one flat plate on each side."""
+    V = [v.co for v in o.data.vertices]
+    fn_te, fn_le = m["fin_chord"]; fz0, fz1 = m["fin_z"]
+    hinge = fn_te + 0.46 * (fn_le - fn_te)
+    fin = [c for c in V if fn_te - 0.05 <= c.x <= fn_le + 0.05
+           and fz0 - 0.05 <= c.z <= fz1 + 0.20 and abs(c.y) < 0.14 * m["halfspan"]]
+    half_y = max((abs(c.y) for c in fin), default=0.06)
+
+    x0, x1 = hinge - 0.02, fn_le + 0.02
+    z0, z1 = fz0 - 0.02, fz1 + 0.26
+    w, h = (x1 - x0), (z1 - z0)
+    # unit lightning bolt, nose of the plane is +X so the bolt leans forward
+    UV = [(0.60, 1.00), (0.16, 0.46), (0.46, 0.46), (0.26, 0.00),
+          (0.86, 0.58), (0.54, 0.58)]
+    mt = mat(name + "_mat", rgb(color), 0.55, 0.0)
+    made = []
+    for sgn in (-1, 1):
+        bm = bmesh.new()
+        vs = [bm.verts.new((x0 + u * w, sgn * (half_y + 0.012), z0 + v * h)) for u, v in UV]
+        try: bm.faces.new(vs if sgn > 0 else list(reversed(vs)))
+        except Exception: pass
+        bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
+        md = bpy.data.meshes.new("%s_%d" % (name, sgn))
+        bm.to_mesh(md); bm.free()
+        md.materials.append(mt)
+        ob = bpy.data.objects.new(md.name, md)
+        bpy.context.scene.collection.objects.link(ob)
+        made.append(ob.name)
+    return made
