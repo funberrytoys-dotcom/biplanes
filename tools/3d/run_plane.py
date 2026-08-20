@@ -28,10 +28,14 @@ pp.wipe()
 o = pp.load(c["src"], span=10.0)
 m = pp.measure(o)
 hole_r = pp.cut_prop(o, m)
-m_dark = pp.mat("EngineDark_" + TAG, (0.014, 0.013, 0.013), 0.70, 0.35)
+m_dark = pp.mat("EngineDark_" + TAG, (0.048, 0.045, 0.043), 0.52, 0.55)
 m_brass = pp.mat("PropBrass_" + TAG, pp.rgb(c["brass"]), 0.50, 0.45)
 painted = pp.paint_cut(o, m, m_brass)
 cleaned = pp.clean_engine_face(o, m, m_dark, m_brass, mode="%MODE%")
+# Per-face zone recolour from the texture is available in the pipeline, but on
+# a 19k mesh a single face straddles gold and body colour, so the borders come
+# out ragged. Left off until the plane gets a hand-authored zone map.
+zonal = {}
 flats = pp.repaint_flats(o, m, c["wing"], name="WingFlat_" + TAG, rim=c["rim"])
 m_wood = pp.mat("PropWood_" + TAG, pp.rgb(c["wood"]), 0.44, 0.0)
 m_gold = pp.mat("PropGold_" + TAG, pp.rgb(c["gold"]), 0.32, 0.8)
@@ -93,5 +97,5 @@ shots += lv.shoot(TAG + "_chknose", ["nq"], ortho=4.6, target=(m["cut_x"] - 1.6,
 
 bpy.ops.wm.save_as_mainfile(filepath=os.path.join(BASE, "plane_%s.blend" % TAG))
 print(json.dumps({"tag": TAG, "measure": m, "hinges": hinges, "weights": stats,
-                  "painted_cut_faces": painted, "flat_wing_faces": flats, "gun_verts_moved": moved, "tail_faces": tailn, "bolt": bolt, "engine_core_removed": cleaned, "hole_r": round(hole_r, 3), "prop_R": round(R, 3),
+                  "painted_cut_faces": painted, "flat_wing_faces": flats, "zones": zonal, "gun_verts_moved": moved, "tail_faces": tailn, "bolt": bolt, "engine_core_removed": cleaned, "hole_r": round(hole_r, 3), "prop_R": round(R, 3),
                   "shots": [os.path.basename(p) for p in shots]}))

@@ -1,5 +1,5 @@
 """Reusable pipeline: Tripo biplane -> canonical 2-blade prop + closed engine face + control-surface rig."""
-import bpy, bmesh, math, json, os
+import bpy, bmesh, math, json, os, colorsys
 from mathutils import Vector, Matrix
 
 # ---------------------------------------------------------------- helpers
@@ -459,10 +459,19 @@ def clean_engine_face(o, m, m_dark, m_brass=None, mode="full"):
     # Two pieces, sized off the cylinder ring so the cylinders stay visible:
     #  - a back wall deep in the cowling, so gaps between cylinders look at metal
     #  - a narrow crankcase cap filling the bore in the middle
-    def disc(name, radius, depth, x, smooth):
+    if m_dark.name not in [x.name for x in me.materials if x]:
+        me.materials.append(m_dark)
+    didx = [i for i, x in enumerate(me.materials) if x and x.name == m_dark.name][0]
+
+    def disc(name, radius, depth, x, smooth, r2=None):
         before = {o.name for o in bpy.data.objects}
-        bpy.ops.mesh.primitive_cylinder_add(vertices=56, radius=radius, depth=depth,
-                                            location=(x, ay, az))
+        if r2 is None:
+            bpy.ops.mesh.primitive_cylinder_add(vertices=56, radius=radius, depth=depth,
+                                                location=(x, ay, az))
+        else:
+            # the cowling is a cone, so a straight barrel pokes out of its front
+            bpy.ops.mesh.primitive_cone_add(vertices=56, radius1=radius, radius2=r2,
+                                            depth=depth, location=(x, ay, az))
         ob = next(o for o in bpy.data.objects if o.name not in before)
         ob.name = name
         ob.rotation_euler = (0, math.radians(90), 0)
@@ -483,7 +492,21 @@ def clean_engine_face(o, m, m_dark, m_brass=None, mode="full"):
         # One dark wall, sunk well inside the cowling so its rim never shows past
         # the lip. The brass crankcase that spins with the propeller covers the
         # middle, so no second cap is needed here.
-        disc("ENGINE_BACKWALL", 0.80 * r_here, 0.08, xw, False)
+        # Every added wall either left daylight or poked out of the cowling,
+        # because the cowling is a cone and the measured radius includes the
+        # cylinders sticking through it. What shows between the cylinders is the
+        # cowling's own inside face; paint it as dark metal so it reads as the
+        # engine block rather than a hole.
+        n_in = 0
+        for pf in me.polygons:
+            c = pf.center
+            if not (m["cut_x"] - 1.05 < c.x < m["cut_x"]): continue
+            ry, rz = c.y - ay, c.z - az
+            rr = math.hypot(ry, rz)
+            if rr < 1e-4 or rr > 1.35 * m["lip_r"]: continue
+            if (pf.normal.y * ry + pf.normal.z * rz) / rr < -0.25:
+                pf.material_index = didx
+                n_in += 1
     return len(kill)
 
 
@@ -718,3 +741,68 @@ def add_fin_bolt(o, m, color=(246, 246, 244), name="FinBolt"):
     bmesh.ops.recalc_face_normals(bm, faces=[f for f in bm.faces if f.material_index == idx])
     bm.to_mesh(me); bm.free(); me.update()
     return made
+
+
+# ---------------------------------------------------------------- zone recolour
+def l2s(c):
+    return 12.92 * c if c <= 0.0031308 else 1.055 * (c ** (1 / 2.4)) - 0.055
+
+def recolor_by_texture(o, m, zones, keep=None):
+    """Repaint the airframe by ZONE instead of trusting Tripo's bake.
+
+    Tripo bleeds blue over the gold trim and drops gold blotches on the wing
+    tops. Classify each face by the colour its own texture already has and swap
+    in a flat canonical material, leaving panel lines, decals and anything dark
+    or near-white on the original texture.
+
+    zones: list of (name, target sRGB, predicate over the sampled sRGB triple).
+    """
+    me = o.data
+    img = None
+    for mt in me.materials:
+        if mt and mt.use_nodes:
+            for n in mt.node_tree.nodes:
+                if n.type == 'TEX_IMAGE' and n.image: img = n.image
+    if img is None or not me.uv_layers.active:
+        return {}
+    W, H = img.size
+    px = img.pixels[:]
+    uvl = me.uv_layers.active.data
+
+    idx = {}
+    for name, target, _ in zones:
+        mt = mat(name, rgb(target), 0.48, 0.0)
+        if mt.name not in [x.name for x in me.materials if x]:
+            me.materials.append(mt)
+        idx[name] = [i for i, x in enumerate(me.materials) if x and x.name == mt.name][0]
+
+    stats = {n: 0 for n, _, _ in zones}
+    stats["kept"] = 0
+    for p in me.polygons:
+        acc = [0.0, 0.0, 0.0]
+        for li in p.loop_indices:
+            u, v = uvl[li].uv
+            # image.pixels reads top-down against these UVs: sampling without the
+            # flip put the fin on the gold part of the atlas and mis-sorted half
+            # the airframe
+            xi = min(W - 1, max(0, int(u * W))); yi = min(H - 1, max(0, int((1.0 - v) * H)))
+            off = (yi * W + xi) * 4
+            acc[0] += px[off]; acc[1] += px[off + 1]; acc[2] += px[off + 2]
+        n = max(1, len(p.loop_indices))
+        s = tuple(min(255, max(0, int(l2s(a / n) * 255))) for a in acc)
+        # hue/saturation, not brightness: Tripo bakes lighting into the texture,
+        # so a shaded blue panel and lit gold trim overlap badly on raw RGB
+        h, sat, val = colorsys.rgb_to_hsv(s[0] / 255.0, s[1] / 255.0, s[2] / 255.0)
+        s = (s[0], s[1], s[2], h * 360.0, sat, val)
+        if keep and keep(s):
+            stats["kept"] += 1
+            continue
+        for name, _, pred in zones:
+            if pred(s):
+                p.material_index = idx[name]
+                stats[name] += 1
+                break
+        else:
+            stats["kept"] += 1
+    me.update()
+    return stats
