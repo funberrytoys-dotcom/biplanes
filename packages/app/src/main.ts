@@ -93,6 +93,7 @@ import {
   type SkyBackgroundHandle,
   type CloudVolumePlane,
 } from '@biplanes/render';
+import { use3dPlaneArt } from '@biplanes/render';
 import {
   createKeyboardController,
   createTouchController,
@@ -287,6 +288,16 @@ const VISUAL_ASSET_URLS = [
   assetUrl('assets/airships/wolfcomet/island_sov.png'),
   ...ISLAND_BRYNN_FRAME_URLS,
 ];
+
+
+// The 3D-baked plane sheets are only fetched when the ?art=3d experiment is on,
+// so the default build downloads exactly what it did before.
+if (typeof window !== 'undefined' && use3dPlaneArt()) {
+  VISUAL_ASSET_URLS.push(
+    assetUrl('assets/biplanes/plane_player_sov_3d_sheet.png'),
+    assetUrl('assets/biplanes/plane_enemy_crimson_3d_sheet.png'),
+  );
+}
 
 const STORY_INTRO_LINES: DialogueLine[] = [
   {

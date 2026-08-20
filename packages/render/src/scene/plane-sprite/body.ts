@@ -49,6 +49,65 @@ const PLANE_ART = {
   },
 } as const;
 
+
+// ---------------------------------------------------------------------------
+// 3D-baked plane art. Same 512-wide frames as the painted sheets, rendered from
+// the rigged Blender models (real 2-blade prop, spinning with motion blur), so
+// the two can be compared side by side in the running game.
+// Opt in with ?art=3d, back out with ?art=classic; the choice sticks.
+// ---------------------------------------------------------------------------
+export type PlaneArtDef = {
+  url: string;
+  width: number;
+  noseX: number;
+  frameWidth: number;
+  frameHeight: number;
+  frameCount: number;
+  columns: number;
+  fps: number;
+  cockpit: { x: number; y: number; h: number };
+  bob: readonly (readonly number[])[];
+};
+
+const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef } = {
+  player: {
+    url: assetUrl('assets/biplanes/plane_player_sov_3d_sheet.png'),
+    width: 512,
+    noseX: 0.43,
+    frameWidth: 512,
+    frameHeight: 310,
+    frameCount: 50,
+    columns: 5,
+    fps: 24,
+    cockpit: { x: 259, y: 127, h: 56 },
+    bob: [[0.0, 0.0], [-0.0, -0.5], [-0.0, -1.0], [-0.0, -1.4], [-0.0, -1.9], [-0.0, -2.3], [-0.0, -2.6], [-0.0, -3.0], [0.0, -3.3], [0.1, -3.5], [0.1, -3.7], [0.1, -3.8], [0.2, -3.9], [0.2, -3.9], [0.3, -3.8], [0.3, -3.7], [0.4, -3.5], [0.4, -3.3], [0.5, -3.0], [0.6, -2.7], [0.6, -2.3], [0.7, -1.9], [0.7, -1.5], [0.7, -1.0], [0.8, -0.6], [0.8, -0.1], [0.8, 0.4], [0.8, 0.9], [0.8, 1.4], [0.8, 1.8], [0.8, 2.2], [0.8, 2.6], [0.8, 2.9], [0.8, 3.2], [0.8, 3.4], [0.7, 3.6], [0.7, 3.7], [0.6, 3.8], [0.6, 3.8], [0.5, 3.7], [0.5, 3.6], [0.4, 3.5], [0.4, 3.2], [0.3, 2.9], [0.2, 2.6], [0.2, 2.2], [0.2, 1.8], [0.1, 1.4], [0.1, 0.9], [0.0, 0.5]],
+  },
+  enemy: {
+    url: assetUrl('assets/biplanes/plane_enemy_crimson_3d_sheet.png'),
+    width: 512,
+    noseX: 0.43,
+    frameWidth: 512,
+    frameHeight: 310,
+    frameCount: 50,
+    columns: 5,
+    fps: 24,
+    cockpit: { x: 264, y: 122, h: 62 },
+    bob: [[0.0, 0.0], [-0.0, -0.5], [-0.0, -1.0], [-0.1, -1.4], [-0.1, -1.9], [-0.1, -2.3], [-0.0, -2.6], [-0.0, -3.0], [0.0, -3.2], [0.1, -3.5], [0.1, -3.7], [0.1, -3.8], [0.2, -3.8], [0.3, -3.8], [0.3, -3.7], [0.4, -3.6], [0.4, -3.4], [0.5, -3.2], [0.6, -2.9], [0.6, -2.6], [0.7, -2.2], [0.8, -1.8], [0.8, -1.3], [0.9, -0.8], [0.9, -0.4], [0.9, 0.1], [0.9, 0.6], [1.0, 1.1], [1.0, 1.5], [1.0, 2.0], [1.0, 2.4], [0.9, 2.8], [0.9, 3.1], [0.9, 3.4], [0.9, 3.6], [0.8, 3.8], [0.8, 3.9], [0.7, 3.9], [0.7, 3.9], [0.6, 3.9], [0.5, 3.7], [0.5, 3.5], [0.4, 3.3], [0.4, 3.0], [0.3, 2.7], [0.2, 2.3], [0.2, 1.9], [0.1, 1.4], [0.1, 1.0], [0.0, 0.5]],
+  },
+};
+
+export function use3dPlaneArt(): boolean {
+  try {
+    const q = new URLSearchParams(window.location.search).get('art');
+    if (q === '3d') { window.localStorage.setItem('biplanes.art3d', 'on'); return true; }
+    if (q === 'classic') { window.localStorage.setItem('biplanes.art3d', 'off'); return false; }
+    return window.localStorage.getItem('biplanes.art3d') === 'on';
+  } catch {
+    return false;
+  }
+}
+const USE_3D_ART = use3dPlaneArt();
+
 // Cockpit pilot busts (Codex art, face left like the plane sheets). Heroes fly
 // hero planes: the player's own plane and bosses; everyone else is a grunt.
 const COCKPIT_PILOT_ART = {
@@ -67,7 +126,7 @@ const COCKPIT_PILOT_ART = {
 // hitch on phones.
 const planeFrameCache = new Map<string, Texture[]>();
 
-function getPlaneFrames(art: typeof PLANE_ART.player | typeof PLANE_ART.enemy): Texture[] {
+function getPlaneFrames(art: PlaneArtDef): Texture[] {
   const cached = planeFrameCache.get(art.url);
   if (cached) return cached;
   const sheet = Texture.from(art.url);
@@ -83,7 +142,7 @@ function getPlaneFrames(art: typeof PLANE_ART.player | typeof PLANE_ART.enemy): 
   return frames;
 }
 
-function createAnimatedPlaneArt(art: typeof PLANE_ART.player | typeof PLANE_ART.enemy): { sprite: Sprite; update: (dt: number) => number } {
+function createAnimatedPlaneArt(art: PlaneArtDef): { sprite: Sprite; update: (dt: number) => number } {
   const frames = getPlaneFrames(art);
   const firstFrame = frames[0];
   if (!firstFrame) throw new Error(`Plane spritesheet ${art.url} has no frames`);
@@ -108,7 +167,7 @@ export function createPlaneBody(faction: 'player' | 'enemy', heroPilot = false):
   const propellerContainer = new Container();
 
   const isPlayer = faction === 'player';
-  const art = PLANE_ART[faction];
+  const art: PlaneArtDef = USE_3D_ART ? PLANE_ART_3D[faction] : PLANE_ART[faction];
   const artHandle = createAnimatedPlaneArt(art);
   const planeArt = artHandle.sprite;
   planeArt.anchor.set(0.5);
@@ -299,8 +358,8 @@ export function createPlaneBody(faction: 'player' | 'enemy', heroPilot = false):
       }
       // Ride the airframe's baked bob so the pilot trembles WITH the plane.
       const bob = art.bob[frame] ?? [0, 0];
-      pilotSprite.x = (cockpit.x + bob[0] - art.frameWidth / 2) * -artScale;
-      pilotSprite.y = (cockpit.y + bob[1] - art.frameHeight / 2) * artScale;
+      pilotSprite.x = (cockpit.x + (bob[0] ?? 0) - art.frameWidth / 2) * -artScale;
+      pilotSprite.y = (cockpit.y + (bob[1] ?? 0) - art.frameHeight / 2) * artScale;
     },
   };
 }

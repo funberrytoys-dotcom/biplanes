@@ -25,6 +25,8 @@ interface CameraLike {
   zoomPunch(targetMultiplier: number, durSec: number): void;
 }
 
+export { use3dPlaneArt } from './body.js';
+
 export interface PlaneSpriteUpdateOpts {
   screenFx?: ScreenEffectsHandle;
   /** Actual ground Y of the current world (worldHeight − 90). The arena world is 3×
