@@ -162,14 +162,16 @@ export function pick3dArt(faction: 'player' | 'enemy', variant: number): PlaneAr
   return PLANE_ART_3D[faction];
 }
 
+// The 3D-baked art is what the game ships with now. `?art=classic` puts the
+// painted sheets back, `?art=3d` returns; either choice sticks.
 export function use3dPlaneArt(): boolean {
   try {
     const q = new URLSearchParams(window.location.search).get('art');
     if (q === '3d') { window.localStorage.setItem('biplanes.art3d', 'on'); return true; }
     if (q === 'classic') { window.localStorage.setItem('biplanes.art3d', 'off'); return false; }
-    return window.localStorage.getItem('biplanes.art3d') === 'on';
+    return window.localStorage.getItem('biplanes.art3d') !== 'off';
   } catch {
-    return false;
+    return true;
   }
 }
 const USE_3D_ART = use3dPlaneArt();

@@ -249,9 +249,7 @@ const VISUAL_ASSET_URLS = [
   // handle and the gauge needle must be loaded here or they show up invisible.
   assetUrl('assets/biplanes/hud/lever_knob.png'),
   assetUrl('assets/biplanes/hud/needle.png'),
-  assetUrl('assets/biplanes/plane_player_sov_sheet.png'),
   assetUrl('assets/biplanes/plane_enemy_red.png'),
-  assetUrl('assets/biplanes/plane_enemy_crimson_sheet.png'),
   assetUrl('assets/biplanes/airship_1.png'),
   assetUrl('assets/biplanes/airship_2.png'),
   assetUrl('assets/biplanes/enemy_airship_1.png'),
@@ -290,8 +288,9 @@ const VISUAL_ASSET_URLS = [
 ];
 
 
-// The 3D-baked plane sheets are only fetched when the ?art=3d experiment is on,
-// so the default build downloads exactly what it did before.
+// Only the set of plane sheets actually in use gets downloaded: the 3D ones by
+// default, the painted ones under ?art=classic. Loading both would carry a
+// spare megabyte of texture into memory on a phone for nothing.
 if (typeof window !== 'undefined' && use3dPlaneArt()) {
   VISUAL_ASSET_URLS.push(
     assetUrl('assets/biplanes/plane_player_sov_3d_sheet.png'),
@@ -300,6 +299,11 @@ if (typeof window !== 'undefined' && use3dPlaneArt()) {
     assetUrl('assets/biplanes/prop_player_sov_3d_sheet.png'),
     assetUrl('assets/biplanes/prop_enemy_crimson_3d_sheet.png'),
     assetUrl('assets/biplanes/prop_enemy_crimson_3d_b_sheet.png'),
+  );
+} else if (typeof window !== 'undefined') {
+  VISUAL_ASSET_URLS.push(
+    assetUrl('assets/biplanes/plane_player_sov_sheet.png'),
+    assetUrl('assets/biplanes/plane_enemy_crimson_sheet.png'),
   );
 }
 
@@ -984,7 +988,7 @@ const DEBUG_HUD_ON_BOOT = URL_PARAMS.has('debug');
 let CONTROLS_CONFIG = getControlsConfig();
 // Bump every deploy. Shown always-on bottom-left so a home-screen iPhone app (no
 // address bar for ?debug) can confirm WHICH build is live + read FPS/counts on a freeze.
-const BUILD_TAG = 'v36-rotate-loops';
+const BUILD_TAG = 'v37-3d-planes';
 // Phones are fill-rate bound (many big semi-transparent clouds + explosions = overdraw).
 // Lighten those on touch devices only; PC/Steam keep full quality.
 const IS_MOBILE = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;

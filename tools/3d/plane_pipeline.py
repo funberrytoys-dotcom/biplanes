@@ -795,13 +795,17 @@ def _split_off_side(o, box, side, name):
 
 
 # ---------------------------------------------------------------- faction tail
-def paint_tail(o, m, color, name="TailBlack", aft_frac=0.72, mode="full", fade=1.6):
+def paint_tail(o, m, color, name="TailBlack", aft_frac=0.72, mode="full", slope=-1.0):
     """Jackal squadron one: fin, tailplane and the aft fuselage go black.
 
-    The join is a FADE, not a line. Painting flat black up to a plane cut the
-    fuselage in half with a hard edge across the flank; instead the tail material
-    mixes the aeroplane's own texture into the black along the fuselage axis, so
-    the colour arrives over `fade` units instead of all at once.
+    The join is a straight DIAGONAL, as in the reference art — the black reaches
+    further forward along the belly than along the spine.
+
+    The line is drawn in the MATERIAL, not by picking faces. Assigning colour
+    face by face gives an edge as coarse as the mesh, which came out as a
+    staircase with lumps in it; a threshold on the shading point is a straight
+    line whatever the triangles do. Faces are handed to the material generously
+    and the shader decides where the black actually starts.
     """
     me = o.data
     img = None
@@ -812,25 +816,35 @@ def paint_tail(o, m, color, name="TailBlack", aft_frac=0.72, mode="full", fade=1
 
     mn_x, mx_x = m["mn"][0], m["mx"][0]
     aft = mn_x + (1.0 - aft_frac) * (mx_x - mn_x)
+    hs = m["halfspan"]; htz = m["htail_z"]; hts = m["htail_span"]
+    az = m["ax_z"]
+    # black where  x + slope*z < cut
+    cut = aft + slope * az
+    soft = 0.05                     # just enough to keep the edge from aliasing
 
     mt = mat(name, rgb(color), 0.50, 0.0)
     if img is not None:
         nt = mt.node_tree
         bsdf = nt.nodes["Principled BSDF"]
         tex = nt.nodes.new("ShaderNodeTexImage"); tex.image = img
-        tex.interpolation = 'Smart'
         gco = nt.nodes.new("ShaderNodeTexCoord")
         sep = nt.nodes.new("ShaderNodeSeparateXYZ")
+        mulz = nt.nodes.new("ShaderNodeMath"); mulz.operation = 'MULTIPLY'
+        mulz.inputs[1].default_value = slope
+        add = nt.nodes.new("ShaderNodeMath"); add.operation = 'ADD'
         rng = nt.nodes.new("ShaderNodeMapRange")
-        rng.inputs["From Min"].default_value = aft
-        rng.inputs["From Max"].default_value = aft + fade
+        rng.inputs["From Min"].default_value = cut - soft
+        rng.inputs["From Max"].default_value = cut + soft
         rng.inputs["To Min"].default_value = 0.0
         rng.inputs["To Max"].default_value = 1.0
         mix = nt.nodes.new("ShaderNodeMix")
         mix.data_type = 'RGBA'; mix.blend_type = 'MIX'
         mix.inputs[6].default_value = (*rgb(color), 1.0)     # A: the tail colour
         nt.links.new(gco.outputs["Object"], sep.inputs["Vector"])
-        nt.links.new(sep.outputs["X"], rng.inputs["Value"])
+        nt.links.new(sep.outputs["Z"], mulz.inputs[0])
+        nt.links.new(sep.outputs["X"], add.inputs[0])
+        nt.links.new(mulz.outputs[0], add.inputs[1])
+        nt.links.new(add.outputs[0], rng.inputs["Value"])
         nt.links.new(rng.outputs["Result"], mix.inputs["Factor"])
         nt.links.new(tex.outputs["Color"], mix.inputs[7])    # B: the aeroplane's own paint
         nt.links.new(mix.outputs[2], bsdf.inputs["Base Color"])
@@ -838,19 +852,16 @@ def paint_tail(o, m, color, name="TailBlack", aft_frac=0.72, mode="full", fade=1
     if mt.name not in [x.name for x in me.materials if x]:
         me.materials.append(mt)
     idx = [i for i, x in enumerate(me.materials) if x and x.name == mt.name][0]
-    hs = m["halfspan"]; htz = m["htail_z"]; hts = m["htail_span"]
-    az = m["ax_z"]
     n = 0
     for p in me.polygons:
         c = p.center
         tail = False
         if mode == "full":
-            # Reach forward by the whole fade band, or the gradient has no room
-            # to run and the join is a hard edge again. The z guard keeps the
-            # tail wheel and its leg their own colour, as in the reference art.
-            if c.x < aft + fade and abs(c.y) < 0.32 * hs and c.z > htz - 0.55:
+            # Hand over the whole aft end and let the shader find the line. The z
+            # guard keeps the tail wheel and its leg their own colour.
+            if c.x < aft + 3.4 and abs(c.y) < 0.32 * hs and c.z > htz - 0.55:
                 tail = True                                # aft fuselage
-            if c.x < aft + 0.6 and abs(c.z - htz) < 0.40 and 0.06 * hts < abs(c.y) <= 1.20 * hts:
+            if c.x < aft + 0.6 and abs(c.z - htz) < 0.40 and 0.25 * hts < abs(c.y) <= 1.20 * hts:
                 tail = True                                # tailplane
         if c.x < aft + 0.6 and abs(c.y) < 0.17 * hs and c.z > az + 0.45:
             tail = True                                    # fin
@@ -874,8 +885,11 @@ def add_fin_bolt(o, m, color=(246, 246, 244), name="FinBolt"):
            and fz0 - 0.05 <= c.z <= fz1 + 0.20 and abs(c.y) < 0.14 * m["halfspan"]]
     half_y = max((abs(c.y) for c in fin), default=0.06)
 
-    x0, x1 = fn_te + 0.10, fn_le - 0.10
-    z0, z1 = fz0 - 0.26, fz1 - 0.03
+    # Sized and placed off the reference art: about a third of the fin's chord
+    # and half its height, sitting high and well forward, not filling the fin.
+    ch, ht = (fn_le - fn_te), (fz1 - fz0)
+    x0 = fn_te + 0.40 * ch; x1 = x0 + 0.42 * ch
+    z0 = fz0 + 0.02 * ht; z1 = z0 + 0.95 * ht
     w, h = (x1 - x0), (z1 - z0)
     # Mirrored: the bolt leans the other way. Written as the original shape with
     # u flipped, so the silhouette is unchanged and only its direction turns.
