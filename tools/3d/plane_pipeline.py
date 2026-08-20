@@ -249,8 +249,11 @@ def assemble_prop(m, R, m_wood, m_gold, m_brass, tag="PROP"):
     for p in dome.data.polygons: p.use_smooth = True
     parts.append(dome)
 
-    # No spinning crankcase plate here: at cowling width it sat in front of the
-    # cylinders as a mirror-bright bell. The hub alone is enough.
+    # Brass shaft nose bridging cowling to propeller. Without it the blades hang
+    # in mid-air with a gap behind them; at cowling width it read as a bell, so
+    # keep it about a third of the bore and sink its base inside the cowling.
+    parts.append(prim("primitive_cone_add", tag + "_SHAFT", (-0.11, 0, 0), vertices=44,
+                      radius1=0.40 * m["lip_r"], radius2=0.26 * m["lip_r"], depth=0.30))
 
     piv = bpy.data.objects.new(tag + "_PIVOT", None)
     bpy.context.scene.collection.objects.link(piv)
@@ -677,36 +680,41 @@ def paint_tail(o, m, color, name="TailBlack", aft_frac=0.72, mode="full"):
     return n
 
 def add_fin_bolt(o, m, color=(246, 246, 244), name="FinBolt"):
-    """White lightning decal on the fin, one flat plate on each side."""
-    V = [v.co for v in o.data.vertices]
+    """White lightning on the fin, welded into the airframe mesh itself.
+
+    As a separate plate it could only sit ahead of the hinge, which pushed it
+    into the front half of the fin instead of the middle, because the fin's
+    midpoint is almost exactly the rudder hinge. Built into the mesh, the rear
+    half picks up the rudder's vertex weights and swings with it."""
+    me = o.data
+    V = [v.co for v in me.vertices]
     fn_te, fn_le = m["fin_chord"]; fz0, fz1 = m["fin_z"]
-    hinge = fn_te + 0.46 * (fn_le - fn_te)
     fin = [c for c in V if fn_te - 0.05 <= c.x <= fn_le + 0.05
            and fz0 - 0.05 <= c.z <= fz1 + 0.20 and abs(c.y) < 0.14 * m["halfspan"]]
     half_y = max((abs(c.y) for c in fin), default=0.06)
 
-    # Keep the decal strictly inside the fin outline - it used to overshoot the
-    # top of the fin and float above the tail.
-    # fill the fin: fz0 is clipped by the measuring filter, so reach below it,
-    # and stay ahead of the hinge so the rudder does not swing out from under it
-    x0, x1 = hinge + 0.01, fn_le - 0.02
-    z0, z1 = fz0 - 0.30, fz1 - 0.01
+    x0, x1 = fn_te + 0.10, fn_le - 0.10
+    z0, z1 = fz0 - 0.26, fz1 - 0.03
     w, h = (x1 - x0), (z1 - z0)
-    # unit lightning bolt, nose of the plane is +X so the bolt leans forward
     UV = [(0.60, 1.00), (0.16, 0.46), (0.46, 0.46), (0.26, 0.00),
           (0.86, 0.58), (0.54, 0.58)]
+
     mt = mat(name + "_mat", rgb(color), 0.55, 0.0)
-    made = []
+    if mt.name not in [x.name for x in me.materials if x]:
+        me.materials.append(mt)
+    idx = [i for i, x in enumerate(me.materials) if x and x.name == mt.name][0]
+
+    bm = bmesh.new(); bm.from_mesh(me)
+    made = 0
     for sgn in (-1, 1):
-        bm = bmesh.new()
         vs = [bm.verts.new((x0 + u * w, sgn * (half_y + 0.012), z0 + v * h)) for u, v in UV]
-        try: bm.faces.new(vs if sgn > 0 else list(reversed(vs)))
-        except Exception: pass
-        bmesh.ops.recalc_face_normals(bm, faces=bm.faces[:])
-        md = bpy.data.meshes.new("%s_%d" % (name, sgn))
-        bm.to_mesh(md); bm.free()
-        md.materials.append(mt)
-        ob = bpy.data.objects.new(md.name, md)
-        bpy.context.scene.collection.objects.link(ob)
-        made.append(ob.name)
+        try:
+            f = bm.faces.new(vs if sgn > 0 else list(reversed(vs)))
+        except Exception:
+            continue
+        f.material_index = idx
+        f.smooth = False
+        made += 1
+    bmesh.ops.recalc_face_normals(bm, faces=[f for f in bm.faces if f.material_index == idx])
+    bm.to_mesh(me); bm.free(); me.update()
     return made
