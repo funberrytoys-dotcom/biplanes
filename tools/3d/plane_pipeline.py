@@ -913,14 +913,18 @@ def metalize_trim(o, m, base=(206, 146, 52), name="Duralumin",
 
 
 # ---------------------------------------------------------------- junk removal
-def strip_film_artifacts(o, max_verts=60, thin=0.22, wide=0.80):
+def strip_film_artifacts(o, upper_z=None, thin=0.22, wide=0.80,
+                         degenerate=12, floater=30):
     """Delete Tripo's stray membranes.
 
-    The generator leaves flat slivers behind: a ribbon floating over the top
-    wing, sails strung between the struts where rigging wires belong, and
-    degenerate strips along the tail. They all share a shape — a handful of
-    vertices spanning two big dimensions with almost no thickness. Real rigging
-    wires are thin in TWO directions, so they survive this test.
+    The generator leaves flat slivers behind: sails strung between the struts
+    where rigging wires belong (three vertices each), and ribbons floating over
+    the top wing. Both are flat — two big dimensions, no thickness.
+
+    The fin and tailplane are ALSO thin plates in this mesh, so thinness alone
+    is not enough: an early version ate the fin and left it hanging off the
+    fuselage. Only two things go: near-degenerate patches of a dozen vertices or
+    fewer, and flat pieces sitting above the upper wing, where nothing belongs.
     """
     me = o.data
     bm = bmesh.new(); bm.from_mesh(me)
@@ -936,10 +940,13 @@ def strip_film_artifacts(o, max_verts=60, thin=0.22, wide=0.80):
                 w = e.other_vert(cur)
                 if w.index not in seen:
                     seen.add(w.index); stack.append(w)
-        if len(comp) > max_verts: continue
+        if len(comp) > max(degenerate, floater): continue
         xs = [c.co.x for c in comp]; ys = [c.co.y for c in comp]; zs = [c.co.z for c in comp]
         size = sorted((max(xs) - min(xs), max(ys) - min(ys), max(zs) - min(zs)))
-        if size[0] < thin and size[1] > wide:
+        cz = (max(zs) + min(zs)) / 2
+        flat = size[0] < thin and size[1] > wide
+        above = upper_z is not None and cz > upper_z + 0.10
+        if flat and (len(comp) <= degenerate or (above and len(comp) <= floater)):
             kill.extend(comp)
             removed.append({"verts": len(comp), "size": [round(s, 2) for s in size]})
     if kill:

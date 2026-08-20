@@ -27,7 +27,7 @@ c = CFG[TAG]
 pp.wipe()
 o = pp.load(c["src"], span=10.0)
 m = pp.measure(o)
-film = pp.strip_film_artifacts(o)
+film = pp.strip_film_artifacts(o, upper_z=m["wing_up_z"])
 hole_r = pp.cut_prop(o, m)
 m_dark = pp.mat("EngineDark_" + TAG, (0.048, 0.045, 0.043), 0.52, 0.55)
 m_brass = pp.mat("PropBrass_" + TAG, pp.rgb(c["brass"]), 0.50, 0.45)

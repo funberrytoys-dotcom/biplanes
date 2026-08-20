@@ -107,19 +107,61 @@ if OUTLINE:
         ls.collection_negation = 'EXCLUSIVE'
 
 # ---- animation
+# The sheet holds three blocks so the game can show the controls actually
+# working: level flight, then a right bank and a left bank with the ailerons,
+# rudder and elevator deflected. Each block's propeller turn is a whole number
+# of half-revolutions, so it loops seamlessly on its own.
+# Set CONTROL_BLOCKS=True to bake the deflected blocks. Off by default: the
+# renderer has no block picker yet, so a sheet with banks in it would make the
+# aircraft twitch into a turn at random during level flight.
+CONTROL_BLOCKS = False
+LEVEL, BANK = (30, 10) if CONTROL_BLOCKS else (FRAMES, 0)
+assert LEVEL + BANK * 2 == FRAMES
+import importlib.util as _il
+_sp = _il.spec_from_file_location("pp", os.path.join(BASE, "plane_pipeline.py"))
+_pp = _il.module_from_spec(_sp); _sp.loader.exec_module(_pp)
+SIGN = _pp.CONTROL_SIGN
+AIL = ["ail_lo_L", "ail_lo_R", "ail_up_L", "ail_up_R"]
+P = rig.pose.bones
+
+def set_controls(f, roll, elev, rud):
+    for b in AIL:
+        P[b].rotation_euler = (0, math.radians(roll * SIGN[b]), 0)
+        P[b].keyframe_insert("rotation_euler", index=1, frame=f)
+    P["elevator"].rotation_euler = (0, math.radians(elev * SIGN["elevator"]), 0)
+    P["elevator"].keyframe_insert("rotation_euler", index=1, frame=f)
+    P["rudder"].rotation_euler = (0, math.radians(rud * SIGN["rudder"]), 0)
+    P["rudder"].keyframe_insert("rotation_euler", index=1, frame=f)
+
 sc.frame_start = 1; sc.frame_end = FRAMES
 sc.render.fps = 24
-deg_per_frame = HALF_TURNS * 180.0 / FRAMES
+ang = 0.0
 for f in range(1, FRAMES + 1):
-    t = (f - 1) / FRAMES
-    piv.rotation_euler = (math.radians(deg_per_frame * (f - 1)), 0, 0)
+    if f <= LEVEL:
+        i, n, roll = f - 1, LEVEL, 0.0
+        step = 7 * 180.0 / LEVEL          # whole half-turns across the block
+        amp, pitch = 0.085, 0.9
+    elif f <= LEVEL + BANK:
+        i, n, roll = f - LEVEL - 1, BANK, 24.0
+        step = 2 * 180.0 / BANK
+        amp, pitch = 0.045, 0.5
+    else:
+        i, n, roll = f - LEVEL - BANK - 1, BANK, -24.0
+        step = 2 * 180.0 / BANK
+        amp, pitch = 0.045, 0.5
+    t = i / n
+    ang = step * i
+    piv.rotation_euler = (math.radians(ang), 0, 0)
     piv.keyframe_insert("rotation_euler", index=0, frame=f)
-    bob.location = (0.0, 0.0, 0.085 * math.sin(2 * math.pi * t))
-    bob.rotation_euler = (0.0, math.radians(0.9 * math.sin(2 * math.pi * t + 1.1)), 0.0)
+    bob.location = (0.0, 0.0, amp * math.sin(2 * math.pi * t))
+    bob.rotation_euler = (0.0, math.radians(pitch * math.sin(2 * math.pi * t + 1.1)), 0.0)
     bob.keyframe_insert("location", index=2, frame=f)
     bob.keyframe_insert("rotation_euler", index=1, frame=f)
+    set_controls(f, roll, 0.0 if roll == 0 else 7.0, 0.0 if roll == 0 else roll * 0.42)
 for fc in piv.animation_data.action.fcurves:
     for kp in fc.keyframe_points: kp.interpolation = 'LINEAR'
+for fc in (rig.animation_data.action.fcurves if rig.animation_data else []):
+    for kp in fc.keyframe_points: kp.interpolation = 'CONSTANT'
 
 OUT = os.path.join(BASE, "bake_%s" % TAG)
 os.makedirs(OUT, exist_ok=True)
