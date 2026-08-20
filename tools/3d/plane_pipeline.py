@@ -385,21 +385,38 @@ CONTROL_SIGN = {"ail_lo_L": -1.0, "ail_lo_R": -1.0,
 
 
 # ---------------------------------------------------------------- flat repaint
-def repaint_flats(o, m, body, name="WingFlat", nz=0.40, rim=None):
+def repaint_flats(o, m, body, name="WingFlat", nz=0.40, rim=None,
+                  rim_chord=0.14, rim_tip=0.07):
     """Tripo bakes garbage onto the wing tops. Replace the flat upper/lower wing
-    and tailplane surfaces with the canonical flat colour; leave rims, struts and
-    the fuselage on the original texture."""
+    and tailplane surfaces with the canonical flat colour; leave struts and the
+    fuselage on the original texture.
+
+    `rim` is the decorative edging of the reference art, and it is a BAND, not a
+    hairline: down the leading edge and round the wingtip, plus the thin edge
+    faces in between. `rim_chord` and `rim_tip` are its width as a fraction of
+    the chord and of the half-span.
+    """
     me = o.data
     mt = mat(name, rgb(body), 0.52, 0.0)
     if mt.name not in [x.name for x in me.materials if x]:
         me.materials.append(mt)
     idx = [i for i, x in enumerate(me.materials) if x and x.name == mt.name][0]
     hs = m["halfspan"]
-    # (centre z, half thickness, minimum |y| as a fraction of half-span).
-    # The upper wing clears the fuselage, so it repaints all the way across;
-    # the lower wing and tailplane must leave the fuselage alone.
-    slabs = [(m["wing_lo_z"], 0.42, 0.14), (m["wing_up_z"], 0.46, 0.0)]
-    if "htail_z" in m: slabs.append((m["htail_z"], 0.30, 0.05))
+    # The upper wing clears the fuselage, so it repaints all the way across; the
+    # lower wing and the tailplane have to leave the fuselage alone. `ymin` is in
+    # WORLD units, not a fraction of the wing span: measured against the wing the
+    # tailplane's limit came out narrower than the fuselage itself, and the flat
+    # colour crept up the tail as a stray stripe along the flank.
+    slabs = [
+        dict(z=m["wing_lo_z"], half=0.42, ymin=0.14 * hs, span=hs,
+             chord=m.get("wing_lo_chord"), rim=True),
+        dict(z=m["wing_up_z"], half=0.46, ymin=0.0, span=hs,
+             chord=m.get("wing_up_chord"), rim=True),
+    ]
+    if "htail_z" in m:
+        hts = m["htail_span"]
+        slabs.append(dict(z=m["htail_z"], half=0.30, ymin=0.34 * hts, span=hts,
+                          chord=m.get("htail_chord"), rim=False))
     idx_rim = idx
     if rim is not None:
         mr = mat(name + "Rim", rgb(rim), 0.44, 0.25)
@@ -410,17 +427,86 @@ def repaint_flats(o, m, body, name="WingFlat", nz=0.40, rim=None):
     for p in me.polygons:
         c = p.center
         flat = abs(p.normal.z) >= nz
-        # the rim band is only the wing edge: well outboard of the fuselage, and
-        # never on the tail, or it swallows the cowling and the cockpit sides
-        rim_ok = (rim is not None and not flat and abs(c.y) > 0.30 * hs)
-        if not flat and not rim_ok: continue
-        for wz, half, ymin in slabs[:2] if rim_ok else slabs:
-            if abs(c.z - wz) < half and abs(c.y) >= ymin * hs:
-                p.material_index = idx if flat else idx_rim
+        for s in slabs:
+            if abs(c.z - s["z"]) >= s["half"]: continue
+            ay = abs(c.y)
+            if ay < s["ymin"] or ay > 1.25 * s["span"]: continue
+            edge = False
+            if s["rim"] and rim is not None:
+                ch = s["chord"]
+                if ch and c.x >= ch[1] - rim_chord * (ch[1] - ch[0]): edge = True
+                if ay > (1.0 - rim_tip) * s["span"]: edge = True
+                if not flat and ay > 0.30 * s["span"]: edge = True
+            if flat or edge:
+                p.material_index = idx_rim if edge else idx
                 n += 1
-                break
+            break
     me.update()
     return n
+
+
+def paint_gear_fairing(o, m, body, trim, name="Spat", keep_val=0.20, cap=0.30):
+    """The wheel fairings come off Tripo as a mess of shards, and the trim pass
+    gilds half of them. The reference art has a clean teardrop in the body colour
+    with a band of trim over its top, so paint that.
+
+    The tyre is the one genuinely dark thing down there and is left alone: faces
+    are judged on the brightness of the texture under them, not on where they
+    are, so no box has to be drawn around a wheel.
+    """
+    me = o.data
+    img = None
+    for mtx in me.materials:
+        if mtx and mtx.use_nodes:
+            for nd in mtx.node_tree.nodes:
+                if nd.type == 'TEX_IMAGE' and nd.image: img = nd.image
+    if img is None or not me.uv_layers.active:
+        return {}
+    W, H = img.size
+    px = img.pixels[:]
+    uvl = me.uv_layers.active.data
+
+    mb = mat(name, rgb(body), 0.50, 0.0)
+    mtr = mat(name + "Trim", rgb(trim), 0.24, 0.9)
+    for x in (mb, mtr):
+        if x.name not in [y.name for y in me.materials if y]:
+            me.materials.append(x)
+    i_body = [i for i, x in enumerate(me.materials) if x and x.name == mb.name][0]
+    i_trim = [i for i, x in enumerate(me.materials) if x and x.name == mtr.name][0]
+
+    # Find the gear on the mesh instead of guessing at a box: everything hanging
+    # well below the lower wing, forward of the tail wheel.
+    V = [v.co for v in me.vertices]
+    lo_z = m["wing_lo_z"] - 0.45
+    mn_x, mx_x = m["mn"][0], m["mx"][0]
+    fwd = mn_x + 0.45 * (mx_x - mn_x)
+    gear = [c for c in V if c.z < lo_z and c.x > fwd and abs(c.y) < 1.6 * m["halfspan"] * 0.35]
+    if not gear:
+        return {}
+    gz0 = min(c.z for c in gear); gz1 = max(c.z for c in gear)
+    gx0 = min(c.x for c in gear); gx1 = max(c.x for c in gear)
+
+    def val_at(u, v):
+        xi = min(W - 1, max(0, int(u * W))); yi = min(H - 1, max(0, int((1.0 - v) * H)))
+        off = (yi * W + xi) * 4
+        return max(l2s(px[off]), l2s(px[off + 1]), l2s(px[off + 2]))
+
+    nb = nt = 0
+    for p in me.polygons:
+        c = p.center
+        if not (gz0 - 0.05 <= c.z <= gz1 + 0.05 and gx0 - 0.05 <= c.x <= gx1 + 0.05):
+            continue
+        uvs = [uvl[li].uv for li in p.loop_indices]
+        cu = sum(a[0] for a in uvs) / len(uvs); cv = sum(a[1] for a in uvs) / len(uvs)
+        if val_at(cu, cv) < keep_val:
+            continue                      # the tyre keeps its own black
+        top = c.z > gz1 - cap * (gz1 - gz0)
+        p.material_index = i_trim if top else i_body
+        if top: nt += 1
+        else: nb += 1
+    me.update()
+    return {"body_faces": nb, "trim_faces": nt,
+            "box": [round(gx0, 2), round(gx1, 2), round(gz0, 2), round(gz1, 2)]}
 
 
 # ---------------------------------------------------------------- gun seating
