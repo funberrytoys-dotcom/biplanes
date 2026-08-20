@@ -17,6 +17,10 @@ export const FULL_REV = 28;
 export const CRISP_BELOW = 4.5;
 /** Above this the propeller is a solid smear — the last blur frame. */
 export const BLUR_FULL = 17;
+/** Revs either side of CRISP_BELOW that the propeller has to cross before it
+ *  swaps between crisp blades and a smear. Without it a throttle sitting on the
+ *  line makes the propeller strobe. */
+const CRISP_HYSTERESIS = 0.8;
 /** How fast a shut-down propeller winds down, per second. */
 const WINDDOWN = 0.28;
 
@@ -47,13 +51,31 @@ export function nextPropPhase(phase: number, rev: number, dt: number): number {
  * Frame index into the propeller sheet. The first `steps` frames are crisp
  * blades across a half turn; the `blurCount` after them are the fast smears,
  * from softest to strongest.
+ *
+ * `current` is the frame showing now. It is used only to keep the propeller from
+ * strobing: crossing between blades and smear needs a margin, and the smear
+ * moves one level at a time.
  */
-export function propFrameIndex(rev: number, phase: number, steps: number, blurCount: number): number {
-  if (blurCount <= 0 || rev < CRISP_BELOW) {
+export function propFrameIndex(rev: number, phase: number, steps: number, blurCount: number,
+                               current = -1): number {
+  const crisp = () => {
     const i = Math.floor((phase / HALF_TURN) * steps) % steps;
     return i < 0 ? i + steps : i;
-  }
-  const t = Math.min(1, (rev - CRISP_BELOW) / (BLUR_FULL - CRISP_BELOW));
-  const level = Math.min(blurCount - 1, Math.floor(t * blurCount));
-  return steps + level;
+  };
+  if (blurCount <= 0) return crisp();
+
+  const t = Math.min(1, Math.max(0, (rev - CRISP_BELOW) / (BLUR_FULL - CRISP_BELOW)));
+  const want = Math.min(blurCount - 1, Math.floor(t * blurCount));
+
+  // No frame showing yet — answer straight, with no history to be sticky about.
+  if (current < 0) return rev < CRISP_BELOW ? crisp() : steps + want;
+
+  const crispNow = current < steps;
+  const line = CRISP_BELOW + (crispNow ? CRISP_HYSTERESIS : -CRISP_HYSTERESIS);
+  if (rev < line) return crisp();
+  if (crispNow) return steps;                       // enter on the softest smear
+
+  const level = current - steps;
+  const next = want > level ? level + 1 : want < level ? level - 1 : level;
+  return steps + Math.min(blurCount - 1, Math.max(0, next));
 }

@@ -15,7 +15,7 @@ import type { FloatingNumbers } from '../floating-numbers.js';
 import type { GroundFx } from '../ground-fx.js';
 import type { ScreenEffectsHandle } from '../screen-effects.js';
 import { createPlaneBody } from './body.js';
-import { nextStick, type Stick } from './pose.js';
+import { nextRollIndex, nextStick, rollIndex, type Stick } from './pose.js';
 import { createPlaneControls } from './controls.js';
 import { createPilotHead } from './pilot-head.js';
 import { advanceKick, flightRollDegrees, flightWobble, wobblePhase, type KickState } from './wobble.js';
@@ -136,7 +136,11 @@ export function createPlaneSprite(
   // stick is sticky: the aeroplane is always drifting a little in pitch, so a
   // bare sign test would flick the elevator back and forth every other frame.
   let stick: Stick = 0;
+  let stickHeldFor = 0;
   let rollDeg = 0;
+  // The baked bank row currently showing. Kept here rather than recomputed from
+  // the angle each frame, because moving it is deliberately sticky — see pose.ts.
+  let rollRow = -1;
 
   // Flight motion — see wobble.ts. Render-only, so it never reaches the sim.
   let wobbleTime = 0;
@@ -227,14 +231,16 @@ export function createPlaneSprite(
         if (delta > Math.PI) delta -= Math.PI * 2;
         else if (delta < -Math.PI) delta += Math.PI * 2;
         pitchRate = delta / Math.max(0.001, dt);
-        stick = nextStick(stick, pitchRate, p.alive && p.state === 'flying');
+        stickHeldFor += dt;
+        const wanted = nextStick(stick, pitchRate, p.alive && p.state === 'flying', stickHeldFor);
+        if (wanted !== stick) { stick = wanted; stickHeldFor = 0; }
       }
       // The propeller is its own sheet now, spun by the throttle rather than
       // baked at one speed — see prop-spin.ts.
       {
         const engineOn = p.alive && p.state !== 'crashed'
           && (p.state === 'flying' || (p.kinematic.throttleOn ?? false));
-        updateArt(dt, { rollDeg, stick }, engineOn, p.kinematic.throttleLevel ?? 0);
+        updateArt(dt, { rollRow, stick }, engineOn, p.kinematic.throttleLevel ?? 0);
       }
 
       // Ground shadow: directly under the plane, biggest/darkest near the deck,
@@ -343,6 +349,12 @@ export function createPlaneSprite(
           pitchRate,
           kick: kick.value,
         });
+        const rollSteps = body.rollSteps;
+        if (rollSteps && rollSteps.length > 0) {
+          rollRow = rollRow < 0
+            ? rollIndex(rollDeg, rollSteps)
+            : nextRollIndex(rollRow, rollDeg, rollSteps);
+        }
         c.rotation += sway.rotation + kick.value * 0.5;
         c.y += sway.heave;
       }

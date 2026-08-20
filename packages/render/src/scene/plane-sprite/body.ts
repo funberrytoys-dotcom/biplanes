@@ -1,5 +1,5 @@
 import { Container, Graphics, Rectangle, Sprite, Texture } from 'pixi.js';
-import { elevIndex, poseFrame, rollIndex, type Stick } from './pose.js';
+import { elevIndex, poseFrame, type Stick } from './pose.js';
 import { easePropRev, nextPropPhase, propFrameIndex, propRevsPerSecond } from './prop-spin.js';
 import { assetUrl } from '../../asset-url.js';
 
@@ -19,6 +19,9 @@ export interface PlaneBodyHandle {
   artSprite: Sprite;
   /** Scale the sheet is drawn at, so the shadow can match its footprint. */
   artScale: number;
+  /** The bank angles baked into this sheet, or null for the painted art, which
+   *  has no poses. The sprite picks a row out of these. */
+  rollSteps: readonly number[] | null;
 }
 
 const PLANE_ART = {
@@ -107,8 +110,8 @@ const PLANE_ART_3D: { player: PlaneArtDef; enemy: PlaneArtDef; enemy2: PlaneArtD
     frameCount: 39,
     columns: 7,
     fps: 24,
-    cockpit: { x: 186, y: 159, h: 56 },
-    bob: [[0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, -1.3], [0.0, -1.3], [0.0, -1.3], [0.0, -1.9], [0.0, -1.9], [0.0, -1.9], [0.0, -2.1], [0.0, -2.1], [0.0, -2.1], [0.0, -2.2], [0.0, -2.2], [0.0, -2.2], [0.0, -2.3], [0.0, -2.3], [0.0, -2.3], [0.0, -2.4], [0.0, -2.4], [0.0, -2.4], [0.0, -2.4], [0.0, -2.4], [0.0, -2.4], [0.0, -2.4], [0.0, -2.4], [0.0, -2.4], [0.0, -2.4], [0.0, -2.4], [0.0, -2.4], [0.0, -2.3], [0.0, -2.3], [0.0, -2.3], [0.0, -1.9], [0.0, -1.9], [0.0, -1.9], [0.0, -1.0], [0.0, -1.0], [0.0, -1.0]],
+    cockpit: { x: 186, y: 170, h: 56 },
+    bob: [[0.0, 0.0], [0.0, 0.0], [0.0, 0.0], [0.0, -0.7], [0.0, -0.7], [0.0, -0.7], [0.0, -1.1], [0.0, -1.1], [0.0, -1.1], [0.0, -1.2], [0.0, -1.2], [0.0, -1.2], [0.0, -1.3], [0.0, -1.3], [0.0, -1.3], [0.0, -1.3], [0.0, -1.3], [0.0, -1.3], [0.0, -1.4], [0.0, -1.4], [0.0, -1.4], [0.0, -1.4], [0.0, -1.4], [0.0, -1.4], [0.0, -1.4], [0.0, -1.4], [0.0, -1.4], [0.0, -1.4], [0.0, -1.4], [0.0, -1.4], [0.0, -1.3], [0.0, -1.3], [0.0, -1.3], [0.0, -1.1], [0.0, -1.1], [0.0, -1.1], [0.0, -0.6], [0.0, -0.6], [0.0, -0.6]],
     poses: { roll: [-22.0, -14.0, -9.0, -6.0, -3.6, -1.8, 0.0, 1.8, 3.6, 6.0, 9.0, 14.0, 22.0], elev: [34.0, 0.0, -34.0] },
     prop: {
       url: assetUrl('assets/biplanes/prop_player_sov_3d_sheet.png'),
@@ -194,7 +197,7 @@ const COCKPIT_PILOT_ART = {
 // hitch on phones.
 const planeFrameCache = new Map<string, Texture[]>();
 
-const LEVEL_POSE: PlanePose = { rollDeg: 0, stick: 0 };
+const LEVEL_POSE: PlanePose = { rollRow: 0, stick: 0 };
 
 function getPlaneFrames(art: PlaneArtDef): Texture[] {
   const cached = planeFrameCache.get(art.url);
@@ -222,8 +225,8 @@ function getPropFrames(prop: NonNullable<PlaneArtDef['prop']>): Texture[] {
 
 /** How the airframe is being flown, as far as the art is concerned. */
 export interface PlanePose {
-  /** Bank in degrees; negative dips the near wing. */
-  rollDeg: number;
+  /** Which baked bank row to show — already smoothed by the caller. */
+  rollRow: number;
   /** Stick back, centred or forward. */
   stick: Stick;
 }
@@ -247,8 +250,8 @@ function createAnimatedPlaneArt(art: PlaneArtDef): {
       time += dt;
       const poses = art.poses;
       const frame = poses
-        ? poseFrame(rollIndex(pose.rollDeg, poses.roll), elevIndex(pose.stick, poses.elev.length),
-                    poses.elev.length)
+        ? poseFrame(Math.max(0, Math.min(poses.roll.length - 1, pose.rollRow)),
+                    elevIndex(pose.stick, poses.elev.length), poses.elev.length)
         : Math.floor(time * art.fps) % frames.length;
       sprite.texture = frames[frame] ?? firstFrame;
       return frame;
@@ -290,6 +293,7 @@ export function createPlaneBody(faction: 'player' | 'enemy', heroPilot = false, 
   const propSprite = propArt && propFrames[0] ? new Sprite(propFrames[0]) : null;
   let propRev = 0;
   let propPhase = 0;
+  let propFrame = 0;
   if (propSprite && propArt) {
     propSprite.anchor.set(0.5);
     propSprite.scale.set(-artScale, artScale);
@@ -461,13 +465,15 @@ export function createPlaneBody(faction: 'player' | 'enemy', heroPilot = false, 
     propellerX: noseX,
     artSprite: planeArt,
     artScale,
+    rollSteps: art.poses ? art.poses.roll : null,
     updateArt(dt: number, pose: PlanePose = LEVEL_POSE, engineOn = true, throttle = 1) {
       const frame = artHandle.update(dt, pose);
       if (propSprite && propArt) {
         propRev = easePropRev(propRev, propRevsPerSecond(engineOn, throttle), dt);
         propPhase = nextPropPhase(propPhase, propRev, dt);
-        const idx = propFrameIndex(propRev, propPhase, propArt.steps, propArt.frameCount - propArt.steps);
-        propSprite.texture = propFrames[idx] ?? propFrames[0]!;
+        propFrame = propFrameIndex(propRev, propPhase, propArt.steps,
+                                   propArt.frameCount - propArt.steps, propFrame);
+        propSprite.texture = propFrames[propFrame] ?? propFrames[0]!;
       }
       if (!pilotSprite.visible) {
         const tex = pilotSprite.texture;

@@ -101,3 +101,40 @@ describe('nextPropPhase', () => {
     }
   });
 });
+
+describe('propFrameIndex — the anti-strobe rules', () => {
+  it('does not swap between blades and smear on a throttle sitting on the line', () => {
+    let frame = 0;
+    let phase = 0;
+    let crossings = 0;
+    let wasCrisp = true;
+    for (let i = 0; i < 400; i++) {
+      const rev = CRISP_BELOW + Math.sin(i * 1.9) * 0.5;   // straddles the boundary
+      phase = nextPropPhase(phase, rev, 1 / 60);
+      frame = propFrameIndex(rev, phase, STEPS, BLUR, frame);
+      const crisp = frame < STEPS;
+      if (crisp !== wasCrisp) crossings++;
+      wasCrisp = crisp;
+    }
+    expect(crossings).toBeLessThanOrEqual(1);
+  });
+
+  it('climbs the blur levels one at a time', () => {
+    let frame = STEPS;
+    const seen: number[] = [];
+    for (let i = 0; i < 10; i++) {
+      frame = propFrameIndex(FULL_REV, 0, STEPS, BLUR, frame);
+      seen.push(frame);
+    }
+    expect(seen[0]).toBe(STEPS + 1);
+    expect(seen[seen.length - 1]).toBe(STEPS + BLUR - 1);
+  });
+
+  it('still ends up smeared at full gas and crisp at rest', () => {
+    let frame = 0;
+    for (let i = 0; i < 30; i++) frame = propFrameIndex(FULL_REV, 0, STEPS, BLUR, frame);
+    expect(frame).toBe(STEPS + BLUR - 1);
+    for (let i = 0; i < 30; i++) frame = propFrameIndex(0.5, 0.1, STEPS, BLUR, frame);
+    expect(frame).toBeLessThan(STEPS);
+  });
+});

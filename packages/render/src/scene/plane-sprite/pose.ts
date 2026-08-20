@@ -14,6 +14,11 @@ export type Stick = -1 | 0 | 1;
 export const STICK_ON = 0.75;
 /** The lower rate it has to settle back under before the elevator centres. */
 export const STICK_OFF = 0.35;
+/** Seconds the elevator has to hold a position before it may change again. Even
+ *  with a gap between the two thresholds, a pitch rate that hovers on one of them
+ *  flips the elevator every few frames, which reads as a buzz rather than as
+ *  flying. Nothing an aeroplane does needs the elevator to move faster than this. */
+export const STICK_DWELL = 0.09;
 
 /**
  * Sticky on purpose. Gravity and the stall physics keep the nose drifting a
@@ -23,12 +28,14 @@ export const STICK_OFF = 0.35;
  * `pitchRate` is signed rad/s, positive the way stick-forward swings the nose,
  * whichever way round the aircraft happens to be.
  */
-export function nextStick(current: Stick, pitchRate: number, airborne: boolean): Stick {
+export function nextStick(current: Stick, pitchRate: number, airborne: boolean, heldFor = Infinity): Stick {
   if (!airborne) return 0;
-  if (pitchRate > STICK_ON) return 1;
-  if (pitchRate < -STICK_ON) return -1;
-  if (Math.abs(pitchRate) < STICK_OFF) return 0;
-  return current;
+  const want = pitchRate > STICK_ON ? 1
+    : pitchRate < -STICK_ON ? -1
+    : Math.abs(pitchRate) < STICK_OFF ? 0
+    : current;
+  if (want === current) return current;
+  return heldFor < STICK_DWELL ? current : (want as Stick);
 }
 
 /**
@@ -43,6 +50,10 @@ export function elevIndex(stick: Stick, elevCount: number): number {
   return Math.floor(elevCount / 2);
 }
 
+/** How far past the midpoint between two baked banks the aeroplane has to roll
+ *  before it takes the next one, as a fraction of the gap between them. */
+export const ROLL_STICKINESS = 0.35;
+
 /** The roll row whose baked angle sits closest to the one asked for. */
 export function rollIndex(rollDeg: number, steps: readonly number[]): number {
   if (steps.length === 0) return 0;
@@ -53,6 +64,31 @@ export function rollIndex(rollDeg: number, steps: readonly number[]): number {
     if (gap < bestGap) { bestGap = gap; best = i; }
   }
   return best;
+}
+
+/**
+ * The roll row to show next, given the one showing now.
+ *
+ * Two rules, both there to stop the aeroplane buzzing. It moves ONE row at a
+ * time, so a slammed stick walks the bank across instead of teleporting; and it
+ * only crosses into the next row once the roll is past the halfway point by a
+ * margin, so a roll that sits on a boundary stays put instead of flickering
+ * between two poses every other frame.
+ */
+export function nextRollIndex(current: number, rollDeg: number, steps: readonly number[]): number {
+  if (steps.length === 0) return 0;
+  const cur = current < 0 ? 0 : current > steps.length - 1 ? steps.length - 1 : current;
+  const want = rollIndex(rollDeg, steps);
+  if (want === cur) return cur;
+  const dir = want > cur ? 1 : -1;
+  const next = cur + dir;
+  const here = steps[cur] ?? 0;
+  const there = steps[next] ?? 0;
+  const gap = Math.abs(there - here);
+  if (gap <= 0) return next;
+  const midpoint = (here + there) / 2;
+  const past = dir > 0 ? rollDeg - midpoint : midpoint - rollDeg;
+  return past > gap * ROLL_STICKINESS ? next : cur;
 }
 
 /** Frame number in the sheet for a row and a column of the grid. */

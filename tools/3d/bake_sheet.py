@@ -229,7 +229,11 @@ if probe is None:
     probe = bpy.data.objects.new("CK_PROBE", None)
     sc.collection.objects.link(probe)
 probe.parent = bob; probe.matrix_parent_inverse = Matrix.Identity(4)
-CK = {"sov": (0.05, 0.0, 0.62), "jkl": (-0.10, 0.0, 0.72), "jkl2": (-0.10, 0.0, 0.72)}[TAG]
+# Where the pilot bust is planted, in model space. The bust hangs by its BOTTOM
+# from this point, so it wants to sit INSIDE the cockpit opening, not on its rim:
+# too high and the pilot looks perched on the fuselage. Retuned for the second
+# generation of models, whose cockpits sit lower than the first.
+CK = {"sov": (0.05, 0.0, 0.35), "jkl": (-0.10, 0.0, 0.72), "jkl2": (-0.10, 0.0, 0.72)}[TAG]
 probe.location = CK
 track = []
 for f in range(1, FRAMES + 1):

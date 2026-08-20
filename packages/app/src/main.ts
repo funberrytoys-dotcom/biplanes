@@ -988,7 +988,7 @@ const DEBUG_HUD_ON_BOOT = URL_PARAMS.has('debug');
 let CONTROLS_CONFIG = getControlsConfig();
 // Bump every deploy. Shown always-on bottom-left so a home-screen iPhone app (no
 // address bar for ?debug) can confirm WHICH build is live + read FPS/counts on a freeze.
-const BUILD_TAG = 'v37-3d-planes';
+const BUILD_TAG = 'v38-steady-planes';
 // Phones are fill-rate bound (many big semi-transparent clouds + explosions = overdraw).
 // Lighten those on touch devices only; PC/Steam keep full quality.
 const IS_MOBILE = typeof navigator !== 'undefined' && navigator.maxTouchPoints > 0;
