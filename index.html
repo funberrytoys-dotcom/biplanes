@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <!-- Don't cache the HTML — it points at hashed JS bundles, so a fresh HTML fetch always
+       loads the latest deploy. Without this, phones/Telegram kept showing an old build. -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <meta name="theme-color" content="#07111f" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Biplanes" />
+  <meta name="application-name" content="Biplanes" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="assets/fonts/biplanes-mono.css" />
+  <link rel="icon" type="image/png" href="favicon.png" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <title>Biplanes Prototype</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --phone-w: min(96vw, 1180px);
+      --phone-h: min(86vh, calc(var(--phone-w) * 0.461));
+      --app-height: 100dvh;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      min-height: 100%;
+      overflow: hidden;
+      background: #0a1428;
+      touch-action: none;
+      overscroll-behavior: none;
+    }
+
+    body {
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    #device-shell {
+      width: 100vw;
+      width: 100dvw;
+      height: var(--app-height);
+      min-height: 100svh;
+    }
+
+    #device-screen,
+    #game {
+      width: 100%;
+      height: 100%;
+    }
+
+    #device-screen {
+      position: relative;
+      overflow: hidden;
+      background: #07111f;
+      padding:
+        env(safe-area-inset-top)
+        env(safe-area-inset-right)
+        env(safe-area-inset-bottom)
+        env(safe-area-inset-left);
+      box-sizing: border-box;
+    }
+
+    #game {
+      position: relative;
+      overflow: hidden;
+      background: #07111f;
+    }
+
+    body.device-preview {
+      background:
+        radial-gradient(circle at 20% 10%, rgba(76, 146, 255, 0.18), transparent 34%),
+        radial-gradient(circle at 78% 85%, rgba(255, 158, 64, 0.12), transparent 32%),
+        #070b14;
+    }
+
+    body.device-preview #device-shell {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      width: var(--phone-w);
+      height: var(--phone-h);
+      max-height: 86vh;
+      transform: translate(-50%, -50%);
+      box-sizing: border-box;
+      padding: clamp(12px, 1.25vw, 20px);
+      border-radius: clamp(34px, 4.8vw, 70px);
+      background:
+        linear-gradient(145deg, #202633 0%, #05070b 44%, #2d3442 100%);
+      box-shadow:
+        0 26px 80px rgba(0, 0, 0, 0.56),
+        inset 0 0 0 2px rgba(255, 255, 255, 0.12),
+        inset 0 0 0 7px rgba(0, 0, 0, 0.52);
+    }
+
+    body.device-preview #device-screen {
+      padding: 0;
+      border-radius: clamp(24px, 3.7vw, 54px);
+      box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+        inset 0 0 32px rgba(0, 0, 0, 0.34);
+    }
+
+    body.device-preview #device-screen::before {
+      content: "";
+      position: absolute;
+      left: clamp(8px, 1.2vw, 18px);
+      top: 50%;
+      z-index: 10;
+      width: clamp(26px, 3vw, 48px);
+      height: clamp(92px, 11vw, 148px);
+      transform: translateY(-50%);
+      border-radius: 999px;
+      background:
+        radial-gradient(circle at 50% 22%, #222936 0 13%, transparent 14%),
+        radial-gradient(circle at 50% 72%, #0d1018 0 18%, transparent 19%),
+        #05060a;
+      box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.08),
+        0 0 20px rgba(0, 0, 0, 0.32);
+      pointer-events: none;
+    }
+
+    body.device-preview #device-screen::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 9;
+      border-radius: inherit;
+      box-shadow:
+        inset clamp(24px, 5vw, 70px) 0 clamp(22px, 4vw, 52px) rgba(0, 0, 0, 0.2),
+        inset 0 0 0 clamp(3px, 0.6vw, 8px) rgba(0, 0, 0, 0.16);
+      pointer-events: none;
+    }
+
+    body.device-preview #game {
+      position: absolute;
+      inset: 0;
+    }
+
+    body.iphone15-preview {
+      --phone-w: min(96vw, 1180px);
+      --phone-h: min(86vh, calc(var(--phone-w) * 430 / 932));
+    }
+
+    body.phone-runtime #device-shell {
+      position: fixed;
+      inset: 0;
+      left: 0;
+      top: 0;
+      width: 100dvw;
+      height: var(--app-height);
+      max-height: none;
+      transform: none;
+      min-height: 100svh;
+      padding: 0;
+      overflow: hidden;
+      border-radius: 0;
+      background: #07111f;
+      box-shadow: none;
+    }
+
+    body.phone-runtime #device-screen {
+      position: absolute;
+      inset: 0;
+      width: 100dvw;
+      height: var(--app-height);
+      padding: 0;
+      border-radius: 0;
+      box-shadow: none;
+    }
+
+    body.phone-runtime #device-screen::before,
+    body.phone-runtime #device-screen::after {
+      content: none;
+    }
+
+    body.phone-runtime #game {
+      position: absolute;
+      inset: 0;
+      width: 100dvw;
+      height: var(--app-height);
+    }
+
+    #rotate-phone {
+      position: fixed;
+      inset: 0;
+      /* Выше экрана загрузки (z 60): при вертикальном телефоне СНАЧАЛА просим
+         повернуть экран, и только потом показываем загрузку и меню. */
+      z-index: 70;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 28px;
+      box-sizing: border-box;
+      color: #f7e6c6;
+      text-align: center;
+      background:
+        radial-gradient(circle at 50% 18%, rgba(255, 198, 92, 0.15), transparent 34%),
+        #060b15;
+      font: 700 22px/1.25 Inter, ui-sans-serif, system-ui, sans-serif;
+      letter-spacing: 0;
+    }
+
+    #rotate-phone span {
+      display: block;
+      max-width: 330px;
+      text-shadow: 0 2px 14px rgba(0, 0, 0, 0.7);
+    }
+
+    /* Самолётик: вертикальная свеча → дуга → горизонтальный полёт (просьба Сергея). */
+    #rotate-plane-stage {
+      width: min(74vw, 300px);
+      height: min(74vw, 300px);
+      position: relative;
+    }
+
+    /* Самолёт С.О.В. рисует облаками ПЕТЛИ-ПРЯМОУГОЛЬНИКИ: сначала вертикальный
+       (как телефон стоя), затем горизонтальный (как телефон лёжа). Полёт и облака
+       ведёт маленький скрипт ниже — CSS тут только оформление. */
+    #rotate-plane-stage img.rotate-plane {
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 64px;
+      height: auto;
+      will-change: transform;
+      filter: drop-shadow(0 6px 10px rgba(0, 0, 0, 0.45));
+      z-index: 2;
+    }
+
+    #rotate-plane-stage .puff {
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      margin: -8px 0 0 -8px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(255, 255, 255, 0.85) 0%, rgba(220, 230, 245, 0.45) 55%, transparent 75%);
+      opacity: 0;
+      transition: opacity 0.45s ease;
+      pointer-events: none;
+    }
+
+    #rotate-plane-stage .puff.on { opacity: 0.9; }
+    #rotate-plane-stage .puff.fade { opacity: 0; transition: opacity 0.8s ease; }
+
+    @media (orientation: portrait) and (max-width: 720px) {
+      body.phone-runtime #rotate-phone {
+        display: flex;
+      }
+    }
+
+    /* === Экран загрузки: лого TOYSBERRY + С.О.В. гонится за Шакалом === */
+    #boot-loader {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: clamp(10px, 3vh, 26px);
+      background:
+        radial-gradient(circle at 24% 16%, rgba(96, 150, 220, 0.18), transparent 42%),
+        radial-gradient(circle at 78% 80%, rgba(255, 158, 64, 0.10), transparent 38%),
+        linear-gradient(180deg, #0d1a33 0%, #0a1428 55%, #071020 100%);
+      overflow: hidden;
+      transition: opacity 0.35s ease;
+    }
+
+    #boot-loader.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #boot-loader .brand {
+      width: clamp(120px, 26vh, 220px);
+      height: auto;
+      filter: drop-shadow(0 8px 26px rgba(0, 0, 0, 0.5));
+      animation: boot-logo-breathe 3.2s ease-in-out infinite;
+    }
+
+    @keyframes boot-logo-breathe {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.035); }
+    }
+
+    #boot-chase {
+      position: relative;
+      width: 100%;
+      height: clamp(64px, 15vh, 110px);
+    }
+
+    #boot-chase .chase-strip {
+      position: absolute;
+      inset: 0;
+      animation: boot-chase-fly 7s linear infinite;
+    }
+
+    #boot-chase img {
+      position: absolute;
+      top: 0;
+      width: clamp(72px, 14vh, 118px);
+      height: auto;
+      filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.4));
+    }
+
+    /* Шакал удирает первым, Чико догоняет и СТРЕЛЯЕТ — связка летит справа налево. */
+    #boot-chase .jackal { left: 0; animation: boot-bob-a 1.7s ease-in-out infinite; }
+    #boot-chase .sov { left: clamp(96px, 19vh, 160px); animation: boot-bob-b 1.35s ease-in-out infinite; }
+
+    /* Трассеры очереди: летят от носа Чико к хвосту шакала. */
+    #boot-chase .tracer {
+      position: absolute;
+      left: clamp(96px, 19vh, 160px);
+      top: 44%;
+      width: clamp(10px, 2vh, 16px);
+      height: 3px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, #fff3b0, #ffb64a);
+      box-shadow: 0 0 6px rgba(255, 200, 90, 0.8);
+      opacity: 0;
+      animation: boot-tracer 0.55s linear infinite;
+    }
+
+    #boot-chase .tracer.t2 { animation-delay: 0.18s; top: 52%; }
+    #boot-chase .tracer.t3 { animation-delay: 0.36s; top: 47%; }
+
+    @keyframes boot-tracer {
+      0%   { transform: translateX(0); opacity: 0; }
+      8%   { opacity: 1; }
+      78%  { opacity: 1; }
+      100% { transform: translateX(calc(-1 * clamp(58px, 12vh, 100px))); opacity: 0; }
+    }
+
+    /* Вспышка у дула Чико. */
+    #boot-chase .muzzle {
+      position: absolute;
+      left: calc(clamp(96px, 19vh, 160px) - clamp(8px, 1.6vh, 13px));
+      top: 41%;
+      width: clamp(12px, 2.4vh, 20px);
+      height: clamp(12px, 2.4vh, 20px);
+      border-radius: 50%;
+      background: radial-gradient(circle, #fff7c9 0%, #ffc25a 45%, transparent 70%);
+      opacity: 0;
+      animation: boot-muzzle 0.55s steps(1) infinite;
+    }
+
+    @keyframes boot-muzzle {
+      0%, 10% { opacity: 0.95; transform: scale(1); }
+      14%, 100% { opacity: 0; transform: scale(0.6); }
+    }
+
+    @keyframes boot-chase-fly {
+      from { transform: translateX(100vw); }
+      to   { transform: translateX(calc(-19vh - 220px)); }
+    }
+
+    @keyframes boot-bob-a {
+      0%, 100% { margin-top: 0; rotate: 2deg; }
+      50% { margin-top: -12px; rotate: -3deg; }
+    }
+
+    @keyframes boot-bob-b {
+      0%, 100% { margin-top: -8px; rotate: -2deg; }
+      50% { margin-top: 5px; rotate: 3deg; }
+    }
+
+    #boot-loader .boot-text {
+      color: #cfd8ea;
+      font: 600 14px/1.2 Inter, ui-sans-serif, system-ui, sans-serif;
+      letter-spacing: 0.32em;
+      text-transform: uppercase;
+      animation: boot-text-pulse 1.6s ease-in-out infinite;
+    }
+
+    @keyframes boot-text-pulse {
+      0%, 100% { opacity: 0.45; }
+      50% { opacity: 1; }
+    }
+
+    body.device-preview::after {
+      content: "";
+      position: fixed;
+      left: 50%;
+      top: calc(50% + var(--phone-h) / 2 + 18px);
+      width: calc(var(--phone-w) * 0.82);
+      height: 24px;
+      transform: translateX(-50%);
+      border-radius: 50%;
+      background: rgba(0, 0, 0, 0.32);
+      filter: blur(16px);
+      pointer-events: none;
+    }
+  </style>
+  <script type="module" crossorigin src="./assets/index-DdJkeIPI.js"></script>
+  <link rel="modulepreload" crossorigin href="./assets/preload-helper-CmsKOCeN.js">
+</head>
+<body>
+  <div id="device-shell">
+    <div id="device-screen">
+      <div id="game"></div>
+    </div>
+  </div>
+  <div id="boot-loader">
+    <img class="brand" src="assets/brand/logo_toysberry.webp" alt="TOYSBERRY" />
+    <div id="boot-chase">
+      <div class="chase-strip">
+        <img class="jackal" src="assets/biplanes/plane_enemy_red.png" alt="" />
+        <img class="sov" src="assets/biplanes/plane_chico_blue.png" alt="" />
+        <div class="muzzle"></div>
+        <div class="tracer"></div>
+        <div class="tracer t2"></div>
+        <div class="tracer t3"></div>
+      </div>
+    </div>
+    <div class="boot-text">Загрузка…</div>
+  </div>
+  <div id="rotate-phone">
+    <div id="rotate-plane-stage"><img class="rotate-plane" src="assets/biplanes/plane_chico_blue.png" alt="" /></div>
+    <span>Держите экран горизонтально</span>
+  </div>
+  <script>
+    // === Экран «поверни телефон»: самолёт рисует облаками два прямоугольника ===
+    // Вертикальный (телефон стоя) → горизонтальный (телефон лёжа) → снова.
+    // Плюс: точка отсчёта минимального времени загрузки (__bootT0) сбрасывается,
+    // когда телефон повернули — экран загрузки начинается ЗАНОВО с этого момента.
+    (function () {
+      window.__bootT0 = performance.now();
+      var portraitMq = window.matchMedia('(orientation: portrait)');
+      var onFlip = function () {
+        if (!portraitMq.matches && document.getElementById('boot-loader')) {
+          window.__bootT0 = performance.now();
+        }
+      };
+      if (portraitMq.addEventListener) portraitMq.addEventListener('change', onFlip);
+
+      var stage = document.getElementById('rotate-plane-stage');
+      var plane = stage && stage.querySelector('img.rotate-plane');
+      if (!stage || !plane) return;
+
+      // Прямоугольники-петли в координатах сцены 300×300 (центрированы).
+      var RECTS = [
+        { x: 100, y: 30, w: 104, h: 218 },  // вертикальный — телефон стоя
+        { x: 38, y: 88, w: 228, h: 118 },   // горизонтальный — телефон лёжа
+      ];
+      var LAP_MS = 3400;      // один круг по периметру
+      var PAUSE_MS = 650;     // пауза между прямоугольниками (облака тают)
+      var PUFF_EVERY_MS = 80; // шаг облачного следа
+      var puffs = [];
+      var rectIdx = 0, phase = 'lap', phaseT = 0, lastPuffAt = 0, lastTs = null;
+
+      function pointOnRect(r, t) {
+        // t 0..1 по периметру, старт в левом нижнем углу, против часовой (вверх).
+        var per = 2 * (r.w + r.h);
+        var d = t * per;
+        if (d < r.h) return { x: r.x, y: r.y + r.h - d, a: -90 };
+        d -= r.h;
+        if (d < r.w) return { x: r.x + d, y: r.y, a: 0 };
+        d -= r.w;
+        if (d < r.h) return { x: r.x + r.w, y: r.y + d, a: 90 };
+        d -= r.h;
+        return { x: r.x + r.w - d, y: r.y + r.h, a: 180 };
+      }
+
+      function spawnPuff(x, y) {
+        var p = document.createElement('div');
+        p.className = 'puff';
+        p.style.left = x + 'px';
+        p.style.top = y + 'px';
+        stage.appendChild(p);
+        requestAnimationFrame(function () { p.classList.add('on'); });
+        puffs.push(p);
+        if (puffs.length > 120) { var old = puffs.shift(); old && old.remove(); }
+      }
+
+      function clearPuffs() {
+        puffs.forEach(function (p) { p.classList.add('fade'); });
+        var doomed = puffs;
+        puffs = [];
+        setTimeout(function () { doomed.forEach(function (p) { p.remove(); }); }, 900);
+      }
+
+      function tick(ts) {
+        requestAnimationFrame(tick);
+        if (lastTs === null) { lastTs = ts; return; }
+        var dt = ts - lastTs;
+        lastTs = ts;
+        // Не считаем, пока оверлей скрыт (телефон уже горизонтально).
+        if (!portraitMq.matches) return;
+        phaseT += dt;
+        if (phase === 'lap') {
+          var t = Math.min(1, phaseT / LAP_MS);
+          var r = RECTS[rectIdx];
+          var pos = pointOnRect(r, t);
+          // Арт смотрит влево: полёту «вверх» соответствует rotate(90deg).
+          var rot = pos.a === -90 ? 90 : pos.a === 0 ? 180 : pos.a === 90 ? 270 : 0;
+          plane.style.transform = 'translate(' + (pos.x - 32) + 'px,' + (pos.y - 12) + 'px) rotate(' + rot + 'deg)';
+          if (ts - lastPuffAt > PUFF_EVERY_MS) {
+            lastPuffAt = ts;
+            spawnPuff(pos.x, pos.y);
+          }
+          if (t >= 1) { phase = 'pause'; phaseT = 0; clearPuffs(); }
+        } else if (phaseT >= PAUSE_MS) {
+          phase = 'lap';
+          phaseT = 0;
+          rectIdx = (rectIdx + 1) % RECTS.length;
+        }
+      }
+      requestAnimationFrame(tick);
+    })();
+  </script>
+  <script defer src="https://telegram.org/js/telegram-web-app.js"></script>
+</body>
+</html>
